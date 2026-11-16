@@ -1,0 +1,13 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "product_id": "example-product",
+  "environment": "production",
+  "observed_at": "2026-11-15T16:00:00Z",
+  "window": "24h",
+  "source": "application",
+  "metrics": {
+    "leads": 12,
+    "signups": 9
+  }
+}

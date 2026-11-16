@@ -1,0 +1,30 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "product_id": "example-product",
+  "component_id": "backend",
+  "environment": "production",
+  "observed_at": "2026-11-15T16:00:00Z",
+  "release": {
+    "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+    "version": "1.8.2",
+    "deployed_at": "2026-11-14T12:30:00Z"
+  },
+  "health": {
+    "state": "healthy",
+    "checks": [
+      {
+        "id": "database",
+        "state": "healthy"
+      }
+    ]
+  },
+  "metrics": {
+    "leads_24h": 12,
+    "signups_24h": 9
+  },
+  "capabilities": [
+    "status",
+    "metrics"
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-16T02:00:39Z",
+  "title": "Design System: ForgeDeck website",
+  "extensions": {
+    "scope": "Governs site/ only. The macOS app follows design/KIT.md.",
+    "colorMeta": {
+      "sheet": { "role": "neutral", "displayName": "Prussian Sheet", "canonical": "#0e3361", "tonalRamp": ["#05142a", "#0a2850", "#0e3361", "#24497a", "#456795", "#6e8db5", "#a3bcd6", "#dbe5f0"] },
+      "sheet-deep": { "role": "neutral", "displayName": "Deep Sheet", "canonical": "#0a2850", "tonalRamp": ["#041022", "#0a2850", "#163663", "#2f4f7c", "#536f98", "#7f97b7", "#b0c1d6", "#e0e7f0"] },
+      "ink": { "role": "neutral", "displayName": "Drafting White", "canonical": "#eef4fb", "tonalRamp": ["#2b3846", "#4a5a6c", "#6c7d90", "#8fa1b4", "#b2c2d3", "#d1dde9", "#e3ebf5", "#eef4fb"] },
+      "ink-2": { "role": "neutral", "displayName": "Second Ink", "canonical": "#bfd2e8", "tonalRamp": ["#1c2a3a", "#33475e", "#4e6683", "#6d88a7", "#93abc7", "#bfd2e8", "#d9e5f2", "#eef4fa"] },
+      "ink-3": { "role": "neutral", "displayName": "Third Ink", "canonical": "#8fb0d4", "tonalRamp": ["#14243a", "#24405f", "#3a5c83", "#5679a3", "#7396bf", "#8fb0d4", "#bcd0e6", "#e6eef7"] },
+      "line": { "role": "neutral", "displayName": "Ruled Line", "canonical": "rgba(238, 244, 251, 0.82)" },
+      "hair": { "role": "neutral", "displayName": "Hairline", "canonical": "rgba(238, 244, 251, 0.28)" },
+      "grid": { "role": "neutral", "displayName": "Minor Grid", "canonical": "rgba(238, 244, 251, 0.055)" },
+      "grid-major": { "role": "neutral", "displayName": "Major Grid", "canonical": "rgba(238, 244, 251, 0.1)" },
+      "approved": { "role": "primary", "displayName": "Approval Stamp Green", "canonical": "#1f7a4c", "tonalRamp": ["#0a2a1a", "#124a2e", "#1f7a4c", "#186a40", "#4cad7a", "#7fc8a0", "#b5e0c8", "#e3f4ea"] },
+      "approved-hi": { "role": "primary", "displayName": "Approval Stamp Green, Lifted", "canonical": "#186a40", "tonalRamp": ["#0b2d1b", "#145032", "#1f7a4c", "#186a40", "#4cad7a", "#7fc8a0", "#b5e0c8", "#e3f4ea"] },
+      "prod": { "role": "secondary", "displayName": "Production Vermilion", "canonical": "#f08a6c", "tonalRamp": ["#3d150a", "#6e2814", "#a33e22", "#d05a3a", "#f08a6c", "#f5ab95", "#f9cdbf", "#fdece6"] },
+      "stamp-white": { "role": "neutral", "displayName": "Stamp White", "canonical": "#ffffff" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Drawing Title", "purpose": "The drawing title, once per sheet. Uppercase condensed." },
+      "headline": { "displayName": "Drawing Subtitle", "purpose": "The descriptive subtitle under a 2px ruled line." },
+      "title": { "displayName": "Section Heading", "purpose": "Section headings named after print parts. Uppercase condensed 700." },
+      "lede": { "displayName": "Lede", "purpose": "A section's opening paragraph, max 62ch." },
+      "body": { "displayName": "Body", "purpose": "Prose, notes, and steps." },
+      "label": { "displayName": "Note", "purpose": "The one note size: every key, tag, header, caption, and nav item. Uppercase condensed, ranked by weight, tracking, ink, and reversal." },
+      "mono": { "displayName": "Literal", "purpose": "Commands, versions, branch names." }
+    },
+    "shadows": [
+      { "name": "struck-forward", "value": "inset 0 0 0 2px var(--ink)", "purpose": "The active or hovered launch mode, which reads as a heavier ruled box. The only box-shadow in the system." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "All transitions." },
+      { "name": "leader-draw", "value": "stroke-dashoffset 900ms, stagger 120ms", "purpose": "Leaders draw in once when the specimen is first seen." },
+      { "name": "balloon-stamp", "value": "opacity 300ms, delay 650ms", "purpose": "Balloons and labels stamp in after the leaders." },
+      { "name": "state", "value": "160-220ms", "purpose": "Hover changes on the stamp, balloons, and launch modes." },
+      { "name": "reduced-motion", "value": "drawn on load", "purpose": "With reduced motion the drawing is shown finished and scrolling is instant." }
+    ],
+    "breakpoints": [
+      { "name": "single-mode", "value": "480px" },
+      { "name": "compact", "value": "640px" },
+      { "name": "narrow-sheet", "value": "720px" },
+      { "name": "vertical-chain", "value": "860px" },
+      { "name": "stacked", "value": "960px" },
+      { "name": "sheet-max", "value": "1600px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Download Stamp",
+      "kind": "button",
+      "refersTo": "stamp-download",
+      "description": "The one primary action: an inspector's approval stamp in green, placed in the title block.",
+      "html": "<a class=\"ds-stamp\" href=\"#\"><span class=\"ds-seal\"><svg viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"20\" r=\"17\"/><circle cx=\"20\" cy=\"20\" r=\"13\"/><path d=\"M13.5 20.5l4.5 4.5 8.5-9\"/></svg></span><span class=\"ds-stamp-text\"><span class=\"ds-stamp-k\">Approved · Rev 0.3</span><span class=\"ds-stamp-a\">Download ForgeDeck</span></span></a>",
+      "css": ".ds-stamp { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 18px 8px 10px; background: var(--approved, #1f7a4c); color: #fff; text-decoration: none; border: 2px solid #fff; outline: 2px solid var(--approved, #1f7a4c); outline-offset: 3px; font-family: 'Barlow Condensed', 'Barlow', system-ui, sans-serif; text-transform: uppercase; transition: background 160ms cubic-bezier(0.16,1,0.3,1), outline-color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-stamp:hover { background: var(--approved-hi, #186a40); outline-color: var(--approved-hi, #186a40); } .ds-stamp:focus-visible { outline: 2px solid #eef4fb; outline-offset: 3px; } .ds-seal svg { display: block; width: 40px; height: 40px; fill: none; stroke: #fff; stroke-width: 1.8; } .ds-seal path { stroke-width: 2.6; stroke-linecap: square; } .ds-stamp-text { display: flex; flex-direction: column; gap: 3px; } .ds-stamp-k { font-weight: 600; font-size: 1rem; line-height: 1; letter-spacing: 0.12em; opacity: 0.92; } .ds-stamp-a { font-weight: 700; font-size: 1.25rem; line-height: 1; letter-spacing: 0.05em; }"
+    },
+    {
+      "name": "Small Download Stamp",
+      "kind": "button",
+      "refersTo": "stamp-download-small",
+      "description": "The compact stamp in the footer title block.",
+      "html": "<a class=\"ds-stamp-sm\" href=\"#\"><svg viewBox=\"0 0 20 20\"><path d=\"M10 3v10M5.5 8.5 10 13l4.5-4.5M4 16.5h12\"/></svg><span>Download</span></a>",
+      "css": ".ds-stamp-sm { display: inline-flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 16px; background: #1f7a4c; color: #fff; text-decoration: none; border: 2px solid #fff; outline: 2px solid #1f7a4c; outline-offset: 3px; font: 600 1rem/1.2 'Barlow Condensed', 'Barlow', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-stamp-sm:hover { background: #186a40; outline-color: #186a40; } .ds-stamp-sm:focus-visible { outline: 2px solid #eef4fb; } .ds-stamp-sm svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; }"
+    },
+    {
+      "name": "Strip Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Section links in the top strip, lettered in second ink.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\">Evidence</a><a href=\"#\">Play</a><a href=\"#\">Work</a><a href=\"#\">Privacy</a><a href=\"#\">Install</a></nav>",
+      "css": ".ds-nav { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 14px 16px; background: #0e3361; border-bottom: 1px solid rgba(238,244,251,0.28); font: 600 1rem/1 'Barlow Condensed', 'Barlow', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; } .ds-nav a { color: #bfd2e8; text-decoration: none; padding: 6px 0; text-underline-offset: 0.2em; } .ds-nav a:hover { color: #eef4fb; text-decoration: underline; } .ds-nav a:focus-visible { outline: 2px solid #eef4fb; outline-offset: 3px; }"
+    },
+    {
+      "name": "Reversed Tag",
+      "kind": "chip",
+      "refersTo": "reversed-tag",
+      "description": "A note promoted by reversal, with a vermilion variant for Production only.",
+      "html": "<span class=\"ds-tag\">GitHub</span> <span class=\"ds-tag ds-tag-prod\">Production</span>",
+      "css": ".ds-tag { display: inline-block; font: 700 1rem/1 'Barlow Condensed', 'Barlow', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.08em; background: #eef4fb; color: #0e3361; padding: 5px 8px; } .ds-tag-prod { background: #f08a6c; color: #0a2850; }"
+    },
+    {
+      "name": "Title Block",
+      "kind": "card",
+      "refersTo": "title-block",
+      "description": "The ruled release grid: keys in third ink, values in ink.",
+      "html": "<div class=\"ds-tb\"><div><span class=\"ds-tb-k\">Title</span><strong class=\"ds-tb-rev\">ForgeDeck</strong></div><div><span class=\"ds-tb-k\">Rev</span><strong>0.3</strong></div><div><span class=\"ds-tb-k\">Fits</span>macOS 26+</div></div>",
+      "css": ".ds-tb { display: grid; grid-template-columns: 1.4fr 0.6fr 1fr; border: 1.5px solid rgba(238,244,251,0.82); background: #0e3361; color: #eef4fb; font: 600 1rem/1.25 'Barlow Condensed', 'Barlow', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; } .ds-tb > div { padding: 9px 12px; border-right: 1px solid rgba(238,244,251,0.28); } .ds-tb > div:last-child { border-right: 0; } .ds-tb strong { display: block; font-weight: 700; letter-spacing: 0.06em; } .ds-tb-k { display: block; color: #8fb0d4; font-weight: 500; } .ds-tb .ds-tb-rev { display: inline-block; margin-top: 4px; background: #eef4fb; color: #0e3361; padding: 4px 8px; }"
+    },
+    {
+      "name": "Balloon Callout",
+      "kind": "custom",
+      "refersTo": "balloon",
+      "description": "A numbered drafting balloon with a leader. It reverses on hover and shows its detail reference.",
+      "html": "<svg class=\"ds-balloon\" viewBox=\"0 0 260 120\" tabindex=\"0\"><path class=\"lead\" d=\"M40 60 L200 60\"/><path class=\"head\" d=\"M196 54 L210 60 L196 66 z\"/><circle cx=\"30\" cy=\"60\" r=\"20\"/><text x=\"30\" y=\"67\" class=\"n\">3</text><text x=\"60\" y=\"40\" class=\"lbl\">PLAY</text><text x=\"60\" y=\"100\" class=\"see\">SEE DETAIL B</text></svg>",
+      "css": ".ds-balloon { width: 260px; background: #0e3361; display: block; } .ds-balloon .lead { fill: none; stroke: #eef4fb; stroke-width: 2.4; } .ds-balloon .head { fill: #eef4fb; } .ds-balloon circle { fill: #0e3361; stroke: #eef4fb; stroke-width: 2.2; transition: fill 200ms cubic-bezier(0.16,1,0.3,1); } .ds-balloon .n { fill: #eef4fb; font: 700 22px 'Barlow Condensed', sans-serif; text-anchor: middle; transition: fill 200ms; } .ds-balloon .lbl { fill: #eef4fb; font: 700 21px 'Barlow Condensed', sans-serif; letter-spacing: 0.06em; } .ds-balloon .see { fill: #bfd2e8; font: 600 17px 'Barlow Condensed', sans-serif; letter-spacing: 0.08em; opacity: 0; transition: opacity 160ms; } .ds-balloon:hover circle, .ds-balloon:focus-visible circle { fill: #eef4fb; } .ds-balloon:hover .n, .ds-balloon:focus-visible .n { fill: #0e3361; } .ds-balloon:hover .see, .ds-balloon:focus-visible .see { opacity: 1; } .ds-balloon:focus-visible { outline: 2px solid #eef4fb; outline-offset: 3px; }"
+    },
+    {
+      "name": "Evidence Marks",
+      "kind": "custom",
+      "refersTo": "balloon",
+      "description": "Status drawn as a mark beside its word: filled, hollow, struck, or dashed.",
+      "html": "<dl class=\"ds-marks\"><dt><svg viewBox=\"0 0 40 40\" class=\"v\"><circle cx=\"20\" cy=\"20\" r=\"13\"/></svg>Verified</dt><dt><svg viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"20\" r=\"12\"/></svg>Reported</dt><dt><svg viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"20\" r=\"12\"/><line x1=\"8\" y1=\"32\" x2=\"32\" y2=\"8\"/></svg>Stale</dt><dt><svg viewBox=\"0 0 40 40\" class=\"u\"><circle cx=\"20\" cy=\"20\" r=\"12\"/></svg>Unknown</dt></dl>",
+      "css": ".ds-marks { display: flex; gap: 24px; margin: 0; padding: 16px; background: #0e3361; color: #eef4fb; } .ds-marks dt { display: flex; align-items: center; gap: 10px; font: 700 1rem/1 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; } .ds-marks svg { width: 26px; height: 26px; } .ds-marks circle { fill: none; stroke: #eef4fb; stroke-width: 2.4; } .ds-marks line { stroke: #eef4fb; stroke-width: 2.4; } .ds-marks .v circle { fill: #eef4fb; } .ds-marks .u circle { stroke-dasharray: 4 4; }"
+    },
+    {
+      "name": "Launch Mode",
+      "kind": "card",
+      "refersTo": "launch-mode",
+      "description": "Every mode is drawn. The active one is struck forward with a heavier inset frame.",
+      "html": "<ul class=\"ds-modes\"><li class=\"on\" tabindex=\"0\"><span class=\"k\">Mobile</span><span>Build and run on the simulator</span></li><li tabindex=\"0\"><span class=\"k\">Web</span><span>Start the dev server</span></li></ul>",
+      "css": ".ds-modes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; border: 1.5px dashed rgba(238,244,251,0.28); background: #0e3361; font-family: 'Barlow', system-ui, sans-serif; } .ds-modes li { display: flex; flex-direction: column; gap: 10px; padding: 22px 20px 24px; color: #8fb0d4; border-right: 1.5px dashed rgba(238,244,251,0.28); transition: color 220ms cubic-bezier(0.16,1,0.3,1), background 220ms, box-shadow 220ms; } .ds-modes li:last-child { border-right: 0; } .ds-modes .k { align-self: start; font: 700 1rem/1 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.1em; padding: 5px 8px; border: 1.5px solid currentColor; } .ds-modes li.on, .ds-modes li:hover, .ds-modes li:focus-visible { color: #eef4fb; background: #0a2850; outline: none; box-shadow: inset 0 0 0 2px #eef4fb; } .ds-modes li.on .k, .ds-modes li:hover .k, .ds-modes li:focus-visible .k { background: #eef4fb; color: #0a2850; border-color: #eef4fb; }"
+    },
+    {
+      "name": "Drawing Table",
+      "kind": "card",
+      "refersTo": "drawing-table",
+      "description": "The parts list and revision table: a ruled frame with hairline rows.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Item</th><th>Part</th></tr></thead><tbody><tr><td class=\"b\">1</td><td>Products in groups</td></tr><tr><td class=\"b\">2</td><td>Evidence chain</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; border: 1.5px solid rgba(238,244,251,0.82); background: #0e3361; color: #eef4fb; font: 400 1.0625rem/1.55 'Barlow', system-ui, sans-serif; } .ds-table th { font: 700 1rem/1.2 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; color: #bfd2e8; padding: 10px 14px; border-bottom: 1.5px solid rgba(238,244,251,0.82); } .ds-table td { padding: 12px 14px; border-top: 1px solid rgba(238,244,251,0.28); } .ds-table .b { width: 72px; font: 700 1rem/1.3 'Barlow Condensed', sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cyanotype Shop Drawing",
+    "overview": "The site is one engineering print. A Prussian-blue sheet carries white drafting linework: a faint 20 px grid with a 100 px major grid, a ruled border with an outer hairline frame, a margin band of zone numbers (8 to 1) and letters (H to A), a title block, a parts list, lettered details, general notes, and a revision table. The app screenshot is the specimen. It is the drawn part, and dimensioned leaders with numbered balloons point at it. Everything on the page is something a real print would carry, and each section takes its name and form from one: Parts list, Detail A, Section C–C, General notes, Assembly, Revisions, Sheet 1 of 1.\n\nThe world has one blue scheme and no light variant, by decision (`color-scheme: dark`). Linework and lettering are near-white ink. There are only two colored marks. A green \"approved\" stamp is the download action, and vermilion marks Production and nothing else. Rank comes from weight, case, and reversal (ink fill with sheet-colored type), not from a ladder of sizes. Notes are set in a condensed drafting sans in capitals. Prose stays in the regular-width Barlow so it reads as text, not as annotation.\n\nMotion is a draftsman's motion. The leaders draw in once (stroke-dashoffset, 900 ms, staggered 120 ms) and the balloons stamp in after them. Hovering a balloon reverses it and shows its \"SEE DETAIL\" reference. With reduced motion, everything is shown already drawn.",
+    "keyCharacteristics": [
+      "One sheet: a grid-paper field inside a 1.5 px ruled border, a hairline outline 6 px outside it, and zone references in an 18 px margin band.",
+      "Two-tier ink: ruled lines at 82% (`line`) and hairlines at 28% (`hair`).",
+      "One note size (1rem) for condensed capitals, ranked by weight, case, letter-spacing, and reversal.",
+      "Square corners everywhere. The only round forms are drafting circles: balloons, detail letters, and evidence marks.",
+      "Green only on the download stamp. Vermilion only on Production.",
+      "Evidence states are drawn marks next to their word: filled (Verified), hollow (Reported), struck through (Stale), dashed (Unknown)."
+    ],
+    "rules": [
+      { "name": "The Two Stamps Rule", "body": "The sheet is monochrome ink on blue. Green appears once per screen, as the approval stamp on Download. Vermilion appears only where Production is named. Any other colored element is off-world.", "section": "colors" },
+      { "name": "The Reversal Rule", "body": "To promote a label, reverse it (an `ink` fill with `sheet` type) or draw a rule around it. Do not use a new color or a bigger size.", "section": "colors" },
+      { "name": "The One Note Size Rule", "body": "Condensed annotation in HTML is 1rem (`--note`). Rank inside the notes comes from weight (500/600/700), case, tracking, ink strength, and reversal. Sheet furniture is the only exception: zone references (0.75rem) and the lettering inside the specimen SVG (17–22 px in drawing units).", "section": "typography" },
+      { "name": "The Lettering vs. Prose Rule", "body": "Anything a draftsman would letter on a print is condensed capitals. Anything a reader reads as a sentence is regular-width Barlow in sentence case.", "section": "typography" },
+      { "name": "The Ink-Only Depth Rule", "body": "No drop shadows, blurs, or glows. When something has to come forward, give it a heavier rule, reverse it, or deepen its ground.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put every new section on the one sheet and name it after a real print part (detail, section view, notes, assembly, revisions).",
+      "Do set annotation at 1rem condensed caps and rank it by weight, tracking, ink strength (`ink`, `ink-2`, `ink-3`), or reversal.",
+      "Do draw status as a mark next to its word: filled, hollow, struck, or dashed.",
+      "Do use 1.5–2 px `line` for frames and 1 px `hair` for dividers. Dash a line only when it means construction or uncertainty.",
+      "Do let the leaders draw in once with `--ease` (cubic-bezier(0.16, 1, 0.3, 1)), and show them already drawn under reduced motion.",
+      "Do keep text at `ink-3` or stronger on the sheet. Lighter alphas are for linework only."
+    ],
+    "donts": [
+      "Don't use green anywhere except the download stamp, or vermilion anywhere except Production.",
+      "Don't add drop shadows, glows, gradients, or blur. The sheet's grid is the only background pattern.",
+      "Don't round containers. Circles are reserved for balloons, detail letters, evidence marks, and the seal.",
+      "Don't add a light theme or a second sheet color. The cyanotype is one scheme by decision.",
+      "Don't apply this file to the macOS app. It follows design/KIT.md."
+    ]
+  }
+}

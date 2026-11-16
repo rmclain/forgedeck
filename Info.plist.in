@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.forgedeck.app</string>
+<key>CFBundleName</key><string>ForgeDeck</string>
+<key>CFBundleDisplayName</key><string>ForgeDeck</string>
+<key>CFBundleExecutable</key><string>ForgeDeck</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundleIconName</key><string>AppIcon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.3</string>
+<key>CFBundleVersion</key><string>__BUILD__</string>
+<key>LSMinimumSystemVersion</key><string>26.0</string>
+<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>FDUpdateRepository</key><string>rmclain/forgedeck</string>
+<key>UTExportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>com.forgedeck.app.product</string>
+<key>UTTypeDescription</key><string>ForgeDeck product</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+</dict></array>
+</dict></plist>

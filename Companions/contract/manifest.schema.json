@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ForgeDeck companion manifest",
+  "description": "Response of GET /_forgedeck/v1/manifest. Clients MUST ignore unknown properties (additive changes do not bump schema_version).",
+  "type": "object",
+  "$id": "https://forgedeck.invalid/companion/v1/manifest.schema.json",
+  "required": [
+    "schema_version",
+    "product_id",
+    "environment",
+    "observed_at",
+    "component_ids",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$"
+    },
+    "product_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "production",
+        "staging",
+        "development",
+        "preview",
+        "test"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "UTC, second precision, Z suffix."
+    },
+    "component_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "status",
+          "metrics",
+          "leads",
+          "events"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "scopes": {
+      "type": "array",
+      "description": "Scopes held by the presenting token.",
+      "items": {
+        "enum": [
+          "status:read",
+          "metrics:read",
+          "leads:read",
+          "events:read"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "24h",
+          "7d",
+          "30d",
+          "90d"
+        ]
+      }
+    },
+    "signing_required": {
+      "type": "boolean"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Safe, operator-chosen display metadata. Never secrets.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,47}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "maxProperties": 20
+    },
+    "companion": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "_example_notice": {
+      "type": "string",
+      "description": "Present only in the files under examples/. Never sent by a real companion."
+    }
+  }
+}

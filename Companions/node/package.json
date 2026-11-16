@@ -1,0 +1,14 @@
+{
+  "name": "forgedeck-companion",
+  "version": "1.0.0",
+  "description": "Read-only ForgeDeck companion endpoints (status, metrics, leads, events) for Node http and Express-style servers. No dependencies.",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test test/",
+    "example": "node example-server.js --port 8787 --test-controls"
+  },
+  "files": ["index.js", "lib/", "example-server.js", "README.md"]
+}

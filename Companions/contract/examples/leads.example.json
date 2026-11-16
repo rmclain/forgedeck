@@ -1,0 +1,26 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "product_id": "example-product",
+  "environment": "production",
+  "observed_at": "2026-11-15T16:00:00Z",
+  "items": [
+    {
+      "id": "evt_lead_0001",
+      "kind": "lead",
+      "occurred_at": "2026-11-15T14:05:00Z",
+      "source": "contact_form",
+      "title": "New lead",
+      "value_cents": null
+    },
+    {
+      "id": "evt_signup_0002",
+      "kind": "signup",
+      "occurred_at": "2026-11-15T15:10:00Z",
+      "source": "signup_form",
+      "title": "New signup",
+      "value_cents": null
+    }
+  ],
+  "next_cursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMS0xNVQxNToxMDowMFoiLCJpZCI6ImV2dF9zaWdudXBfMDAwMiJ9"
+}

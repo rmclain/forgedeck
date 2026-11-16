@@ -1,0 +1,13 @@
+# Local dev dependencies and caches for the companion packages.
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.DS_Store
+# Never commit real tokens or release fingerprints generated locally.
+.env
+.env.*
+forgedeck-release.json

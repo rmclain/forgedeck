@@ -1,0 +1,34 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "product_id": "example-product",
+  "environment": "production",
+  "observed_at": "2026-11-15T16:00:00Z",
+  "items": [
+    {
+      "id": "evt_deploy_0001",
+      "kind": "deploy",
+      "occurred_at": "2026-11-14T12:30:00Z",
+      "source": "ci",
+      "title": "Deployed 1.8.2",
+      "value_cents": null
+    },
+    {
+      "id": "evt_paid_0002",
+      "kind": "paid_conversion",
+      "occurred_at": "2026-11-15T09:12:00Z",
+      "source": "billing",
+      "title": "Paid conversion",
+      "value_cents": 4900
+    },
+    {
+      "id": "evt_incident_0003",
+      "kind": "incident",
+      "occurred_at": "2026-11-15T11:40:00Z",
+      "source": "healthcheck",
+      "title": "Health degraded: queue check failing",
+      "value_cents": null
+    }
+  ],
+  "next_cursor": null
+}

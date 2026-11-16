@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ForgeDeck companion metrics",
+  "description": "Response of GET /_forgedeck/v1/metrics?window=24h|7d|30d|90d. Clients MUST ignore unknown properties (additive changes do not bump schema_version).",
+  "type": "object",
+  "$id": "https://forgedeck.invalid/companion/v1/metrics.schema.json",
+  "required": [
+    "schema_version",
+    "product_id",
+    "environment",
+    "observed_at",
+    "window",
+    "source",
+    "metrics"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$"
+    },
+    "product_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "production",
+        "staging",
+        "development",
+        "preview",
+        "test"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "UTC, second precision, Z suffix."
+    },
+    "window": {
+      "enum": [
+        "24h",
+        "7d",
+        "30d",
+        "90d"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Label of where the counters come from."
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Whitelisted counters only.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,47}$"
+      },
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "_example_notice": {
+      "type": "string",
+      "description": "Present only in the files under examples/. Never sent by a real companion."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The deck: three status bars above the anvil. -->
+  <rect x="352" y="296" width="150" height="44" rx="22" fill="#FFFFFF"/>
+  <rect x="526" y="296" width="96" height="44" rx="22" fill="#FFFFFF"/>
+  <circle cx="668" cy="318" r="22" fill="#FFFFFF"/>
+</svg>

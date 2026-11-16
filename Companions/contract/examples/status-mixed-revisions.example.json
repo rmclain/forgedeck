@@ -1,0 +1,43 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "product_id": "example-product",
+  "component_id": "backend",
+  "environment": "production",
+  "observed_at": "2026-11-15T16:00:00Z",
+  "release": {
+    "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+    "version": "1.8.2",
+    "deployed_at": "2026-11-14T12:30:00Z",
+    "build_id": "4821",
+    "built_at": "2026-11-14T12:21:07Z"
+  },
+  "health": {
+    "state": "degraded",
+    "checks": [
+      {
+        "id": "database",
+        "state": "healthy"
+      },
+      {
+        "id": "queue",
+        "state": "degraded"
+      }
+    ]
+  },
+  "metrics": {},
+  "capabilities": [
+    "status"
+  ],
+  "booted_at": "2026-11-14T12:30:04Z",
+  "instances": [
+    {
+      "id": "web-1",
+      "commit_sha": "0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "id": "web-2",
+      "commit_sha": "fedcba9876543210fedcba9876543210fedcba98"
+    }
+  ]
+}

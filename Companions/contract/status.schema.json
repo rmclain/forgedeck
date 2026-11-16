@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ForgeDeck companion status",
+  "description": "Response of GET /_forgedeck/v1/status. Clients MUST ignore unknown properties (additive changes do not bump schema_version).",
+  "type": "object",
+  "$id": "https://forgedeck.invalid/companion/v1/status.schema.json",
+  "required": [
+    "schema_version",
+    "product_id",
+    "component_id",
+    "environment",
+    "observed_at",
+    "release",
+    "health",
+    "metrics",
+    "capabilities"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$"
+    },
+    "product_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "production",
+        "staging",
+        "development",
+        "preview",
+        "test"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "UTC, second precision, Z suffix."
+    },
+    "component_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
+    "release": {
+      "type": "object",
+      "required": [
+        "commit_sha",
+        "version",
+        "deployed_at"
+      ],
+      "properties": {
+        "commit_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Git commit SHA (lowercase hex, 7-40 chars) or null when unknown."
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "deployed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "UTC, second precision, Z suffix."
+        },
+        "build_id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "built_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "UTC, second precision, Z suffix."
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "required": [
+        "state",
+        "checks"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "healthy",
+            "degraded",
+            "unhealthy"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "state"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+              },
+              "state": {
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unhealthy"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "24h counters, key = <metric>_24h. Empty object when the metrics capability is off or the token lacks metrics:read.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]{0,47}_24h$"
+      },
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "status",
+          "metrics",
+          "leads",
+          "events"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "booted_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Optional. When the serving process started."
+    },
+    "instances": {
+      "type": "array",
+      "description": "Optional. Lets multi-instance deployments report mixed revisions.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "commit_sha"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{7,40}$",
+            "description": "Git commit SHA (lowercase hex, 7-40 chars) or null when unknown."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "_example_notice": {
+      "type": "string",
+      "description": "Present only in the files under examples/. Never sent by a real companion."
+    }
+  }
+}

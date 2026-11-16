@@ -1,0 +1,8 @@
+{
+  "_example_notice": "CONTRACT EXAMPLE ONLY - illustrative values, not live data from any real product.",
+  "schema_version": "1.0",
+  "error": {
+    "code": "insufficient_scope",
+    "message": "Token lacks scope leads:read"
+  }
+}

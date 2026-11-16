@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- An anvil: horn, face, waist, base. -->
+  <path d="M344 404 H770 a22 22 0 0 1 22 22 V470 a22 22 0 0 1 -22 22 H690 C664 492 650 512 646 540 L636 604 H388 L378 540 C374 512 360 492 334 492 C268 488 214 462 190 424 a12 12 0 0 1 10 -20 Z" fill="#FFFFFF"/>
+  <rect x="322" y="628" width="380" height="84" rx="24" fill="#FFFFFF"/>
+</svg>
