@@ -51,7 +51,7 @@ extension AppModel {
         if action.safety >= .localWrite, let product, sheet == nil {
             sheet = .confirm(ConfirmRequest(title: "\(action.label)?", message: "\(spec.name) will write in \(checkout?.name ?? product.name). \(action.note)",
                                             checks: [.init(label: "Folder", meta: abbreviate(checkout?.path ?? ""), ok: true)],
-                                            confirmLabel: "Hold to Run") { [weak self] in
+                                            confirmLabel: "Run") { [weak self] in
                 self?.startTool(action, of: spec, product: product, checkout: checkout)
             })
             return

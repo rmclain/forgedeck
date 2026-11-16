@@ -69,7 +69,7 @@ The look is a custom design kit in `Sources/ForgeDeck/DesignKit`, taken from the
 - Use the kit's components: `SurfaceCard`, `CardHeader`, `StatusPill`, `TagBadge`, `DemoBadge`, `SourceBadge`, `ConnectionState`, `MetricTile`, `ActionRow`, `ActivityRow`, `EmptyState`, `ErrorState`, `LoadingState`, `InspectorPanel`, `CopyableValue`, `KitField`, `LabeledField`, `SegmentedPill`, `FilterChip`, `EnvironmentPicker`, `SheetPanel`, `ConfirmationSheet`.
 - Buttons use `.buttonStyle(.kit(...))`: `primary`, `secondary`, `production`, `ghost`, `icon`, `toolbar`, `link`. One primary button per page, chosen in `TopBar.primaryAction`.
 - Window chrome is custom: hidden title bar, a 52 pt top bar, a 236 pt sidebar, sheets drawn inside the window by `SheetHost`. Add a sheet as a `SheetKind` case. The Settings window is the exception: a system `Settings` scene with a grouped `Form` per tab.
-- Production is always drawn in `Ink.prod`: the picker, the banner, sheet stripes, palette tags. Remote-write and production actions go through `ConfirmationSheet` with press and hold.
+- Production is always drawn in `Ink.prod`: the picker, the banner, sheet stripes, palette tags. Remote-write and production actions go through `ConfirmationSheet` with press and hold (`requiresHold: true`). Local confirmations (a local write, a removal, moving to the Trash) are one click with a verb label like Run or Remove.
 - Status is words first, color second. Every icon-only control has a `.help` and an accessibility label. Respect reduced motion.
 - `CopyableValue` is never used for a secret. Secrets never appear in the palette, tooltips, or accessibility labels.
 - Every action has a menu item or a palette command, and the main ones have a keyboard shortcut in `AppCommands`.

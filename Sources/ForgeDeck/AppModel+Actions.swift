@@ -559,6 +559,7 @@ extension AppModel {
                 footnote: "This is written to the audit log.",
                 isProduction: production,
                 confirmLabel: "Hold to Run",
+                requiresHold: true,
                 action: { [weak self] in self?.execute(recipe, in: product) }))
         } else {
             execute(recipe, in: product)

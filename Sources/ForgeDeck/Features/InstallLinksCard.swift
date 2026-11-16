@@ -57,7 +57,7 @@ extension AppModel {
             message: "The folder in \(link.siteName.isEmpty ? "the destination" : link.siteName) is moved, not deleted. The site then loads \(checkout.name) directly.",
             checks: [.init(label: "Copy moves to", meta: abbreviate(backupFolder), ok: true),
                      .init(label: "Link points at", meta: abbreviate(InstallLinks.source(of: link, checkout: checkout)), ok: true)],
-            footnote: "Deactivate the plugin first if the site is running.", confirmLabel: "Hold to Replace") { [weak self] in
+            footnote: "Deactivate the plugin first if the site is running.", confirmLabel: "Replace") { [weak self] in
             guard let self else { return }
             do {
                 let backup = try InstallLinks.moveAsideAndLink(link, checkout: checkout, backupFolder: backupFolder)

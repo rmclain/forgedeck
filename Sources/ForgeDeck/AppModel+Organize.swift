@@ -40,7 +40,7 @@ extension AppModel {
             title: "Remove \(product.name) from \(Brand.name)",
             message: "Its folders, repositories, and servers are not touched. \(Brand.name) forgets the product, its recipes, and its cached observations. Add the folder again any time.",
             checks: checks,
-            confirmLabel: "Hold to Remove",
+            confirmLabel: "Remove",
             icon: .trash) { [weak self] in self?.remove(product) })
     }
 

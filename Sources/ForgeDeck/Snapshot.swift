@@ -62,7 +62,11 @@ enum Snapshot {
                 $0.sheet = .confirm(ConfirmRequest(title: "Run \"Migrate database\"", message: "Production critical action for Lumen in Production.",
                                                    checks: [.init(label: "Target", meta: "this Mac", ok: true), .init(label: "Command", meta: "npm run migrate", ok: true),
                                                             .init(label: "Variables", meta: "DATABASE_URL", ok: false)],
-                                                   footnote: "This is written to the audit log.", isProduction: true, confirmLabel: "Hold to Run") {})
+                                                   footnote: "This is written to the audit log.", isProduction: true, confirmLabel: "Hold to Run", requiresHold: true) {})
+            },
+            Shot(name: "sheet-confirm-local") {
+                $0.sheet = .confirm(ConfirmRequest(title: "Update the graph (code only)?", message: "graphify will write in lumen. Writes graphify-out/ in the repository.",
+                                                   checks: [.init(label: "Folder", meta: "~/code/lumen", ok: true)], confirmLabel: "Run") {})
             },
             Shot(name: "sheet-rename-group") { $0.sheet = .rename(.group("SaaS Products")) },
             Shot(name: "sheet-rename-product") { model in

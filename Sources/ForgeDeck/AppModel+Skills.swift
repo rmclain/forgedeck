@@ -100,7 +100,7 @@ extension AppModel {
             title: "Remove skills from \(repository)",
             message: "Moves the \(Self.count(installed.count, "skill folder")) \(Brand.name) added to the Trash. Skills you added some other way are not touched.",
             checks: installed.map { .init(label: $0.name, meta: $0.target.detail + "/\($0.name)", ok: true) },
-            confirmLabel: "Hold to Remove",
+            confirmLabel: "Move to Trash",
             icon: .trash) { [weak self] in self?.removeSkills(installed) })
     }
 

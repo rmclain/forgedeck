@@ -50,7 +50,7 @@ struct EnvironmentsTab: View {
                     Divider()
                     Button("Remove Environment") {
                         model.sheet = .confirm(ConfirmRequest(title: "Remove \(environment.name)", message: "Removes this environment's checks, sources, and hosts from \(product.name). Nothing on any server changes.",
-                                                              confirmLabel: "Hold to Remove") {
+                                                              confirmLabel: "Remove") {
                             model.update(product.id) { $0.environments.removeAll { $0.id == environment.id } }
                         })
                     }
@@ -187,7 +187,7 @@ struct GitHubConnectionCard: View {
                     Button("Reconnect") { model.sheet = .connectGitHub }.buttonStyle(.kit(.secondary, compact: true))
                     Button("Disconnect") {
                         model.sheet = .confirm(ConfirmRequest(title: "Disconnect GitHub", message: "Deletes the token from the Keychain. Private repositories stop refreshing. Nothing changes on GitHub.",
-                                                              confirmLabel: "Hold to Disconnect") { model.disconnectGitHub() })
+                                                              confirmLabel: "Disconnect") { model.disconnectGitHub() })
                     }
                     .buttonStyle(.kit(.secondary, compact: true))
                 } else {
@@ -263,7 +263,9 @@ struct VariableRowView: View {
             IconButton(.pencil, label: variable.isSecret ? "Edit or rotate \(variable.key)" : "Edit \(variable.key)") { model.sheet = .variable(draft()) }
             IconButton(.trash, label: "Delete \(variable.key)") {
                 model.sheet = .confirm(ConfirmRequest(title: "Delete \(variable.key)", message: variable.isSecret ? "Removes the variable and deletes its Keychain item. This cannot be undone." : "Removes the variable.",
-                                                      isProduction: production && variable.isSecret, confirmLabel: "Hold to Delete") { model.deleteVariable(variable) })
+                                                      isProduction: production && variable.isSecret,
+                                                      confirmLabel: production && variable.isSecret ? "Hold to Delete" : "Delete",
+                                                      requiresHold: production && variable.isSecret) { model.deleteVariable(variable) })
             }
         }
         .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)

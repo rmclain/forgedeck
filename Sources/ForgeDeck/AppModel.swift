@@ -72,7 +72,9 @@ struct ConfirmRequest: Identifiable {
     var checks: [Check] = []
     var footnote = ""
     var isProduction = false
-    var confirmLabel = "Hold to Confirm"
+    var confirmLabel = "Confirm"
+    /// Press and hold to confirm. Only for remote writes and production; local actions get a plain button.
+    var requiresHold = false
     var icon: KitIcon?
     var action: @MainActor () async -> Void
 }

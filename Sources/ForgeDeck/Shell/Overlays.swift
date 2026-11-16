@@ -294,35 +294,19 @@ struct SheetHost: View {
     }
 }
 
-/// Confirmation for remote and production actions: the exact target, then press and hold.
+/// Confirmation with the exact target. Remote writes and production need a press and hold; everything else is one click.
 struct ConfirmationSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let request: ConfirmRequest
     @State private var progress = 0.0
-    @State private var timer: Timer?
+    @State private var done = false
 
     private func finish() {
-        timer?.invalidate()
-        timer = nil
+        guard !done else { return }
+        done = true
         model.sheet = nil
         Task { await request.action() }
-    }
-
-    private func start() {
-        guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 0.04, repeats: true) { _ in
-            MainActor.assumeIsolated {
-                progress = min(1, progress + 0.04)
-                if progress >= 1 { finish() }
-            }
-        }
-    }
-
-    private func stop() {
-        timer?.invalidate()
-        timer = nil
-        if progress < 1 { progress = 0 }
     }
 
     var body: some View {
@@ -350,28 +334,46 @@ struct ConfirmationSheet: View {
             }
             SheetFooter(note: request.footnote) {
                 Button("Cancel") { model.sheet = nil }.buttonStyle(.kit(.secondary)).keyboardShortcut(.cancelAction)
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: Metric.controlRadius, style: .continuous).fill(Ink.tone(tone).opacity(0.72))
-                    GeometryReader { proxy in
-                        Rectangle().fill(Ink.tone(tone)).frame(width: proxy.size.width * progress)
-                    }
-                    Text(progress > 0 ? "Keep holding…" : request.confirmLabel)
-                        .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(request.isProduction ? Ink.onProd : Ink.onAccent)
-                        .frame(maxWidth: .infinity)
+                if request.requiresHold {
+                    holdButton(tone)
+                } else {
+                    Button(request.confirmLabel) { finish() }
+                        .buttonStyle(.kit(request.isProduction ? .production : .primary))
+                        .keyboardShortcut(.defaultAction)
                 }
-                .frame(width: 168, height: Metric.buttonHeight)
-                .clipShape(RoundedRectangle(cornerRadius: Metric.controlRadius, style: .continuous))
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0).onChanged { _ in start() }.onEnded { _ in stop() })
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(request.confirmLabel)
-                .accessibilityHint("Press and hold for one second, or use the Confirm action.")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction(named: "Confirm") { finish() }
-                .help("Press and hold for one second")
             }
         }
-        .onDisappear { timer?.invalidate() }
+    }
+
+    /// Fills while pressed; lifting early empties it. The system long press, so window dragging cannot take the mouse.
+    private func holdButton(_ tone: Tone) -> some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: Metric.controlRadius, style: .continuous).fill(Ink.tone(tone).opacity(0.72))
+            GeometryReader { proxy in
+                Rectangle().fill(Ink.tone(tone)).frame(width: proxy.size.width * progress)
+            }
+            Text(progress > 0 ? "Keep holding…" : request.confirmLabel)
+                .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(request.isProduction ? Ink.onProd : Ink.onAccent)
+                .frame(maxWidth: .infinity)
+        }
+        .frame(width: 168, height: Metric.buttonHeight)
+        .clipShape(RoundedRectangle(cornerRadius: Metric.controlRadius, style: .continuous))
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 1, maximumDistance: 40) {
+            finish()
+        } onPressingChanged: { pressing in
+            if pressing {
+                withAnimation(reduceMotion ? nil : .linear(duration: 1)) { progress = 1 }
+            } else if !done {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { progress = 0 }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(request.confirmLabel)
+        .accessibilityHint("Press and hold for one second, or use the Confirm action.")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Confirm") { finish() }
+        .help("Press and hold for one second")
     }
 }
 
