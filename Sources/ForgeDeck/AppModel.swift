@@ -114,6 +114,8 @@ enum SheetKind: Identifiable {
     case environment(productID: UUID)
     case recipe(productID: UUID, recipeID: UUID?)
     case profile(productID: UUID, profileID: UUID?)
+    /// A new profile with its fields filled in, for the person to review and save.
+    case profileDraft(productID: UUID, TerminalProfile)
     case connectGitHub
     case doctor(DoctorTarget)
     case runLog(UUID)
@@ -134,6 +136,7 @@ enum SheetKind: Identifiable {
         case .environment(let p): "env-\(p)"
         case .recipe(_, let r): "recipe-\(r?.uuidString ?? "new")"
         case .profile(_, let r): "profile-\(r?.uuidString ?? "new")"
+        case .profileDraft(_, let draft): "profile-draft-\(draft.id)"
         case .connectGitHub: "github"
         case .doctor(let target): "doctor-\(target.id)"
         case .runLog(let id): "log-\(id)"
@@ -226,6 +229,11 @@ final class AppModel {
     var mcpVersion = 0
     /// Versions each product's primary checkout declares (plugin header, package.json, ...). Read on refresh.
     var localReleases: [UUID: LocalRelease] = [:]
+    /// The Forge Remote terminal session, while it exists.
+    var remoteSessionID: UUID?
+    @ObservationIgnored var remoteActivity: (any NSObjectProtocol)?
+    @ObservationIgnored var remoteRestarts: [Date] = []
+    @ObservationIgnored var remoteStopping = false
     @ObservationIgnored var mcpCache: [UUID: (product: Product, info: MCPProductInfo)] = [:]
     @ObservationIgnored var playCache: [UUID: (product: Product, options: [PlayOption])] = [:]
     /// Sites made with Local, read once at launch. Play opens a plugin's site from here.
@@ -317,6 +325,7 @@ final class AppModel {
         cache.prune(retentionDays: portfolio.settings.cacheRetentionDays)
         checkForUpdatesIfDue()
         refreshMCP()
+        if remoteSettings.enabled { startRemote(showTerminal: false) }
         pollTask = Task { [weak self] in
             // Local Git state first: it is cheap and works offline.
             await self?.refreshLocal()
@@ -352,6 +361,7 @@ final class AppModel {
         do {
             try store.save(portfolio)
             try store.save(cache)
+            if isRemoteRunning { try? syncRemoteWorkspace() }
         } catch {
             show("Could not save: \(error.localizedDescription)", isError: true)
         }

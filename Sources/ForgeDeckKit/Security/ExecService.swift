@@ -196,3 +196,44 @@ extension ExecDenial {
         }
     }
 }
+
+/// A terminal profile drafted for an AI agent: one environment, the variables delivered there, and
+/// the programs the project uses. Only a draft: the person reviews it in the profile sheet and saves it.
+public enum AgentProfileDraft {
+    public static func make(product: Product, environment: ProductEnvironment, portfolio: Portfolio) -> TerminalProfile {
+        var profile = TerminalProfile()
+        let base = environment.tier == .development ? "agent" : "agent-\(environment.tier.rawValue)"
+        var name = base, n = 2
+        while product.profiles.contains(where: { $0.name.lowercased() == name }) { name = "\(base)\(n)"; n += 1 }
+        profile.name = name
+        profile.environmentID = environment.id
+        profile.checkoutID = product.primaryCheckout?.id
+        profile.variableAllowlist = VariableResolver.resolve(portfolio.variables, context: ResolutionContext(product: product, environment: environment))
+            .filter { $0.state.delivers }.map(\.key)
+        profile.allowedExecutables = programs(in: product.primaryCheckout?.path)
+        return profile
+    }
+
+    /// Interpreters and package managers the checkout uses. Never a shell: a shell would let any command read the values.
+    public static func programs(in path: String?) -> [String] {
+        guard let path else { return [] }
+        func has(_ file: String) -> Bool { FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(file)) }
+        var programs: [String] = []
+        if has("package.json") {
+            programs.append("node")
+            programs.append(has("pnpm-lock.yaml") ? "pnpm" : has("yarn.lock") ? "yarn" : has("bun.lockb") || has("bun.lock") ? "bun" : "npm")
+        }
+        if has("composer.json") || has("wp-config.php") || has("artisan") { programs += ["php"] + (has("composer.json") ? ["composer"] : []) }
+        if has("pyproject.toml") || has("requirements.txt") || has("setup.py") { programs.append("python3") }
+        if has("Gemfile") { programs += ["ruby", "bundle"] }
+        if has("go.mod") { programs.append("go") }
+        if has("Cargo.toml") { programs.append("cargo") }
+        if has("Package.swift") { programs.append("swift") }
+        return programs
+    }
+
+    /// True when a saved profile for this environment already receives every delivered variable.
+    public static func isCovered(product: Product, environment: ProductEnvironment, keys: [String]) -> Bool {
+        product.profiles.contains { $0.environmentID == environment.id && !$0.allowedExecutables.isEmpty && Set(keys).isSubset(of: Set($0.variableAllowlist)) }
+    }
+}

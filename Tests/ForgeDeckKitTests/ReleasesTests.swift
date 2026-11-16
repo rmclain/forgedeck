@@ -168,3 +168,42 @@ import Testing
         #expect(AgentContextBundle.variablesSection(Product(name: "Empty"), portfolio: Portfolio()) == nil)
     }
 }
+
+@Suite struct AgentProfileDraftTests {
+    @Test func theDraftGrantsTheDeliveredVariablesAndTheProjectsProgramsButNoShell() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "fd-profile-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for file in ["package.json", "pnpm-lock.yaml", "composer.json"] { try "{}".write(to: folder.appending(path: file), atomically: true, encoding: .utf8) }
+        var product = Product(name: "Acme Site")
+        var checkout = LocalCheckout()
+        checkout.path = folder.path
+        product.checkouts = [checkout]
+        let local = ProductEnvironment(name: "Local", tier: .development)
+        product.environments = [local]
+        var key = VariableDefinition()
+        key.key = "ACME_KEY"
+        key.isSecret = true
+        key.scope = .environment(product: product.id, environment: local.id)
+        var blocked = VariableDefinition()
+        blocked.key = "PROD_ONLY"
+        blocked.isSecret = true
+        blocked.scope = .product(product.id)
+        blocked.allowedTiers = [.production]
+        var portfolio = Portfolio()
+        portfolio.variables = [key, blocked]
+        let draft = AgentProfileDraft.make(product: product, environment: local, portfolio: portfolio)
+        #expect(draft.name == "agent")
+        #expect(draft.environmentID == local.id)
+        #expect(draft.variableAllowlist == ["ACME_KEY"])
+        #expect(draft.allowedExecutables == ["node", "pnpm", "php", "composer"])
+        #expect(!draft.allowedExecutables.contains { ["sh", "bash", "zsh"].contains($0) })
+        #expect(!AgentProfileDraft.isCovered(product: product, environment: local, keys: ["ACME_KEY"]))
+        product.profiles = [draft]
+        #expect(AgentProfileDraft.isCovered(product: product, environment: local, keys: ["ACME_KEY"]))
+        #expect(AgentProfileDraft.make(product: product, environment: local, portfolio: portfolio).name == "agent2")
+        let context = AgentContextBundle.variablesSection(product, portfolio: portfolio) ?? ""
+        #expect(context.contains("--profile agent -- node"))
+        #expect(context.contains("stays literal"))
+    }
+}

@@ -532,6 +532,8 @@ public struct AppSettings: Codable, Hashable, Sendable {
     public var agentModels: [String: String]?
     public var trustedExecutables: [String] = ["git", "npm", "pnpm", "yarn", "node", "swift", "python3", "php", "composer", "docker", "make", "cargo", "go"]
     public var appearance = "system"
+    /// Forge Remote: a Claude Code Remote Control server for every product. nil means never set up.
+    public var remote: ForgeRemoteSettings?
     public init() {}
 }
 

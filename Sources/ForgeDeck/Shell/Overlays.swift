@@ -99,6 +99,12 @@ extension AppModel {
                                            kbd: tier == .production || context == .production ? "⌘⇧E" : "", isProduction: tier.isProduction) { self.context = tier })
         }
         commands.append(PaletteCommand(id: "doctor", label: "Run Toolchain Doctor", group: Brand.name, icon: .stethoscope) { self.paletteOpen = false; self.sheet = .doctor(.toolchain) })
+        if isRemoteRunning {
+            commands.append(PaletteCommand(id: "remote-show", label: "Show Forge Remote Terminal", group: "Forge Remote", icon: .remote) { self.paletteOpen = false; self.showRemoteTerminal() })
+            commands.append(PaletteCommand(id: "remote-stop", label: "Stop Forge Remote", group: "Forge Remote", icon: .remote) { self.setRemote(enabled: false) })
+        } else if ExecutableLocator.find(ForgeRemote.program) != nil {
+            commands.append(PaletteCommand(id: "remote-start", label: "Start Forge Remote", group: "Forge Remote", icon: .remote) { self.paletteOpen = false; self.setRemote(enabled: true) })
+        }
         commands.append(PaletteCommand(id: "settings", label: "Settings", group: Brand.name, icon: .settings, kbd: "⌘,") { openSettings() })
         return commands
     }
@@ -277,6 +283,7 @@ struct SheetHost: View {
                     case .environment(let productID): EnvironmentSheet(productID: productID)
                     case .recipe(let productID, let recipeID): RecipeSheet(productID: productID, recipeID: recipeID)
                     case .profile(let productID, let profileID): ProfileSheet(productID: productID, profileID: profileID)
+                    case .profileDraft(let productID, let draft): ProfileSheet(productID: productID, profileID: nil, draft: draft)
                     case .connectGitHub: GitHubSheet()
                     case .doctor(let target): DoctorSheet(target: target)
                     case .runLog(let id): RunLogSheet(logID: id)

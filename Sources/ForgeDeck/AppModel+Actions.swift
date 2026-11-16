@@ -175,6 +175,12 @@ extension AppModel {
 
     var contextLocation: ContextLocation { ContextLocation(store: store.location) }
 
+    /// Rewrites the product's CONTEXT.md, so an agent that is already running can read a new profile or link.
+    func rewriteContext(_ product: Product) {
+        guard !product.isDemo, product.hasLocal, let current = self.product(product.id) else { return }
+        _ = try? AgentContextBundle.write(for: current, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(current))
+    }
+
     /// Adds Capacitor or Xcode recipes for the product's checkouts, naming a simulator and an emulator on this Mac.
     func suggestMobileRecipes(_ product: Product) {
         Task {

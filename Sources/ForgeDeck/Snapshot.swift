@@ -60,6 +60,13 @@ enum Snapshot {
                     model.sheet = .probe(productID: lumen.id, environmentID: production.id)
                 }
             },
+            Shot(name: "sheet-profile-draft") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }), let local = lumen.environment(tier: .development) {
+                    var draft = AgentProfileDraft.make(product: lumen, environment: local, portfolio: model.portfolio)
+                    draft.allowedExecutables = ["node", "pnpm"] // the demo checkout has no files on this Mac
+                    model.sheet = .profileDraft(productID: lumen.id, draft)
+                }
+            },
             Shot(name: "secrets") { $0.route = .secrets },
             Shot(name: "activity") { $0.route = .activity },
             Shot(name: "production-context") { $0.route = .overview; $0.context = .production },

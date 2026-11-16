@@ -824,6 +824,7 @@ struct ProfileSheet: View {
     @Environment(AppModel.self) private var model
     let productID: UUID
     let profileID: UUID?
+    var draft: TerminalProfile? = nil
     @State private var profile = TerminalProfile()
     @State private var programs = ""
     @State private var variables = ""
@@ -833,8 +834,10 @@ struct ProfileSheet: View {
         let product = model.product(productID)
         let production = product?.environment(id: profile.environmentID)?.tier.isProduction == true
         SheetPanel(width: 560, stripe: production ? Ink.prod : nil) {
-            SheetHeader(icon: .terminal, tone: production ? .prod : .accent, title: profileID == nil ? "Add Terminal Profile" : "Edit Terminal Profile",
-                        message: "`\(Brand.cliName) exec` starts only the programs listed here and gives them only the variables listed here, for one environment.")
+            SheetHeader(icon: .terminal, tone: production ? .prod : .accent, title: profileID != nil ? "Edit Terminal Profile" : draft != nil ? "Let Agents Use These Variables" : "Add Terminal Profile",
+                        message: draft != nil
+                            ? "An agent runs \(Brand.cliName) exec --profile \(profile.name.isEmpty ? "agent" : profile.name) -- <program>. The program gets these values in its environment; the agent sees only its output, redacted. Check the programs: each one, and anything it starts, can read the values."
+                            : "`\(Brand.cliName) exec` starts only the programs listed here and gives them only the variables listed here, for one environment.")
             VStack(alignment: .leading, spacing: Space.md) {
                 HStack(alignment: .top, spacing: Space.md) {
                     LabeledField(label: "Name") { KitField(placeholder: "tests", text: $profile.name, monospaced: true) }
@@ -880,6 +883,7 @@ struct ProfileSheet: View {
                         if let index = product.profiles.firstIndex(where: { $0.id == saved.id }) { product.profiles[index] = saved } else { product.profiles.append(saved) }
                     }
                     model.record("profile.save", product: product, detail: "profile=\(saved.name) programs=\(names.joined(separator: ",")) variables=\(keys.joined(separator: ","))")
+                    if let product { model.rewriteContext(product) }
                     model.sheet = nil
                 }
                 .buttonStyle(.kit(.primary)).keyboardShortcut(.defaultAction)
@@ -890,6 +894,10 @@ struct ProfileSheet: View {
                 profile = existing
                 programs = existing.allowedExecutables.joined(separator: ", ")
                 variables = existing.variableAllowlist.joined(separator: ", ")
+            } else if let draft {
+                profile = draft
+                programs = draft.allowedExecutables.joined(separator: ", ")
+                variables = draft.variableAllowlist.joined(separator: ", ")
             } else {
                 profile.environmentID = product?.environment(tier: .development)?.id ?? product?.environments.first?.id
                 profile.checkoutID = product?.primaryCheckout?.id

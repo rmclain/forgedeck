@@ -3,13 +3,14 @@ import ForgeDeckKit
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, launching, data, cli, diagnostics
+    case general, launching, remote, data, cli, diagnostics
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: "General"
         case .launching: "Launching"
+        case .remote: "Forge Remote"
         case .data: "Privacy & Data"
         case .cli: "Command Line"
         case .diagnostics: "Diagnostics"
@@ -20,6 +21,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: "gearshape"
         case .launching: "terminal"
+        case .remote: "iphone.radiowaves.left.and.right"
         case .data: "lock.shield"
         case .cli: "chevron.left.forwardslash.chevron.right"
         case .diagnostics: "stethoscope"
@@ -124,6 +126,8 @@ struct SettingsView: View {
                 } header: { Text("Code folders") } footer: {
                     Text("A list of the folders you keep projects in, for your own reference. Nothing is scanned until you choose folders in Add Product.")
                 }
+            case .remote:
+                ForgeRemoteSettingsView()
             case .data:
                 Section {
                     Toggle("Ask for Touch ID or password before using production secrets", isOn: $model.portfolio.settings.requireAuthForProductionSecrets)
@@ -204,6 +208,61 @@ struct SettingsView: View {
         .fitsContent(max: 620)
         .onChange(of: model.portfolio.settings) { model.save() }
         .onAppear { if tab == .diagnostics, model.doctorSteps[DoctorTarget.toolchain.id] == nil, !Runtime.isAutomated { model.runDoctor(.toolchain) } }
+    }
+}
+
+/// Settings › Forge Remote: a Claude Code Remote Control server that can reach every product.
+struct ForgeRemoteSettingsView: View {
+    @Environment(AppModel.self) private var model
+    @State private var name = ""
+
+    var body: some View {
+        let settings = model.remoteSettings
+        let installed = ExecutableLocator.find(ForgeRemote.program) != nil
+        Section {
+            Toggle("Turn on Forge Remote", isOn: Binding(get: { settings.enabled }, set: { model.setRemote(enabled: $0) }))
+                .disabled(!installed && !settings.enabled)
+            LabeledContent("Status") {
+                HStack(spacing: Space.sm) {
+                    Text(model.remoteStatus).foregroundStyle(Ink.text2).lineLimit(2)
+                    if model.remoteSession != nil { Button("Show Terminal") { model.showRemoteTerminal() } }
+                }
+            }
+        } header: { Text("Forge Remote") } footer: {
+            Text("Runs Claude Code's Remote Control in the background, in a Forge Session folder that lists every product with a folder on this Mac. Open the Claude app or claude.ai/code, pick the session, and name a product. Each new session starts with empty context, so start one per product. Only Claude Code has Remote Control; other agents keep working from the product pages.")
+        }
+        Section {
+            LabeledContent("Session name") {
+                TextField("", text: $name, prompt: Text("Forge Session"))
+                    .labelsHidden()
+                    .onSubmit { commitName() }
+            }
+            Picker("Approvals", selection: Binding(get: { settings.mode }, set: { mode in
+                model.updateRemote { $0.permissionMode = mode.rawValue }
+                model.restartRemote()
+            })) {
+                ForEach(ForgeRemoteSettings.Mode.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            Toggle("Keep this Mac awake while it runs", isOn: Binding(get: { settings.keepAwake }, set: { awake in
+                model.updateRemote { $0.keepAwake = awake }
+                model.restartRemote()
+            }))
+            LabeledContent("Forge Session folder") {
+                Button(abbreviate(model.remoteWorkspace.folder.path)) { NSWorkspace.shared.activateFileViewerSelecting([model.remoteWorkspace.briefingFile]) }
+                    .buttonStyle(.link)
+            }
+        } header: { Text("Sessions") } footer: {
+            Text("Approvals come to your phone. Changing them restarts Forge Remote, which ends sessions that are open. The Mac stays awake but still sleeps when the lid closes. Production secrets need Touch ID at this Mac, so a remote session cannot use them. It runs while \(Brand.name) is open and starts again when \(Brand.name) opens.")
+        }
+        .onAppear { name = settings.name }
+        .onDisappear { commitName() }
+    }
+
+    private func commitName() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard trimmed != model.remoteSettings.name else { return }
+        model.updateRemote { $0.name = trimmed.isEmpty ? "Forge Session" : trimmed }
+        model.restartRemote()
     }
 }
 

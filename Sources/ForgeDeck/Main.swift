@@ -147,6 +147,8 @@ struct AppCommands: Commands {
             .keyboardShortcut("`")
             Button(model.usagePanelVisible ? "Hide AI Usage" : "Show AI Usage") { model.toggleUsagePanel() }
                 .keyboardShortcut("u", modifiers: [.command, .shift])
+            Button(model.isRemoteRunning ? "Stop Forge Remote" : "Start Forge Remote") { model.setRemote(enabled: !model.isRemoteRunning) }
+                .disabled(!model.isRemoteRunning && ExecutableLocator.find(ForgeRemote.program) == nil)
             Button("Refresh") { model.refreshCurrentPage() }.keyboardShortcut("r")
             Divider()
             Button("Overview") { model.go(.overview) }.keyboardShortcut("1")

@@ -309,6 +309,22 @@ struct ResolutionPreview: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
+                if let environment = product.environment(tier: tier) {
+                    let keys = resolved.filter { $0.state.delivers }.map(\.key)
+                    if !keys.isEmpty, !AgentProfileDraft.isCovered(product: product, environment: environment, keys: keys) {
+                        VStack(alignment: .leading, spacing: Space.sm) {
+                            Text("Agents and `\(Brand.cliName) exec` cannot use these yet: no terminal profile grants them in \(environment.name).")
+                                .kitType(.label, Ink.text2).fixedSize(horizontal: false, vertical: true)
+                            Button("Create Agent Profile…") {
+                                model.sheet = .profileDraft(productID: product.id, AgentProfileDraft.make(product: product, environment: environment, portfolio: model.portfolio))
+                            }
+                            .buttonStyle(.kit(.secondary, compact: true)).disabled(product.isDemo)
+                            .help("Opens a profile filled in with these variables and the programs this project uses. Nothing is granted until you save it.")
+                        }
+                        .padding(Space.md).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Ink.panel2.opacity(0.5), in: RoundedRectangle(cornerRadius: Metric.tileRadius, style: .continuous))
+                    }
+                }
                 Text("Global < Organization < Product < Component < Environment < Profile. A secret is delivered only in the environments it lists.")
                     .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
             }

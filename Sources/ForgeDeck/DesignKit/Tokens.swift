@@ -222,6 +222,7 @@ enum KitIcon: String {
     case mcp = "point.3.connected.trianglepath.dotted"
     case question = "questionmark.circle"
     case wifiOff = "wifi.slash"
+    case remote = "iphone.radiowaves.left.and.right"
     case archive = "archivebox"
     case pencil = "pencil"
     case more = "ellipsis"

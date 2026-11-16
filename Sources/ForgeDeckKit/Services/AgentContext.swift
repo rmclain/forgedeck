@@ -501,8 +501,9 @@ public struct AgentContextBundle: Sendable, Equatable {
         """
         if !lines.isEmpty { text += "\n\nDefined for this product:\n\n" + lines.joined(separator: "\n") }
         text += profiles.isEmpty
-            ? "\n\nNo terminal profile exists yet, so nothing can receive them. If a command needs one, ask the person to add a profile in \(Brand.name) (product › Actions › Add Profile)."
+            ? "\n\nNo terminal profile exists yet, so nothing can receive them, and `\(Brand.cliName) exec` answers \"no profile\". Granting one is the person's decision: ask them to press Create Agent Profile… under \(product.name) › Secrets › What a process would receive, review it, and save. Then read this file again."
             : "\n\nTo run a command that needs them, use a profile. The program gets the values in its environment; you see only its output, redacted:\n\n" + profiles.joined(separator: "\n")
+        text += "\n\nNo shell runs: `$NAME` in an argument stays literal. Read the value inside the program instead (`process.env.NAME`, `getenv('NAME')`, `os.environ[\"NAME\"]`), for example in a small script you run with a listed program, and never print it."
         return text
     }
 

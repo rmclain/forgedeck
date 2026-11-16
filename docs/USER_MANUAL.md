@@ -329,6 +329,26 @@ In the in-app terminal, the agent starts under a short header that shows the con
 
 CONTEXT.md also lists the product's **variable names** per environment (never values) and the exact `forgedeck exec` line for each terminal profile. An agent that needs a secret runs the command through a profile: the program gets the value in its environment, the agent sees only the redacted output, and a production secret still asks you for Touch ID. Variables never reach the agent's prompt on their own.
 
+If an agent reports that `forgedeck exec` was refused with "no profile", open the product's Secrets tab. Under "What a process would receive", pick the environment and press **Create Agent Profile…**. It opens a profile filled in with the variables delivered there and the programs the project uses (never a shell). Review it and press Save Profile. Saving rewrites CONTEXT.md, so a running agent can read it again and use the profile. No shell runs, so `$NAME` in an argument stays literal: the program has to read the value from its environment.
+
+## Forge Remote: work on any product from your phone
+
+Settings › Forge Remote › **Turn on Forge Remote** starts Claude Code's Remote Control server (`claude remote-control`) in a terminal named Forge Remote. It runs in a folder of its own, `remote/` in the data folder, which holds:
+
+- `CLAUDE.md`, the Forge Session briefing: every real, active product with a folder on this Mac, with its slug, folder, and context file, and the rules (one product per session, read-only outside the product, no deploys or pushes unless asked).
+- `.claude/settings.json`, which makes every product folder and the context folder working directories, so a session can `cd` into any product.
+
+ForgeDeck rewrites both files when products change. On your phone, open the Claude app (or claude.ai/code), pick the session, and name a product. The session reads that product's CONTEXT.md and works in its folder.
+
+**Switching products.** Every session you start from the app begins in the Forge Session folder with empty context, so start a new session for each product. A session asked to switch suggests exactly that, or `/clear`. If you continue in the same session anyway, it re-reads the new context and treats earlier work as belonging to the other product.
+
+- **Approvals** (Ask before every change, Edit files without asking, Plan only, Auto) apply to every session. Prompts come to your phone. Modes that skip every question are not offered. Changing approvals or the session name restarts Forge Remote, which ends open sessions.
+- **Keep this Mac awake while it runs** prevents idle sleep. Closing the lid still sleeps the Mac.
+- Forge Remote runs while ForgeDeck is open and starts again when ForgeDeck opens. If it stops on its own, ForgeDeck restarts it, at most three times in ten minutes.
+- The first time, Claude Code may ask in the Forge Remote terminal whether to trust the folder. Answer it at the Mac.
+- Production secrets need Touch ID at this Mac, so a remote session cannot use them.
+- Only Claude Code has Remote Control. Other agents still start from product pages.
+
 ## Organizing products
 
 - **Rename**: right-click a product in the sidebar › Rename…, or use the palette. The display name changes; the CLI name stays the same.
