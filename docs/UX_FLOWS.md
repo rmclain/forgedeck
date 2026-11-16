@@ -111,7 +111,7 @@ The same facts appear as a three-cell strip on every product card, on the produc
 ## 5. Add an environment and a status endpoint
 
 1. Product > Environments > "Add Environment". Pick Local, Staging, Production, Preview, or Custom. Optionally name it, give a domain, and (when the product has a repository and the tier is not Local) a GitHub environment name. A second Local, Staging, or Production environment cannot be added.
-2. On the environment's card, open its add menu and choose "Add Health Check or Status Endpoint…".
+2. On the environment's card, open its add menu and choose "Add Version, Status, or Health Check…".
 3. The sheet "Add a Check to <environment>" explains the difference: a status endpoint follows the ForgeDeck contract and proves which release is running; a health check only proves the URL answers.
 4. Pick the kind, name it, and enter the URL. HTTPS is required except on localhost. A URL with embedded credentials is refused.
 5. If the endpoint needs a token, choose a secret variable under "Bearer token". The list shows secret variables that are global or scoped to this product. Add the secret first if the list is empty (flow 6).

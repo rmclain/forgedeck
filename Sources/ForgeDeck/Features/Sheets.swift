@@ -451,7 +451,7 @@ struct ProbeSheet: View {
     @Environment(AppModel.self) private var model
     let productID: UUID
     let environmentID: UUID
-    @State private var kind: ProbeConfig.Kind = .companion
+    @State private var kind: ProbeConfig.Kind = .release
     @State private var name = ""
     @State private var url = ""
     @State private var token = ""
@@ -461,25 +461,27 @@ struct ProbeSheet: View {
         let environment = model.product(productID)?.environment(id: environmentID)
         SheetPanel(width: 540) {
             SheetHeader(icon: .shield, title: "Add a Check to \(environment?.name ?? "Environment")",
-                        message: "A status endpoint follows the \(Brand.name) contract and proves which release is running. A health check only proves the URL answers.")
+                        message: "Pick what the site can tell you. A version URL or status endpoint proves which release is running; a health check only proves the URL answers.")
             VStack(alignment: .leading, spacing: Space.md) {
-                SegmentedPill(options: [(.companion, "Status endpoint"), (.health, "Health check")], selection: $kind, stretch: true)
-                LabeledField(label: "Name") { KitField(placeholder: kind == .companion ? "Status endpoint" : "Homepage", text: $name) }
-                LabeledField(label: "URL", hint: kind == .companion ? "Ends in /_forgedeck/v1/status (or /wp-json/forgedeck/v1/status on WordPress). HTTPS is required except on localhost." : "HTTPS is required except on localhost.") {
-                    KitField(placeholder: "https://example.com/_forgedeck/v1/status", text: $url, icon: .link, monospaced: true)
+                SegmentedPill(options: [(.release, "Version URL"), (.companion, "Status endpoint"), (.health, "Health check")], selection: $kind, stretch: true)
+                Text(kindHelp).kitType(.meta, Ink.text2).fixedSize(horizontal: false, vertical: true)
+                LabeledField(label: "Name") { KitField(placeholder: defaultName, text: $name) }
+                LabeledField(label: "URL", hint: urlHint) {
+                    KitField(placeholder: urlPlaceholder, text: $url, icon: .link, monospaced: true)
                 }
-                TokenPicker(productID: productID, key: $token)
+                if kind != .release { TokenPicker(productID: productID, key: $token) }
                 if let error { ErrorState(title: "Not added", detail: error) }
             }
             .padding(.horizontal, Space.xl)
             SheetFooter(note: "Read-only GET requests. Redirects to another host are refused.") {
                 Button("Cancel") { model.sheet = nil }.buttonStyle(.kit(.secondary)).keyboardShortcut(.cancelAction)
                 Button("Add Check") {
+                    if kind == .release { token = "" }
                     do {
                         _ = try URLPolicy.validate(url)
                         var probe = ProbeConfig()
                         probe.kind = kind
-                        probe.name = name.isEmpty ? (kind == .companion ? "Status endpoint" : "Health check") : name
+                        probe.name = name.isEmpty ? defaultName : name
                         probe.url = url.trimmingCharacters(in: .whitespaces)
                         probe.bearerVariableKey = token.isEmpty ? nil : token
                         updateEnvironment(model, productID, environmentID) { $0.probes.append(probe) }
@@ -491,6 +493,38 @@ struct ProbeSheet: View {
                 }
                 .buttonStyle(.kit(.primary)).keyboardShortcut(.defaultAction).disabled(url.isEmpty)
             }
+        }
+    }
+
+    private var defaultName: String {
+        switch kind {
+        case .release: "Version"
+        case .companion: "Status endpoint"
+        case .health: "Health check"
+        }
+    }
+
+    private var kindHelp: String {
+        switch kind {
+        case .release: "For any website, static site, or WordPress site. Your build writes forgedeck-release.json (commit, version, build time; never secrets) into what it publishes, or your host sends an X-Release header. No plugin or token needed."
+        case .companion: "For an app running the \(Brand.name) companion (Node, Python, or the WordPress plugin in Companions/). Adds health checks and can require a token."
+        case .health: "Only checks that the URL answers with HTTP 200. It cannot tell which release is running."
+        }
+    }
+
+    private var urlHint: String {
+        switch kind {
+        case .release: "A JSON or text file such as /forgedeck-release.json (on WordPress, /wp-content/forgedeck-release.json), or any page that sends X-Release. HTTPS except on localhost."
+        case .companion: "Ends in /_forgedeck/v1/status (or /wp-json/forgedeck/v1/status on WordPress). HTTPS is required except on localhost."
+        case .health: "HTTPS is required except on localhost."
+        }
+    }
+
+    private var urlPlaceholder: String {
+        switch kind {
+        case .release: "https://example.com/forgedeck-release.json"
+        case .companion: "https://example.com/_forgedeck/v1/status"
+        case .health: "https://example.com"
         }
     }
 }

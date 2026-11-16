@@ -27,7 +27,7 @@ public enum EvidenceLevel: String, Codable, CaseIterable, Sendable, Comparable {
 }
 
 public enum FactSource: String, Codable, Sendable {
-    case localCheckout, githubAPI, ciArtifact, deploymentRecord, runtimeProbe, sshInspection, metricsAPI, fixture
+    case localCheckout, githubAPI, ciArtifact, deploymentRecord, runtimeProbe, sshInspection, metricsAPI, fixture, packageRegistry
 
     public var title: String {
         switch self {
@@ -39,6 +39,7 @@ public enum FactSource: String, Codable, Sendable {
         case .sshInspection: "SSH inspection"
         case .metricsAPI: "Metrics API"
         case .fixture: "Demo fixture"
+        case .packageRegistry: "Package registry"
         }
     }
 }
@@ -444,6 +445,8 @@ public struct ObservationCache: Codable, Sendable {
     public var sessions: [SessionRecord] = []
     public var sync: [String: SyncState] = [:]
     public var comparisons: [String: RevisionComparison] = [:]
+    /// What each release channel's registry publishes, by channel id. Optional so older cache files load.
+    public var releases: [UUID: ReleaseObservation]?
     public init() {}
 
     public static let maxHealthSamples = 90

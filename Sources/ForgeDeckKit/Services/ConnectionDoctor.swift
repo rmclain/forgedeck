@@ -81,7 +81,7 @@ public struct ConnectionDoctor: Sendable {
                 steps.append(DoctorStep("Capability", .skipped, "Needs permission"))
             default:
                 steps.append(DoctorStep("Authentication", .pass, tokenConfigured ? "Token accepted" : "No token needed"))
-                if probe.kind == .companion {
+                if probe.kind.reportsRelease {
                     if let deployment = outcome.deployment, deployment.problem == nil {
                         steps.append(DoctorStep("Capability", .pass, "Reports release \(deployment.version ?? shortSHA(deployment.sha)), health \(deployment.health.title.lowercased())"))
                     } else {

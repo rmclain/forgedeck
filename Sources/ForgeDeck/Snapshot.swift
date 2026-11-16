@@ -52,6 +52,14 @@ enum Snapshot {
                     FoundSkill(name: "template", summary: "A starting point for a new skill.", sources: ["template"], recommended: false),
                 ]))
             },
+            Shot(name: "sheet-release-channel") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.sheet = .releaseChannel(lumen.id) }
+            },
+            Shot(name: "sheet-probe") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }), let production = lumen.environments.first(where: { $0.tier == .production }) {
+                    model.sheet = .probe(productID: lumen.id, environmentID: production.id)
+                }
+            },
             Shot(name: "secrets") { $0.route = .secrets },
             Shot(name: "activity") { $0.route = .activity },
             Shot(name: "production-context") { $0.route = .overview; $0.context = .production },
@@ -101,8 +109,12 @@ enum Snapshot {
                    let lumen = model.products.first(where: { $0.slug == "lumen" }) {
                     model.terminals.open(launch, productID: lumen.id, checkoutID: lumen.primaryCheckout?.id)
                 }
-                if let shell = TerminalLaunch.command(["/bin/zsh", "-f"], kind: .shell, title: "Beacon", in: folder),
+                if var shell = TerminalLaunch.command(["/bin/zsh", "-f"], kind: .shell, title: "Beacon", in: folder),
                    let beacon = model.products.first(where: { $0.slug == "beacon" }) {
+                    // The header an agent with linked context gets, so the snapshot shows it.
+                    shell.banner = AgentContextBundle(contextFile: URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/ForgeDeck/context/beacon/CONTEXT.md"),
+                                                      workingDirectory: folder, readableFolders: ["/ctx", "/code/lumen"], relatedNames: ["Lumen"], approxTokens: 2_400)
+                        .banner(product: "Beacon", program: "claude")
                     model.terminals.open(shell, productID: beacon.id, checkoutID: nil)
                 }
                 if let first = model.terminals.sessions.first { model.terminals.selectedID = first.id }

@@ -44,7 +44,7 @@ struct EnvironmentsTab: View {
                                 isDemo: evidence.observation?.provenance.isDemo ?? false)
                 }
                 Menu {
-                    Button("Add Health Check or Status Endpoint…") { model.sheet = .probe(productID: product.id, environmentID: environment.id) }
+                    Button("Add Version, Status, or Health Check…") { model.sheet = .probe(productID: product.id, environmentID: environment.id) }
                     Button("Add Metrics Source…") { model.sheet = .metricSource(productID: product.id, environmentID: environment.id) }
                     Button("Add SSH Host…") { model.sheet = .sshHost(productID: product.id, environmentID: environment.id) }
                     Divider()
@@ -73,9 +73,9 @@ struct EnvironmentsTab: View {
             }
             ForEach(environment.probes) { probe in
                 let last = model.cache.health[probe.id]?.last
-                ActionRow(icon: probe.kind == .companion ? .shield : .activity, tone: last == nil ? .muted : last!.ok ? .ok : .err,
+                ActionRow(icon: probe.kind == .companion ? .shield : probe.kind == .release ? .tag : .activity, tone: last == nil ? .muted : last!.ok ? .ok : .err,
                           title: probe.name.isEmpty ? probe.url : probe.name,
-                          subtitle: "\(probe.kind == .companion ? "Status endpoint (verifies the running release)" : "Health check") · \(probe.url)\(probe.bearerVariableKey.map { " · token from \($0)" } ?? "")") {
+                          subtitle: "\(probe.kind == .companion ? "Status endpoint (verifies the running release)" : probe.kind == .release ? "Version URL (reads the running release)" : "Health check") · \(probe.url)\(probe.bearerVariableKey.map { " · token from \($0)" } ?? "")") {
                     ConnectionState(kind: last == nil ? .notConfigured : ConnectionState.kind(for: last!.problem),
                                     detail: last.map { $0.ok ? "\($0.latencyMS ?? 0) ms · \(RelativeTime.short($0.at, now: model.now))" : ($0.problem?.title ?? "Failing") } ?? "Not checked")
                     Button("Doctor") { model.sheet = .doctor(.probe(productID: product.id, environmentID: environment.id, probeID: probe.id)) }
@@ -131,9 +131,9 @@ struct ConnectionsList: View {
                 ForEach(rows, id: \.2.id) { product, environment, probe in
                     let samples = model.cache.health[probe.id] ?? []
                     let last = samples.last
-                    ActionRow(icon: probe.kind == .companion ? .shield : .activity, tone: last == nil ? .muted : last!.ok ? .ok : .err,
+                    ActionRow(icon: probe.kind == .companion ? .shield : probe.kind == .release ? .tag : .activity, tone: last == nil ? .muted : last!.ok ? .ok : .err,
                               title: "\(product.name) · \(environment.name) · \(probe.name.isEmpty ? "check" : probe.name)",
-                              subtitle: "\(probe.kind == .companion ? "status:read" : "HTTP \(probe.expectedStatus)") · \(probe.url)") {
+                              subtitle: "\(probe.kind == .companion ? "status:read" : probe.kind == .release ? "version" : "HTTP \(probe.expectedStatus)") · \(probe.url)") {
                         if product.isDemo { DemoBadge() }
                         ConnectionState(kind: last == nil ? .notConfigured : ConnectionState.kind(for: last!.problem),
                                         detail: last.map { $0.ok ? "OK \(RelativeTime.short($0.at, now: model.now))" : ($0.problem?.title ?? "Failing") })

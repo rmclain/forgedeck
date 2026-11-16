@@ -82,7 +82,8 @@ Open a product > Development. The "Source of truth" card shows four stages: Loca
 
 ForgeDeck never shows production as current because `main` moved or CI is green. To get Verified evidence for an environment, do one of these:
 
-- Add a **status endpoint**: Environments tab > the environment's add menu > "Add Health Check or Status Endpoint…" > "Status endpoint". Your app must serve the companion `/status` route (see `Companions/`).
+- Add a **version URL** (simplest, any website or WordPress site): Environments tab > the environment's add menu > "Add Version, Status, or Health Check…" > "Version URL". Have your build write `forgedeck-release.json` (commit, version, build time; never secrets, see `Companions/contract/deployment-fingerprint.md`) into what it publishes, for example the static site's output folder or `wp-content/` on WordPress, and give its URL. A page that sends an `X-Release` or `X-Commit-Sha` header works too. No plugin, no token.
+- Add a **status endpoint**: the same menu > "Status endpoint". Your app must serve the companion `/status` route (see `Companions/`). It adds health checks and can require a token.
 - Add an **SSH host with a release file**: "Add SSH Host…" and give the path of a file your deploy writes, such as `/srv/app/forgedeck-release.json`.
 
 To get Reported evidence from GitHub deployment records, give the environment a GitHub environment name when you add it.
@@ -310,9 +311,23 @@ Read the reason after `denied:`. The usual ones:
 **Fix:** Restore the file from a backup, or move it aside to start empty. `forgedeck doctor` prints the same error.
 
 
+## Releases: plugins and packages
+
+For something you ship rather than host, such as a WordPress plugin or an npm or PyPI package, the question is which version is out. The Releases card on the product's Overview shows:
+
+- **In the code**: the plugin header `Version:`, the `Stable tag:` in readme.txt, and the version in package.json or pyproject.toml, read from the primary checkout on refresh.
+- **Published**: each registry you track ("Track a Registry…", or "Track" on a suggestion) and the latest GitHub release. Registry lookups are public, read-only requests that send only the package name. They are Reported evidence: the registry says what it publishes.
+- **Findings** in words: not released yet, the registry is ahead of your checkout, or readme.txt's Stable tag does not match the plugin header (WordPress.org installs the Stable tag).
+
+Detected packages are only suggestions. Nothing is looked up until you track it, because a private package can share a name with an unrelated public one. A new published version appears in Activity.
+
 ## Agent context for related repositories
 
 Link related products under Development > Agent context, then start your agent from there or with `forgedeck agent <product>`. See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for what the agent receives and what it costs.
+
+In the in-app terminal, the agent starts under a short header that shows the context file, the related products, and where the pointer went (Claude Code gets it in its system prompt, which is otherwise invisible).
+
+CONTEXT.md also lists the product's **variable names** per environment (never values) and the exact `forgedeck exec` line for each terminal profile. An agent that needs a secret runs the command through a profile: the program gets the value in its environment, the agent sees only the redacted output, and a production secret still asks you for Touch ID. Variables never reach the agent's prompt on their own.
 
 ## Organizing products
 

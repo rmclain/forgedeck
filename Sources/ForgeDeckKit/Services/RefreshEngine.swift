@@ -12,6 +12,7 @@ public enum CacheUpdate: Sendable {
     case metrics(source: UUID, ConnectorResult<[MetricSample]>)
     case leads(source: UUID, product: UUID, ConnectorResult<[LeadEvent]>)
     case comparison(key: String, RevisionComparison)
+    case release(ReleaseObservation)
 }
 
 extension ObservationCache {
@@ -105,6 +106,19 @@ extension ObservationCache {
 
             case .comparison(let key, let comparison):
                 comparisons[key] = comparison
+
+            case .release(let observation):
+                touch("release:\(observation.channelID.uuidString)", problem: observation.problem, at: observation.provenance.observedAt)
+                let previous = releases?[observation.channelID]
+                // A failed lookup keeps the last version: it turns Stale, it does not vanish.
+                if observation.problem != nil, previous?.version != nil { continue }
+                releases = (releases ?? [:]).merging([observation.channelID: observation]) { _, new in new }
+                if let version = observation.version, let old = previous?.version, old != version,
+                   let channel = portfolio.product(id: observation.productID)?.releaseChannels?.first(where: { $0.id == observation.channelID }) {
+                    record(ActivityEvent(id: "release:\(channel.id.uuidString):\(version)", kind: .deploy, productID: observation.productID,
+                                         title: "\(channel.kind.title) published \(version)", detail: "\(channel.package) · was \(old)",
+                                         at: observation.releasedAt ?? observation.provenance.observedAt, sourceLabel: channel.kind.title))
+                }
             }
         }
         AlertEngine.evaluate(portfolio: portfolio, cache: &self, now: now)
@@ -260,6 +274,15 @@ public struct RefreshEngine: Sendable {
                 updates.append(.deployment(observation))
             }
         }
+        return updates
+    }
+
+    /// Asks each registry the product publishes to for its newest version. Read-only public APIs, no token.
+    public func refreshReleases(_ product: Product) async -> [CacheUpdate] {
+        guard !product.isDemo, !product.isArchived, let channels = product.releaseChannels, !channels.isEmpty else { return [] }
+        let connector = ReleaseRegistryConnector(http: http)
+        var updates: [CacheUpdate] = []
+        for channel in channels { updates.append(.release(await connector.latest(channel, productID: product.id))) }
         return updates
     }
 

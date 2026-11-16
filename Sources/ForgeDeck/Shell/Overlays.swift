@@ -284,6 +284,7 @@ struct SheetHost: View {
                     case .rename(let target): RenameSheet(target: target)
                     case .update(let release): UpdateSheet(release: release)
                     case .skills(let plan): SkillsSheet(plan: plan)
+                    case .releaseChannel(let product): ReleaseChannelSheet(productID: product)
                     }
                 }
                 .id(sheet.id)

@@ -134,9 +134,15 @@ public struct LocalCheckout: Codable, Identifiable, Hashable, Sendable {
 }
 
 /// A read-only HTTP check against one environment. `.companion` parses the
-/// ForgeDeck status contract and yields a runtime-verified release.
+/// ForgeDeck status contract and yields a runtime-verified release. `.release` reads a version
+/// file or header the site serves publicly (forgedeck-release.json, X-Release), with no companion.
 public struct ProbeConfig: Codable, Identifiable, Hashable, Sendable {
-    public enum Kind: String, Codable, CaseIterable, Sendable { case health, companion }
+    public enum Kind: String, Codable, CaseIterable, Sendable {
+        case health, companion, release
+
+        /// The check reports which release is running, not only that the URL answers.
+        public var reportsRelease: Bool { self != .health }
+    }
     public var id = UUID()
     public var name = ""
     public var kind: Kind = .health
@@ -305,6 +311,8 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     public var contextLinks: [ContextLink] = []
     /// Symlinks from this product's checkouts into folders that load them, like a local WordPress site.
     public var installLinks: [InstallLink] = []
+    /// Registries this product publishes to (WordPress.org, npm, PyPI). Optional so older files load.
+    public var releaseChannels: [ReleaseChannel]?
 
     public init() {}
 

@@ -423,6 +423,14 @@ public struct AgentContextBundle: Sendable, Equatable {
     public var relatedNames: [String]
     public var approxTokens: Int
 
+    public init(contextFile: URL, workingDirectory: String, readableFolders: [String], relatedNames: [String], approxTokens: Int) {
+        self.contextFile = contextFile
+        self.workingDirectory = workingDirectory
+        self.readableFolders = readableFolders
+        self.relatedNames = relatedNames
+        self.approxTokens = approxTokens
+    }
+
     public static func write(for product: Product, checkout: LocalCheckout? = nil, portfolio: Portfolio, cache: ObservationCache,
                              location: ContextLocation, mcp: MCPProductInfo? = nil, now: Date = .now) throws -> AgentContextBundle {
         let packs = PackBuilder(location: location)
@@ -448,7 +456,8 @@ public struct AgentContextBundle: Sendable, Equatable {
         let hints = Toolbox.agentHints()
         let tools = hints.isEmpty ? [] : ["## Tools on this Mac\n\nCheaper than reading whole files:\n\n" + hints.map { "- \($0)" }.joined(separator: "\n")]
         let servers = mcp.flatMap(MCPInventory.contextSection).map { [$0] } ?? []
-        let text = Redactor().redact(([header] + sections + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
+        let variables = variablesSection(product, portfolio: portfolio).map { [$0] } ?? []
+        let text = Redactor().redact(([header] + sections + variables + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
         let folder = location.productFolder(product)
         try location.prepare(folder)
         let file = location.contextFile(product)
@@ -462,10 +471,65 @@ public struct AgentContextBundle: Sendable, Equatable {
                                   relatedNames: names, approxTokens: text.utf8.count / 4)
     }
 
+    /// Variable names per environment and the exact `forgedeck exec` line for each profile. Never a value:
+    /// the agent learns what exists and how to ask for it, and the values reach only the program it runs.
+    public static func variablesSection(_ product: Product, portfolio: Portfolio) -> String? {
+        guard !product.isDemo else { return nil }
+        var lines: [String] = []
+        for environment in product.environments {
+            let resolved = VariableResolver.resolve(portfolio.variables, context: ResolutionContext(product: product, environment: environment))
+                .filter { $0.state.delivers }
+            guard !resolved.isEmpty else { continue }
+            let names = resolved.map { "`\($0.key)`\($0.isSecret ? " (secret)" : "")" }.joined(separator: ", ")
+            lines.append("- \(environment.name) (\(environment.tier.rawValue)): \(names)")
+        }
+        var profiles: [String] = []
+        for profile in product.profiles {
+            guard let environment = product.environments.first(where: { $0.id == profile.environmentID }), !profile.allowedExecutables.isEmpty else { continue }
+            let program = profile.allowedExecutables[0]
+            let command = ShellQuote.join([Brand.cliName, "exec", "--product", product.slug, "--environment", environment.name, "--profile", profile.name, "--", program])
+            let gets = profile.variableAllowlist.isEmpty ? "no variables" : profile.variableAllowlist.map { "`\($0)`" }.joined(separator: ", ")
+            profiles.append("- `\(command) …` runs \(profile.allowedExecutables.map { "`\($0)`" }.joined(separator: ", ")) with \(gets)"
+                            + (environment.tier == .production ? ". Production: asks the person for Touch ID." : "."))
+        }
+        guard !lines.isEmpty || !profiles.isEmpty else { return nil }
+        var text = """
+        ## Variables and secrets
+
+        Names only. The values live in the macOS Keychain and are never in this file, the prompt, or your shell. \
+        Do not ask the person to paste a secret, and do not read .env files for one.
+        """
+        if !lines.isEmpty { text += "\n\nDefined for this product:\n\n" + lines.joined(separator: "\n") }
+        text += profiles.isEmpty
+            ? "\n\nNo terminal profile exists yet, so nothing can receive them. If a command needs one, ask the person to add a profile in \(Brand.name) (product › Actions › Add Profile)."
+            : "\n\nTo run a command that needs them, use a profile. The program gets the values in its environment; you see only its output, redacted:\n\n" + profiles.joined(separator: "\n")
+        return text
+    }
+
     /// One line for the agent's system prompt. The file holds the rest.
     public var pointer: String {
         "\(Brand.name) wrote a context file for this session at \(contextFile.path). Read it before working across repositories."
             + (relatedNames.isEmpty ? "" : " Related repositories you may read: \(relatedNames.joined(separator: ", ")).")
+    }
+
+    /// A few lines printed above the agent in the in-app terminal. The system-prompt flag and the folder flags
+    /// are invisible once the agent draws its screen, so this shows what the session was started with.
+    public func banner(product: String, program: String, home: String = NSHomeDirectory()) -> String {
+        let spec = AgentCatalog.spec(program)
+        let agent = spec?.name ?? program
+        func tilde(_ path: String) -> String { path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path }
+        let dim = "\u{1B}[2m", bold = "\u{1B}[1m", reset = "\u{1B}[0m"
+        var rows: [(String, String)] = [("Context", "\(tilde(contextFile.path))  \(dim)~\(max(1, approxTokens / 1_000))k tokens, read when needed\(reset)")]
+        let related = relatedNames.isEmpty ? "none linked. Link products in the Agent context card." : relatedNames.joined(separator: ", ")
+        rows.append(("Related", related))
+        if spec?.addFolderFlag != nil, !readableFolders.isEmpty {
+            rows.append(("Readable", "\(readableFolders.count) folder\(readableFolders.count == 1 ? "" : "s") added with \(spec?.addFolderFlag ?? "")"))
+        }
+        rows.append(("Prompt", spec?.systemPromptFlag != nil ? "a pointer to the context file is in \(agent)'s system prompt" : "the pointer to the context file is the first message"))
+        let lines = ["\(dim)── \(reset)\(bold)\(Brand.name)\(reset)\(dim) · \(agent) with agent context for \(reset)\(bold)\(product)\(reset)"]
+            + rows.map { "\(dim)   \($0.0.padding(toLength: 9, withPad: " ", startingAt: 0))\(reset)\($0.1)" }
+            + ["\(dim)   Ask it to read the context file, or just start: it reads it when the work crosses repositories.\(reset)", ""]
+        return lines.joined(separator: "\r\n") + "\r\n"
     }
 
     /// The agent's command line, as an argument array. Claude Code gets the folders with --add-dir and the

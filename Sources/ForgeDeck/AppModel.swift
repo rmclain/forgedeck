@@ -121,6 +121,7 @@ enum SheetKind: Identifiable {
     case rename(RenameTarget)
     case update(AppRelease)
     case skills(SkillPlan)
+    case releaseChannel(UUID)
 
     var id: String {
         switch self {
@@ -140,6 +141,7 @@ enum SheetKind: Identifiable {
         case .rename(let target): "rename-\(target.id)"
         case .update(let release): "update-\(release.version)"
         case .skills(let plan): "skills-\(plan.id)"
+        case .releaseChannel(let product): "release-\(product)"
         }
     }
 }
@@ -222,6 +224,8 @@ final class AppModel {
     var mcpCode: [String: MCPServerCode] = [:]
     var mcpScanning = false
     var mcpVersion = 0
+    /// Versions each product's primary checkout declares (plugin header, package.json, ...). Read on refresh.
+    var localReleases: [UUID: LocalRelease] = [:]
     @ObservationIgnored var mcpCache: [UUID: (product: Product, info: MCPProductInfo)] = [:]
     @ObservationIgnored var playCache: [UUID: (product: Product, options: [PlayOption])] = [:]
     /// Sites made with Local, read once at launch. Play opens a plugin's site from here.
@@ -453,11 +457,16 @@ final class AppModel {
         refreshing.insert(product.id)
         defer { refreshing.remove(product.id) }
         apply(await engine.refreshGit(product))
+        if let path = product.primaryCheckout?.path {
+            let found = await Task.detached { LocalRelease.detect(in: path) }.value
+            if localReleases[product.id] != found { localReleases[product.id] = found }
+        }
         if isOnline {
             async let remote = engine.refreshRemote(product, portfolio: portfolio)
             async let probes = engine.refreshProbes(product, portfolio: portfolio)
             async let metrics = engine.refreshMetrics(product, portfolio: portfolio)
-            apply(await remote + probes + metrics)
+            async let releases = engine.refreshReleases(product)
+            apply(await remote + probes + metrics + releases)
         }
         if let current = self.product(product.id) {
             apply(await engine.refreshComparisons(current, cache: cache))

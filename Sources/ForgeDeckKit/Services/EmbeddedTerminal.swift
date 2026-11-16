@@ -28,6 +28,8 @@ public struct TerminalLaunch: Sendable, Equatable {
     public var directory: String
     /// KEY=VALUE pairs, as a PTY child expects them.
     public var environment: [String]
+    /// Text shown in the terminal before the program starts, like what an agent was started with.
+    public var banner: String? = nil
 
     /// Variables used only by ForgeDeck's own test and snapshot runs. A terminal does not inherit them.
     static let internalPrefixes = ["APP_", "FORGEDECK_ACCEPTANCE", "FORGEDECK_LIVE"]

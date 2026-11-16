@@ -62,7 +62,7 @@ public struct HTTPProbeConnector: RuntimeProbe {
         let started = Date.now
         func failed(_ problem: ObservationProblem, _ detail: String, status: Int? = nil) -> ProbeOutcome {
             var observation: DeploymentObservation?
-            if probe.kind == .companion {
+            if probe.kind.reportsRelease {
                 var o = DeploymentObservation()
                 o.problem = problem
                 o.detail = detail
@@ -93,6 +93,26 @@ public struct HTTPProbeConnector: RuntimeProbe {
         }
         if let (problem, detail, _) = HTTPFailure.problem(status: response.status, headers: response.headers) {
             return failed(problem, detail, status: response.status)
+        }
+        if probe.kind == .release {
+            guard (200..<300).contains(response.status) else {
+                return failed(.unavailable, "Expected HTTP 200, got \(response.status).", status: response.status)
+            }
+            let found = ReleaseMarker.read(body: response.body, headers: response.headers)
+            var observation = DeploymentObservation()
+            observation.sha = found.sha
+            observation.version = found.version
+            observation.deployedAt = found.deployedAt
+            observation.health = .healthy
+            let hasRelease = found.sha != nil || found.version != nil
+            observation.provenance = Provenance(observedAt: started, source: .runtimeProbe, level: hasRelease ? .verified : .unknown, ttl: ttl)
+            if !hasRelease {
+                observation.problem = .malformed
+                observation.detail = "The URL answered but names no commit or version. Serve forgedeck-release.json, or send an X-Release header."
+            }
+            return ProbeOutcome(sample: HealthSample(at: started, ok: true, latencyMS: latency, statusCode: response.status, problem: nil),
+                                deployment: observation,
+                                detail: hasRelease ? "Release \(found.version ?? String(found.sha?.prefix(7) ?? "")) in \(latency) ms" : "Answered in \(latency) ms, no release named")
         }
         guard let status = try? JSONDecoder().decode(CompanionStatus.self, from: response.body) else {
             return failed(.malformed, "The response does not follow the status contract.", status: response.status)

@@ -49,6 +49,15 @@ Rules:
 Load the file once at start-up (Node, Python). A missing or invalid file yields
 `commit_sha: null`, which ForgeDeck shows as "revision unknown" rather than guessing.
 
+## Without a companion: serve the file itself
+
+A static site, or any site where you would rather not install a companion, can serve the
+file directly. Write it into the published output (`dist/`, `public/`, `_site/`, or
+`wp-content/` on WordPress) and add a **Version URL** check in ForgeDeck pointing at it,
+for example `https://example.com/forgedeck-release.json`. The file holds no secrets, so it
+needs no token. Hosts that set a response header can send `X-Release: 1.8.2` or
+`X-Commit-Sha: <sha>` on any page instead.
+
 ## GitHub Actions
 
 ```yaml

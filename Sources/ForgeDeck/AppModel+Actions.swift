@@ -62,11 +62,12 @@ extension AppModel {
 
     /// A command in an in-app terminal. Returns false when the program is missing.
     @discardableResult
-    func runInTerminal(_ argv: [String], kind: TerminalSessionKind, title: String, product: Product?, checkout: LocalCheckout?, directory: String) -> Bool {
-        guard let launch = TerminalLaunch.command(argv, kind: kind, title: title, in: directory) else {
+    func runInTerminal(_ argv: [String], kind: TerminalSessionKind, title: String, product: Product?, checkout: LocalCheckout?, directory: String, banner: String? = nil) -> Bool {
+        guard var launch = TerminalLaunch.command(argv, kind: kind, title: title, in: directory) else {
             show("\(argv.first ?? "The program") is not installed.", isError: true)
             return false
         }
+        launch.banner = banner
         terminals.open(launch, productID: product?.id, checkoutID: checkout?.id)
         return true
     }
@@ -154,7 +155,8 @@ extension AppModel {
             return show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }
         if terminalsInApp {
-            if runInTerminal(bundle.command(program: url, model: portfolio.settings.model(for: program)), kind: .agent, title: "\(AgentCatalog.name(program)) · \(product.name)", product: product, checkout: checkout, directory: checkout.path) {
+            if runInTerminal(bundle.command(program: url, model: portfolio.settings.model(for: program)), kind: .agent, title: "\(AgentCatalog.name(program)) · \(product.name)", product: product, checkout: checkout, directory: checkout.path,
+                            banner: bundle.banner(product: product.name, program: program)) {
                 session(program, product: product, checkout: checkout, command: "ai-agent")
                 record("agent.start", product: product, detail: "agent=\(program) related=\(bundle.relatedNames.joined(separator: ",")) app=ForgeDeck")
             }

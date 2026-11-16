@@ -52,6 +52,7 @@ final class TerminalSession: Identifiable {
         let box = Delegate(session: self)
         delegateBox = box
         view.processDelegate = box
+        if let banner = launch.banner { view.feed(text: banner) }
         view.startProcess(executable: launch.executable, args: launch.arguments, environment: launch.environment,
                           execName: launch.execName, currentDirectory: launch.directory)
         poll = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in

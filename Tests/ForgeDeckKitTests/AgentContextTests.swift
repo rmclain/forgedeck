@@ -171,6 +171,22 @@ import Testing
         #expect(line.contains(#"'/code/it'\''s api'"#))
     }
 
+    @Test func theTerminalShowsWhatTheAgentWasStartedWith() {
+        let bundle = AgentContextBundle(contextFile: URL(fileURLWithPath: "/Users/me/ctx/app/CONTEXT.md"), workingDirectory: "/code/app",
+                                        readableFolders: ["/ctx/app", "/code/api"], relatedNames: ["API", "Plugin"], approxTokens: 2_400)
+        let claude = bundle.banner(product: "App", program: "claude", home: "/Users/me")
+        #expect(claude.contains("~/ctx/app/CONTEXT.md"))
+        #expect(claude.contains("API, Plugin"))
+        #expect(claude.contains("2 folders added with --add-dir"))
+        #expect(claude.contains("system prompt"))
+        #expect(claude.hasSuffix("\r\n"))
+        let codex = bundle.banner(product: "App", program: "codex", home: "/Users/me")
+        #expect(!codex.contains("--add-dir"))
+        #expect(codex.contains("first message"))
+        let alone = AgentContextBundle(contextFile: URL(fileURLWithPath: "/c/CONTEXT.md"), workingDirectory: "/w", readableFolders: [], relatedNames: [], approxTokens: 10)
+        #expect(alone.banner(product: "W", program: "claude").contains("none linked"))
+    }
+
     @Test func linksSurviveMigrationAndDanglingLinksAreRepaired() throws {
         let v2 = #"{"schemaVersion":2,"products":[{"id":"6E6B4B9C-1D2B-4D59-9A2E-1C1F8E4A1B01","slug":"a","name":"A","tagline":"","notes":"","group":"G","tags":[],"stack":[],"links":[],"isFavorite":false,"lifecycle":"active","hue":1,"monogram":"A","createdAt":"2026-11-01T00:00:00Z","isDemo":false,"components":[],"repositories":[],"checkouts":[],"environments":[],"recipes":[],"profiles":[]}],"organizations":[],"connections":[],"variables":[],"settings":{}}"#
         let migrated = try PortfolioMigrator.migrate(Data(v2.utf8))
