@@ -42,7 +42,7 @@ extension AppModel {
         }
         let workspace = remoteWorkspace
         do {
-            try syncRemoteWorkspace(writeAllContexts: true)
+            try syncRemoteWorkspace()
         } catch {
             return show("Could not write the Forge Session folder: \(error.localizedDescription)", isError: true)
         }
@@ -93,14 +93,37 @@ extension AppModel {
         terminals.isVisible = true
     }
 
-    /// Rewrites the briefing and folder access, so the next remote session sees new or renamed products.
-    func syncRemoteWorkspace(writeAllContexts: Bool = false) throws {
-        let context = contextLocation
-        for product in ForgeRemote.products(in: portfolio)
-        where writeAllContexts || !FileManager.default.fileExists(atPath: context.contextFile(product).path) {
-            _ = try? AgentContextBundle.write(for: product, portfolio: portfolio, cache: cache, location: context, mcp: mcpInfo(product))
+    /// Rewrites the briefing, folder access, and skill, so the next remote session sees new or renamed products.
+    /// Context files are written when a session asks for one (`forgedeck context <slug> --write`), not ahead of time.
+    func syncRemoteWorkspace() throws {
+        try remoteWorkspace.write(portfolio: portfolio, context: contextLocation, cli: cliCommand)
+    }
+
+    /// The command agents run: the ~/.local/bin link when installed, else this app's own binary, which is the same CLI.
+    var cliCommand: String { cliInstalledPath ?? Bundle.main.executablePath ?? Brand.cliName }
+
+    var isSkillInstalled: Bool { ForgeDeckSkill.isInstalled(in: ForgeDeckSkill.claudeSkills) }
+
+    /// Settings › Command Line: puts the forgedeck skill in ~/.claude/skills, for every Claude Code session on this Mac.
+    func installSkill() {
+        do {
+            try ForgeDeckSkill.install(in: ForgeDeckSkill.claudeSkills, cli: cliCommand)
+            skillVersion += 1
+            record("skill.install", detail: "skill=\(ForgeDeckSkill.name) target=claude")
+            show("Installed the \(ForgeDeckSkill.name) skill for Claude Code")
+        } catch {
+            show("Could not install the skill: \(error.localizedDescription)", isError: true)
         }
-        try remoteWorkspace.write(portfolio: portfolio, context: context, cli: cliInstalledPath)
+    }
+
+    func removeSkill() {
+        do {
+            try ForgeDeckSkill.remove(from: ForgeDeckSkill.claudeSkills)
+            skillVersion += 1
+            record("skill.remove", detail: "skill=\(ForgeDeckSkill.name) target=claude")
+        } catch {
+            show("Could not remove the skill: \(error.localizedDescription)", isError: true)
+        }
     }
 
     /// The server ended. When nobody stopped it, start it again, at most three times in ten minutes.
@@ -132,7 +155,7 @@ extension AppModel {
         let folder = remoteWorkspace.folder.path.replacingOccurrences(of: home, with: "~")
         let lines = [
             "\(bold)Forge Remote\(reset)  open the Claude app or claude.ai/code and pick \"\(ForgeRemote.sessionName(settings))\"",
-            "\(dim)Workspace  \(folder) (CLAUDE.md lists \(ForgeRemote.products(in: portfolio).count) products)\(reset)",
+            "\(dim)Workspace  \(folder) (a short CLAUDE.md; the forgedeck skill finds products on demand)\(reset)",
             "\(dim)Sessions   each new session starts clean; one product per session\(reset)",
             "\(dim)Approvals  \(settings.mode.title)\(settings.keepAwake ? "; this Mac stays awake while this runs" : "")\(reset)",
             "",

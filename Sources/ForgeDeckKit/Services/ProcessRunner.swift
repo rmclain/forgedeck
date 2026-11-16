@@ -80,8 +80,10 @@ public struct SystemProcessRunner: ProcessRunning {
         process.standardInput = input ?? FileHandle.nullDevice
 
         let box = OutputBox(limit: request.maxOutputBytes)
-        out.fileHandleForReading.readabilityHandler = { handle in box.append(handle.availableData, stream: .out) }
-        err.fileHandleForReading.readabilityHandler = { handle in box.append(handle.availableData, stream: .err) }
+        // Never `availableData` here: it raises an Objective-C exception (a crash) when the read fails, and the
+        // termination handler switches the pipe to non-blocking while a callback may still be queued.
+        out.fileHandleForReading.readabilityHandler = { handle in box.append(Self.readChunk(handle), stream: .out) }
+        err.fileHandleForReading.readabilityHandler = { handle in box.append(Self.readChunk(handle), stream: .err) }
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ProcessResult, Error>) in
@@ -123,6 +125,16 @@ public struct SystemProcessRunner: ProcessRunning {
 }
 
 extension SystemProcessRunner {
+    /// One read from a pipe that macOS says is readable. Errors and end of file return no data instead of throwing;
+    /// at end of file the handler is removed so it stops firing.
+    static func readChunk(_ handle: FileHandle) -> Data {
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        let count = read(handle.fileDescriptor, &buffer, buffer.count)
+        if count > 0 { return Data(buffer.prefix(count)) }
+        if count == 0 || (errno != EAGAIN && errno != EINTR) { handle.readabilityHandler = nil }
+        return Data()
+    }
+
     /// Reads what is already in a pipe and returns without waiting for it to close.
     static func drain(_ handle: FileHandle) -> Data {
         let fd = handle.fileDescriptor

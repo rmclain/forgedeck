@@ -335,10 +335,11 @@ If an agent reports that `forgedeck exec` was refused with "no profile", open th
 
 Settings › Forge Remote › **Turn on Forge Remote** starts Claude Code's Remote Control server (`claude remote-control`) in a terminal named Forge Remote. It runs in a folder of its own, `remote/` in the data folder, which holds:
 
-- `CLAUDE.md`, the Forge Session briefing: every real, active product with a folder on this Mac, with its slug, folder, and context file, and the rules (one product per session, read-only outside the product, no deploys or pushes unless asked).
+- `CLAUDE.md`, a few lines every session loads: one product per session, no deploys or pushes unless asked, and "read nothing until asked; use the forgedeck skill".
+- `.claude/skills/forgedeck/SKILL.md`, the forgedeck skill. A session loads only its one-line description up front. When you name a product, it reads the skill, finds the product with `forgedeck list`, and reads only what the task needs: `forgedeck context <slug> --write` for code work, `status --json` for what is deployed, `ci --brief` for a failing build, `links` for dashboards.
 - `.claude/settings.json`, which makes every product folder and the context folder working directories, so a session can `cd` into any product.
 
-ForgeDeck rewrites both files when products change. On your phone, open the Claude app (or claude.ai/code), pick the session, and name a product. The session reads that product's CONTEXT.md and works in its folder.
+ForgeDeck rewrites these files when products change. On your phone, open the Claude app (or claude.ai/code), pick the session, and name a product. The session reads that product's CONTEXT.md and works in its folder.
 
 **Switching products.** Every session you start from the app begins in the Forge Session folder with empty context, so start a new session for each product. A session asked to switch suggests exactly that, or `/clear`. If you continue in the same session anyway, it re-reads the new context and treats earlier work as belonging to the other product.
 
@@ -348,6 +349,10 @@ ForgeDeck rewrites both files when products change. On your phone, open the Clau
 - The first time, Claude Code may ask in the Forge Remote terminal whether to trust the folder. Answer it at the Mac.
 - Production secrets need Touch ID at this Mac, so a remote session cannot use them.
 - Only Claude Code has Remote Control. Other agents still start from product pages.
+
+### The forgedeck skill everywhere
+
+Settings › Command Line › Agent skill › **Install** puts the same skill in `~/.claude/skills/forgedeck`, so any Claude Code session on this Mac can find a product and its context when you mention it, without loading anything first. It never replaces a `forgedeck` skill that ForgeDeck did not write, and Remove deletes only its own copy.
 
 ## Organizing products
 

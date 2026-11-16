@@ -173,6 +173,18 @@ struct SettingsView: View {
                 } header: { Text("\(Brand.cliName) command") } footer: {
                     Text("Creates one link to this app's binary. Your shell profile is not changed: add ~/.local/bin to PATH yourself if it is not there. The command shares the app's code signature, so it reads the same Keychain items.")
                 }
+                Section {
+                    let _ = model.skillVersion
+                    LabeledContent("Claude Code", value: model.isSkillInstalled ? "Installed in ~/.claude/skills/\(ForgeDeckSkill.name)" : "Not installed")
+                    LabeledContent("Skill") {
+                        HStack {
+                            Button(model.isSkillInstalled ? "Update" : "Install") { model.installSkill() }
+                            if model.isSkillInstalled { Button("Remove") { model.removeSkill() } }
+                        }
+                    }
+                } header: { Text("Agent skill") } footer: {
+                    Text("A short skill that tells Claude Code how to find a product and read only the context a task needs, through \(Brand.cliName). Claude Code loads its one-line description in every session and reads the rest only when you mention a product. Forge Remote always has it.")
+                }
                 Section("Examples") {
                     ForEach(["\(Brand.cliName) list", "\(Brand.cliName) status <product> --json", "\(Brand.cliName) open <product>",
                              "\(Brand.cliName) env list <product> --environment development",
@@ -229,7 +241,7 @@ struct ForgeRemoteSettingsView: View {
                 }
             }
         } header: { Text("Forge Remote") } footer: {
-            Text("Runs Claude Code's Remote Control in the background, in a Forge Session folder that lists every product with a folder on this Mac. Open the Claude app or claude.ai/code, pick the session, and name a product. Each new session starts with empty context, so start one per product. Only Claude Code has Remote Control; other agents keep working from the product pages.")
+            Text("Runs Claude Code's Remote Control in the background, in a Forge Session folder. Sessions start almost empty and find products through the forgedeck skill, reading only what a task needs. Open the Claude app or claude.ai/code, pick the session, and name a product. Start a new session for each product. Only Claude Code has Remote Control; other agents keep working from the product pages.")
         }
         Section {
             LabeledContent("Session name") {

@@ -231,6 +231,8 @@ final class AppModel {
     var localReleases: [UUID: LocalRelease] = [:]
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
+    /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
+    var skillVersion = 0
     @ObservationIgnored var remoteActivity: (any NSObjectProtocol)?
     @ObservationIgnored var remoteRestarts: [Date] = []
     @ObservationIgnored var remoteStopping = false

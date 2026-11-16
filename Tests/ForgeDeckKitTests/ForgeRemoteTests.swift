@@ -51,17 +51,38 @@ import Testing
         #expect(!ForgeRemoteSettings.Mode.allCases.map(\.rawValue).contains("bypassPermissions"))
     }
 
-    @Test func theBriefingListsEachProductOnceWithItsContextFileAndTheOneProductRule() {
+    @Test func theBriefingIsShortAndSendsTheAgentToTheSkill() {
         let context = ContextLocation(root: URL(fileURLWithPath: "/tmp/fd-remote/context"))
         let text = ForgeRemoteWorkspace.briefing(portfolio: portfolio, context: context, cli: "/Users/me/.local/bin/forgedeck", machine: "Studio")
-        #expect(text.contains("| Alpha API | `alpha` |"))
-        #expect(text.contains("`/tmp/fd-remote/context/zeta/CONTEXT.md`"))
-        #expect(!text.contains("Demo Thing"))
-        #expect(!text.contains("Old Thing"))
-        #expect(!text.contains("Cloud Only"))
+        #expect(text.contains("`forgedeck` skill"))
+        #expect(text.contains("(2 on this Mac)"))
         #expect(text.contains("One product per session"))
-        #expect(text.contains("/Users/me/.local/bin/forgedeck exec"))
-        #expect(text.range(of: "Alpha API")!.lowerBound < text.range(of: "Zeta Site")!.lowerBound)
+        #expect(!text.contains("/tmp/fd-remote/alpha"))
+        #expect(text.count < 1_000)
+    }
+
+    @Test func theSkillRoutesByTaskThroughTheCLIAndNeverReplacesAForeignSkill() throws {
+        let text = ForgeDeckSkill.text(cli: "/Users/me/.local/bin/forgedeck")
+        #expect(text.hasPrefix("---\nname: forgedeck\ndescription: "))
+        #expect(text.contains("`/Users/me/.local/bin/forgedeck context <slug> --write`"))
+        #expect(text.contains("status <slug> --json"))
+        #expect(text.contains("ci <slug> --brief"))
+        #expect(ForgeDeckSkill.text(cli: "/Apps/My Forge/forgedeck").contains("`\"/Apps/My Forge/forgedeck\" list`"))
+
+        let skills = FileManager.default.temporaryDirectory.appending(path: "fd-skills-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: skills) }
+        #expect(try ForgeDeckSkill.install(in: skills, cli: "forgedeck"))
+        #expect(try !ForgeDeckSkill.install(in: skills, cli: "forgedeck"))
+        #expect(ForgeDeckSkill.isInstalled(in: skills))
+        try ForgeDeckSkill.remove(from: skills)
+        #expect(!ForgeDeckSkill.isInstalled(in: skills))
+
+        let foreign = skills.appending(path: "forgedeck")
+        try FileManager.default.createDirectory(at: foreign, withIntermediateDirectories: true)
+        try "---\nname: forgedeck\n---\nmine".write(to: foreign.appending(path: "SKILL.md"), atomically: true, encoding: .utf8)
+        #expect(throws: (any Error).self) { try ForgeDeckSkill.install(in: skills, cli: "forgedeck") }
+        try ForgeDeckSkill.remove(from: skills)
+        #expect(FileManager.default.fileExists(atPath: foreign.appending(path: "SKILL.md").path))
     }
 
     @Test func folderAccessCoversEveryProductFolderAndTheContextFolder() throws {
@@ -80,10 +101,23 @@ import Testing
         #expect(try workspace.write(portfolio: portfolio, context: context, cli: nil, machine: "Studio"))
         #expect(try !workspace.write(portfolio: portfolio, context: context, cli: nil, machine: "Studio"))
         #expect(FileManager.default.fileExists(atPath: workspace.settingsFile.path))
+        #expect(ForgeDeckSkill.isInstalled(in: workspace.skillsFolder))
 
         let old = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(AppSettings()))
         #expect(old.remote == nil)
         let partial = try JSONDecoder().decode(ForgeRemoteSettings.self, from: Data(#"{"enabled":true}"#.utf8))
         #expect(partial.enabled && partial.keepAwake && partial.mode == .ask && partial.name == "Forge Session")
+    }
+}
+
+@Suite struct PipeReadTests {
+    /// A process that floods its pipe and exits at once used to crash the app: a queued read hit a pipe that had just
+    /// been made non-blocking, and `availableData` raised an exception.
+    @Test func manyFastProcessesWithLotsOfOutputNeverCrashAndLoseNothing() async throws {
+        let request = ProcessRequest(executable: URL(fileURLWithPath: "/usr/bin/head"), arguments: ["-c", "300000", "/dev/zero"], timeout: 20)
+        try await withThrowingTaskGroup(of: Int.self) { group in
+            for _ in 0..<40 { group.addTask { try await SystemProcessRunner().run(request).stdout.utf8.count } }
+            for try await count in group { #expect(count == 300_000) }
+        }
     }
 }

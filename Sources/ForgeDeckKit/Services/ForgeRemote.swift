@@ -1,8 +1,8 @@
 import Foundation
 
 // Forge Remote: Claude Code's Remote Control server, started by ForgeDeck in a workspace of its own.
-// Each session started from the Claude app or claude.ai/code starts there with empty context, reads
-// the Forge Session briefing (every product, its folders, and its context file), and works on one product.
+// Each session started from the Claude app or claude.ai/code starts there with empty context and a short
+// briefing. The forgedeck skill tells it where to find a product and which context the task needs.
 // Nothing here talks to the network: the agent does, under the person's own Claude account.
 
 public struct ForgeRemoteSettings: Codable, Hashable, Sendable {
@@ -73,7 +73,7 @@ public enum ForgeRemote {
     }
 }
 
-/// The folder remote sessions start in: CLAUDE.md (the briefing) and .claude/settings.json (folder access).
+/// The folder remote sessions start in: a short CLAUDE.md, .claude/settings.json (folder access), and the forgedeck skill.
 public struct ForgeRemoteWorkspace: Sendable {
     public let folder: URL
 
@@ -82,6 +82,7 @@ public struct ForgeRemoteWorkspace: Sendable {
 
     public var briefingFile: URL { folder.appending(path: "CLAUDE.md") }
     public var settingsFile: URL { folder.appending(path: ".claude/settings.json") }
+    public var skillsFolder: URL { folder.appending(path: ".claude/skills", directoryHint: .isDirectory) }
 
     /// Writes both files. Returns true when either changed, so a caller can tell the person.
     @discardableResult
@@ -97,6 +98,7 @@ public struct ForgeRemoteWorkspace: Sendable {
             try data.write(to: url, options: .atomic)
             changed = true
         }
+        if try ForgeDeckSkill.install(in: skillsFolder, cli: cli ?? Brand.cliName) { changed = true }
         return changed
     }
 
@@ -110,56 +112,19 @@ public struct ForgeRemoteWorkspace: Sendable {
         return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) + Data("\n".utf8)
     }
 
-    /// The briefing every remote session reads first. Names, folders, and rules: no secrets.
+    /// The few lines every remote session loads at start. Everything else comes from the forgedeck skill, on demand.
     public static func briefing(portfolio: Portfolio, context: ContextLocation, cli: String?, machine: String) -> String {
-        let products = ForgeRemote.products(in: portfolio)
-        let tool = cli ?? Brand.cliName
-        var rows = products.map { product -> String in
-            let folders = product.checkouts.map { "`\($0.path)`" }.joined(separator: ", ")
-            let about = product.tagline.isEmpty ? product.stack.prefix(4).joined(separator: ", ") : product.tagline
-            return "| \(cell(product.name)) | `\(product.slug)` | \(cell(product.group)) | \(folders) | `\(context.contextFile(product).path)` | \(cell(about)) |"
-        }
-        if rows.isEmpty { rows = ["| (none yet) | | | | | Add a product with a local folder in \(Brand.name). |"] }
+        let count = ForgeRemote.products(in: portfolio).count
         return """
         # Forge Session
 
-        You are a remote Claude Code session on \(cell(machine)), started by \(Brand.name). The person is probably on their phone or \
-        on claude.ai/code, not at this Mac. Keep replies short and say plainly what you changed.
+        A remote Claude Code session on \(cell(machine)), started by \(Brand.name). The person is probably on their phone: keep replies short.
 
-        You can work on any product below. This folder is only a starting point: do no project work here.
-
-        ## Start of every session
-
-        1. If the person has not named a product, list the products below by name and ask which one.
-        2. Read that product's context file before anything else. It holds its folders, environments, related products, and variable names.
-        3. `cd` into its folder and work there. When a product has more than one folder, ask which one unless the request makes it clear.
-
-        ## One product per session
-
-        A session works on one product. When the person asks for a different product:
-
-        - Say that this session still holds the earlier product's context, and suggest starting a new session in the Claude app. \
-        Every new session starts here with empty context. `/clear` does the same in this session.
-        - If they want to go on here anyway, read the new product's context file, `cd` into its folder, and treat everything \
-        earlier in this session as belonging to the other product. Do not carry file names, commands, or assumptions across.
-        - Never edit two products in one task unless the person asks for exactly that.
-
-        ## Rules
-
-        - Read-only by default for anything outside the product's folder. Never deploy, push to a shared branch, publish a release, \
-        change DNS, or change remote or production data unless the person asks for that in this session.
-        - Commit only when asked. No force pushes, no `git reset --hard`, no deleting branches.
-        - Secrets stay in the macOS Keychain. Use `\(tool) exec` as the product's context file describes. Never print a value. \
-        Production values need Touch ID at this Mac, which the person cannot give from a phone: say so and stop.
-        - `\(tool) list` and `\(tool) status <slug> --json` show current state.
-
-        ## Products
-
-        | Product | Slug | Group | Folder | Context file | About |
-        |---|---|---|---|---|---|
-        \(rows.joined(separator: "\n"))
-
-        \(Brand.name) rewrites this file when products change. Edits to it are lost.
+        - Read nothing until the person asks for something. Then use the `\(ForgeDeckSkill.name)` skill to find the product \
+        (\(count) on this Mac) and only the context that task needs.
+        - One product per session. If the person asks for another, suggest a new session in the Claude app (it starts clean) \
+        or `/clear`. If they go on here anyway, treat earlier work as belonging to the other product.
+        - Do no project work in this folder. Never deploy, push, publish, or change remote data unless asked in this session.
 
         """
     }

@@ -45,7 +45,7 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.7"
+    public static let version = "0.7.1"
     public static let commands = ["list", "status", "open", "doctor", "env", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
@@ -818,9 +818,9 @@ public enum ChildProcess {
                 streams.append((pipe, target, buffer))
                 if isError { process.standardError = pipe } else { process.standardOutput = pipe }
                 pipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    // Empty data means end of file. Without this the handler would spin.
-                    guard !data.isEmpty else { handle.readabilityHandler = nil; return }
+                    // readChunk removes the handler at end of file, and never throws on a failed read.
+                    let data = SystemProcessRunner.readChunk(handle)
+                    guard !data.isEmpty else { return }
                     for line in buffer.feed(data) { target.write(Data((redactor.redact(line) + "\n").utf8)) }
                 }
             }
