@@ -49,12 +49,19 @@ struct ProductPage: View {
             }
             playButton(compact: compact)
             if compact {
+                IconButton(.sparkle, label: "Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) and linked context (⌘⌥O)") { model.openAgent(product) }
+                    .disabled(product.isDemo || !product.hasLocal)
                 IconButton(.code, label: "Open in Editor (⌘⇧O)") { model.openEditor(product) }.disabled(product.isDemo || !product.hasLocal)
                 IconButton(.external, label: "Open Dashboard") { model.openDashboard(product) }
                     .disabled(product.isDemo || (product.links.isEmpty && product.repositories.isEmpty))
                 IconButton(.sync, label: "Refresh (⌘R)") { Task { await model.refresh(product) } }
                     .disabled(product.isDemo || model.refreshing.contains(product.id))
             } else {
+                Button { model.openAgent(product) } label: {
+                    HStack(spacing: Space.sm) { Icon(.sparkle, size: 12); Text(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)); Kbd("⌘⌥O") }
+                }
+                .buttonStyle(.kit(.secondary)).disabled(product.isDemo || !product.hasLocal)
+                .help(product.contextLinks.isEmpty ? "Start \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the checkout with a map of the repo" : "Start \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the checkout with a map of this repo and \(product.contextLinks.count) linked product\(product.contextLinks.count == 1 ? "" : "s")")
                 Button { model.openEditor(product) } label: {
                     HStack(spacing: Space.sm) { Icon(.code, size: 12); Text("Editor"); Kbd("⌘⇧O") }
                 }
@@ -258,6 +265,8 @@ struct LocalCard: View {
             if checkout != nil {
                 Button { model.openTerminal(product) } label: { Text("Terminal").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
                 Button { model.openEditor(product) } label: { Text("Editor").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
+                Button { model.openAgent(product) } label: { Text("Agent").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
+                    .help("Open \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the terminal with the repo map and linked context")
             } else {
                 Button { model.productTab = .development } label: { Text("Set Up in Development").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary))
             }

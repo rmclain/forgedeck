@@ -317,6 +317,7 @@ struct ProductMenu: View {
         Divider()
         Button("Open in Terminal") { model.openTerminal(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Open in External Terminal") { model.openExternalTerminal(product) }.disabled(product.isDemo || !product.hasLocal)
+        Button("Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { model.openAgent(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Open in Editor") { model.openEditor(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Reveal in Finder") { model.reveal(product) }.disabled(product.isDemo || !product.hasLocal)
         if let repo = product.repositories.first, !product.isDemo {

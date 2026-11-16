@@ -25,7 +25,7 @@ extension AppModel {
                                                    kbd: checkout.id == product.primaryCheckout?.id ? "⌘O" : "") { self.openTerminal(product, checkout: checkout) })
                 }
                 commands.append(PaletteCommand(id: "edit-\(product.id)", label: "Open \(product.name) in Editor", group: "Local", icon: .code, kbd: "⌘⇧O") { self.openEditor(product) })
-                commands.append(PaletteCommand(id: "agent-\(product.id)", label: "Open \(product.name) with \(AgentCatalog.name(portfolio.settings.aiAgentProgram))", group: "Local", icon: .sparkle) { self.openAgent(product) })
+                commands.append(PaletteCommand(id: "agent-\(product.id)", label: "Open \(product.name) with \(AgentCatalog.name(portfolio.settings.aiAgentProgram))", group: "Local", icon: .sparkle, kbd: "⌘⌥O") { self.openAgent(product) })
             }
             for recipe in product.recipes where recipe.isApproved && !product.isDemo {
                 let production = product.environment(id: recipe.environmentID)?.tier.isProduction == true || recipe.safety == .productionCritical

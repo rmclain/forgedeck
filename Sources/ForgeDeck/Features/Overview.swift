@@ -126,6 +126,8 @@ struct ProductCard: View {
                         .disabled(product.isDemo || !product.hasLocal)
                     IconButton(.code, label: product.isDemo ? "Demo product: no folder to open" : "Open in Editor") { model.openEditor(product) }
                         .disabled(product.isDemo || !product.hasLocal)
+                    IconButton(.sparkle, label: product.isDemo ? "Demo product: no folder to open" : "Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) and linked context") { model.openAgent(product) }
+                        .disabled(product.isDemo || !product.hasLocal)
                     IconButton(.external, label: "Open Dashboard") { model.openDashboard(product) }
                         .disabled(product.isDemo || (product.links.isEmpty && product.repositories.isEmpty))
                 }
