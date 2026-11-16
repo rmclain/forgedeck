@@ -121,23 +121,55 @@ final class TerminalSession: Identifiable {
 }
 
 /// All terminal sessions, and the dock that shows them.
+/// On a product page the dock shows only that product's sessions (plus shells that belong to no product),
+/// so a terminal from another product never sits under the wrong page.
 @Observable
 final class TerminalHost {
     var sessions: [TerminalSession] = []
     var selectedID: UUID?
     var isVisible = false
     var height: CGFloat = 300
+    /// The product the window shows. nil on pages that are not about one product: the dock shows everything.
+    var scope: UUID? {
+        didSet { if scope != oldValue { showAll = false } }
+    }
+    /// The person chose to see every product's sessions on this product page.
+    var showAll = false
+    /// The session last picked for each product, so coming back to a product shows the same terminal.
+    @ObservationIgnored private var lastSelected: [UUID: UUID] = [:]
 
-    var selected: TerminalSession? { sessions.first { $0.id == selectedID } ?? sessions.last }
+    var isScoped: Bool { scope != nil && !showAll }
+    /// The sessions the dock shows right now.
+    var visible: [TerminalSession] {
+        guard isScoped else { return sessions }
+        return sessions.filter { $0.productID == scope || $0.productID == nil }
+    }
+    /// Sessions that belong to other products, hidden while the dock follows this one.
+    var hiddenCount: Int { isScoped ? sessions.count - visible.count : 0 }
+
+    var selected: TerminalSession? {
+        let shown = visible
+        if let id = selectedID, let session = shown.first(where: { $0.id == id }) { return session }
+        if let scope, let id = lastSelected[scope], let session = shown.first(where: { $0.id == id }) { return session }
+        return shown.last
+    }
     var running: [TerminalSession] { sessions.filter(\.isRunning) }
 
     func sessions(for productID: UUID) -> [TerminalSession] { sessions.filter { $0.productID == productID && $0.isRunning } }
+
+    func select(_ session: TerminalSession) {
+        selectedID = session.id
+        if let product = session.productID { lastSelected[product] = session.id }
+        // Picking another product's session from "All" is fine; the dock stays on All until the page changes.
+    }
 
     @discardableResult
     func open(_ launch: TerminalLaunch, productID: UUID?, checkoutID: UUID?) -> TerminalSession {
         let session = TerminalSession(launch: launch, productID: productID, checkoutID: checkoutID)
         sessions.append(session)
-        selectedID = session.id
+        // A session for another product than the page shows would be hidden: show everything instead.
+        if let scope, let productID, productID != scope { showAll = true }
+        select(session)
         isVisible = true
         // Focus the terminal so typing goes straight to the shell.
         DispatchQueue.main.async { session.view.window?.makeFirstResponder(session.view) }
@@ -147,7 +179,8 @@ final class TerminalHost {
     func close(_ session: TerminalSession) {
         session.terminate()
         sessions.removeAll { $0.id == session.id }
-        if selectedID == session.id { selectedID = sessions.last?.id }
+        lastSelected = lastSelected.filter { $0.value != session.id }
+        if selectedID == session.id { selectedID = visible.last?.id ?? sessions.last?.id }
         if sessions.isEmpty { isVisible = false }
     }
 
@@ -219,10 +252,11 @@ struct TerminalDock: View {
             HStack(spacing: Space.xs) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
-                        ForEach(host.sessions) { session in tab(session, selected: session.id == host.selected?.id) }
+                        ForEach(host.visible) { session in tab(session, selected: session.id == host.selected?.id) }
                     }
                 }
                 Spacer(minLength: Space.sm)
+                scopeToggle
                 if let product = model.currentProduct, product.hasLocal, !product.isDemo {
                     IconButton(.plus, label: "New shell in \(product.primaryCheckout?.name ?? product.name)", kind: .toolbar) { model.openTerminal(product) }
                 }
@@ -258,10 +292,50 @@ struct TerminalDock: View {
                     }
                 }
                 .background(colorScheme == .dark ? Color(white: 0.11) : Color(white: 0.985))
+            } else {
+                emptyForProduct
             }
         }
         .frame(height: host.height)
         .transition(.move(edge: .bottom))
+    }
+
+    /// "All terminals (3)" while the dock follows a product; "Only Lumen" while it shows everything.
+    @ViewBuilder private var scopeToggle: some View {
+        let host = model.terminals
+        if let product = model.currentProduct {
+            if host.isScoped, host.hiddenCount > 0 {
+                Button("All Terminals (\(host.sessions.count))") { host.showAll = true }
+                    .buttonStyle(.kit(.ghost, compact: true))
+                    .help("\(host.hiddenCount) terminal\(host.hiddenCount == 1 ? "" : "s") from other products \(host.hiddenCount == 1 ? "is" : "are") hidden while you look at \(product.name)")
+            } else if host.showAll {
+                Button("Only \(product.name)") { host.showAll = false }
+                    .buttonStyle(.kit(.ghost, compact: true))
+                    .help("Show only the terminals that belong to \(product.name)")
+            }
+        }
+    }
+
+    /// The dock is open on a product that has no terminal yet.
+    private var emptyForProduct: some View {
+        let product = model.currentProduct
+        let local = product.map { $0.hasLocal && !$0.isDemo } ?? false
+        return VStack(spacing: Space.md) {
+            Text(product.map { "No terminal for \($0.name)" } ?? "No terminal").kitType(.labelStrong, Ink.text)
+            Text(local ? "Terminals from other products stay running. They show here when you open their product, or under All Terminals."
+                       : product?.isDemo == true ? "Demo products do not open terminals." : "This product has no local checkout to open a terminal in.")
+                .kitType(.meta, Ink.text3).multilineTextAlignment(.center).frame(maxWidth: 420)
+            if let product, local {
+                HStack(spacing: Space.sm) {
+                    Button("Open Shell") { model.openTerminal(product) }.buttonStyle(.kit(.secondary, compact: true))
+                    Button("Open \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { model.openAgent(product) }
+                        .buttonStyle(.kit(.secondary, compact: true))
+                }
+            }
+        }
+        .padding(Space.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Ink.panel)
     }
 
     private func tab(_ session: TerminalSession, selected: Bool) -> some View {
@@ -280,7 +354,7 @@ struct TerminalDock: View {
         .background(selected ? Ink.panel : .clear, in: RoundedRectangle(cornerRadius: Metric.rowRadius, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
-            model.terminals.selectedID = session.id
+            model.terminals.select(session)
             DispatchQueue.main.async { session.view.window?.makeFirstResponder(session.view) }
         }
         .contextMenu {
@@ -304,7 +378,9 @@ struct TerminalIndicator: View {
         if !sessions.isEmpty {
             let busy = sessions.first(where: \.isBusy)
             Button {
-                model.terminals.selectedID = (busy ?? sessions[0]).id
+                // On another product's page, go to this product so its terminal shows in the dock.
+                if let current = model.currentProduct, current.id != product.id { model.open(product) }
+                model.terminals.select(busy ?? sessions[0])
                 model.terminals.isVisible = true
             } label: {
                 HStack(spacing: Space.xs) {

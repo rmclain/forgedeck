@@ -424,7 +424,7 @@ public struct AgentContextBundle: Sendable, Equatable {
     public var approxTokens: Int
 
     public static func write(for product: Product, checkout: LocalCheckout? = nil, portfolio: Portfolio, cache: ObservationCache,
-                             location: ContextLocation, now: Date = .now) throws -> AgentContextBundle {
+                             location: ContextLocation, mcp: MCPProductInfo? = nil, now: Date = .now) throws -> AgentContextBundle {
         let packs = PackBuilder(location: location)
         let primary = checkout ?? product.primaryCheckout
         var sections = [RepoBrief.make(product, cache: cache, packs: packs, includePack: false, isPrimary: true)]
@@ -447,7 +447,8 @@ public struct AgentContextBundle: Sendable, Equatable {
         """
         let hints = Toolbox.agentHints()
         let tools = hints.isEmpty ? [] : ["## Tools on this Mac\n\nCheaper than reading whole files:\n\n" + hints.map { "- \($0)" }.joined(separator: "\n")]
-        let text = Redactor().redact(([header] + sections + tools).joined(separator: "\n\n---\n\n")) + "\n"
+        let servers = mcp.flatMap(MCPInventory.contextSection).map { [$0] } ?? []
+        let text = Redactor().redact(([header] + sections + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
         let folder = location.productFolder(product)
         try location.prepare(folder)
         let file = location.contextFile(product)

@@ -141,7 +141,7 @@ struct AppCommands: Commands {
         CommandGroup(after: .toolbar) {
             Button("Command Palette…") { model.paletteOpen.toggle() }.keyboardShortcut("k")
             Button(model.terminals.isVisible ? "Hide Terminal" : "Show Terminal") {
-                if model.terminals.sessions.isEmpty, let product = model.currentProduct, product.hasLocal, !product.isDemo { model.openTerminal(product) }
+                if model.terminals.visible.isEmpty, let product = model.currentProduct, product.hasLocal, !product.isDemo { model.openTerminal(product) }
                 else { model.terminals.isVisible.toggle() }
             }
             .keyboardShortcut("`")

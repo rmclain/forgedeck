@@ -17,6 +17,21 @@ import Testing
         }
     }
 
+    @Test func installRunsInTheBackgroundWithoutPrompts() async throws {
+        // Needs an installer (brew, uv…) on this Mac; the fake runner means nothing is installed.
+        guard let spec = Toolbox.catalog.first(where: { Toolbox.installCommand($0) != nil }),
+              let command = Toolbox.installCommand(spec) else { return }
+        let runner = FakeRunner(result: ProcessResult(exitCode: 0, stdout: "\u{1B}[32m==> Pouring\u{1B}[0m"))
+        let result = try await Toolbox.install(spec, runner: runner)
+        let request = try #require(runner.requests.first)
+        #expect(request.executable.path == command[0])
+        #expect(request.arguments == Array(command.dropFirst()))
+        #expect(request.stdin == Data(), "nothing can be typed in, so a prompt fails instead of hanging")
+        #expect(request.environment?["NONINTERACTIVE"] == "1")
+        #expect(request.environment?["PATH"]?.contains("/opt/homebrew/bin") == true)
+        #expect(result.stdout == "==> Pouring")
+    }
+
     @Test func npxToolsArePinned() {
         for spec in Toolbox.catalog {
             guard let package = spec.npxPackage else { continue }

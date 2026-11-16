@@ -122,6 +122,7 @@ struct ProductCard: View {
                     Text(model.releaseLine(product)).font(.system(size: 11.5)).foregroundStyle(Ink.text3).lineLimit(1)
                     Spacer(minLength: Space.xs)
                     TerminalIndicator(product: product)
+                    MCPBadge(product: product, compact: true)
                     IconButton(.terminal, label: product.isDemo ? "Demo product: no folder to open" : "Open Terminal") { model.openTerminal(product) }
                         .disabled(product.isDemo || !product.hasLocal)
                     IconButton(.code, label: product.isDemo ? "Demo product: no folder to open" : "Open in Editor") { model.openEditor(product) }

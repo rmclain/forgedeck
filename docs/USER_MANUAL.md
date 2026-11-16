@@ -334,3 +334,28 @@ Play (⌘⇧P, in the product header, the right-click menu, and the palette) lau
 4. Site: a WordPress plugin or theme inside a Local site opens that site's admin. Local's `sites.json` is only read.
 
 A recipe that is not approved opens for review first. Saving approves it, and Play runs it right away.
+
+## Toolbox and agent skills
+
+The Toolbox lists command-line tools that save AI tokens or check repositories. **Install with Homebrew** (or uv) runs in the background; the card shows Installing… and a failed install opens its output. Tools that run against a repository appear on each product's Overview tab, in the Tools card, with a checkout picker when the product has more than one.
+
+**Agent Skills** are folders with a `SKILL.md` that Claude Code and other agents load when a task needs them. The Toolbox lists popular skill repositories (Anthropic, Impeccable, Superpowers, Vercel, HyperFrames, OpenAI, Trail of Bits, Hugging Face), and **Add a skill repository** takes any public GitHub `owner/repo` or link.
+
+- **Add a skill repository** also takes the command a skill's page tells you to run, like `npx skills add vercel-labs/agent-skills --skill react-best-practices -a claude-code`. ForgeDeck reads it instead of running npx: the repository, a `@tag` or commit, a `/tree/` link, `--skill` names (ticked in the sheet), and `-a` agents (Claude Code, or the shared agents folder for the others). Skills always install for your user, like `-g`.
+- **Add Skills…** makes a shallow clone of the repository and lists every skill in it. Skills inside a `skills/` folder are ticked; templates and examples are not. Nothing in the repository runs.
+- Choose where they go: Claude Code (`~/.claude/skills`) and the shared agents folder (`~/.agents/skills`, ticked when it exists). When a repository has one copy per agent, each folder gets the copy written for it.
+- Each skill ForgeDeck adds gets a `.forgedeck-skill.json` receipt with the repository and commit. **Update…** replaces only those; the old copy goes to the Trash. A folder you added some other way is never replaced. The sheet marks it "Yours, kept".
+- **Remove…** moves the skills ForgeDeck added from that repository to the Trash.
+- Skills are instructions your agents follow, and some include scripts the agent may run. Add only repositories you trust.
+
+## MCP servers
+
+ForgeDeck shows which products have an MCP server, read only from files on this Mac. It never connects to a server, reads no credential, and runs no AI, so the same files always give the same answer.
+
+- **Connections** come from Claude Code (`~/.claude.json`, every project and per project), Claude Code plugins, Claude Desktop, Codex, Cursor, and each checkout's `.mcp.json`. A server belongs to a product when it is set up for the product's checkout, runs a program from it, comes from a plugin built from the product's repository, has the product's domain as its address, names the product in its address, or is named after it. Local addresses (localhost, `.local`) match only with the same port.
+- **In the code**: an MCP SDK dependency, `server.json`, or registered tools (WordPress abilities, FastMCP `@tool`, TypeScript `registerTool`). Tools marked read-only or as writes are told apart. When the server's instructions are one block of text in the code, they are shown; text built at run time is not guessed at. `MCP.md` or `docs/MCP.md` in the repository is shown as the guide.
+- **Badge**: products with MCP get an MCP badge in the sidebar, on cards, and in the header. It turns the production color when a connection reaches production: its address is the production domain, or it is on the internet and named prod.
+- **MCP card** on the Overview tab: each connection (where it is set up, the host, what it reaches, and why it matched), the tools, and **How to use it**: practices that follow from the facts, and the server's own instructions.
+- Only hosts are shown. Headers, env values, and URL paths are never read into ForgeDeck's display, since some servers keep a token in the path.
+- The agent's `CONTEXT.md` lists the product's MCP servers and warns when writes change production.
+- The Toolbox lists every configured server, including the ones that belong to no product. The refresh button there, Refresh Everything, and ⌘R on a product page read the files again.

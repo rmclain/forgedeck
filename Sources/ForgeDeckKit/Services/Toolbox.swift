@@ -256,13 +256,38 @@ public enum Toolbox {
     public static func run(_ action: ToolAction, of spec: ToolSpec, checkout: String?, runner: any ProcessRunning = SystemProcessRunner(),
                            timeout: TimeInterval = 180) async throws -> ProcessResult {
         let (program, arguments, directory) = try command(action, of: spec, checkout: checkout)
+        var result = try await runner.run(ProcessRequest(executable: program, arguments: arguments, workingDirectory: directory,
+                                                         environment: quietEnvironment(for: program), timeout: timeout, maxOutputBytes: 400_000))
+        let redactor = Redactor()
+        result.stdout = redactor.redact(stripANSI(result.stdout))
+        result.stderr = redactor.redact(stripANSI(result.stderr))
+        return result
+    }
+
+    /// No colors, no pager, no prompts, and a PATH that finds Homebrew and friends even when the app started from Finder.
+    static func quietEnvironment(for program: URL) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["NO_COLOR"] = "1"
         environment["TERM"] = "dumb"
         environment["GIT_PAGER"] = "cat"
         environment["PATH"] = ([program.deletingLastPathComponent().path] + ExecutableLocator.searchPaths + [environment["PATH"] ?? ""]).joined(separator: ":")
-        var result = try await runner.run(ProcessRequest(executable: program, arguments: arguments, workingDirectory: directory,
-                                                         environment: environment, timeout: timeout, maxOutputBytes: 400_000))
+        return environment
+    }
+
+    /// Installs a tool in the background with the first installer found on this Mac, without a terminal window.
+    /// Nothing can be typed in: an installer that would ask a question gets an empty answer and fails instead of waiting.
+    public static func install(_ spec: ToolSpec, runner: any ProcessRunning = SystemProcessRunner(),
+                               timeout: TimeInterval = 900) async throws -> ProcessResult {
+        guard let command = installCommand(spec), let first = command.first else { throw Unavailable.notInstalled("an installer for \(spec.name)") }
+        let program = URL(fileURLWithPath: first)
+        var environment = quietEnvironment(for: program)
+        environment["NONINTERACTIVE"] = "1"
+        environment["HOMEBREW_NO_ENV_HINTS"] = "1"
+        environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
+        environment["HOMEBREW_COLOR"] = nil
+        var result = try await runner.run(ProcessRequest(executable: program, arguments: Array(command.dropFirst()),
+                                                         workingDirectory: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
+                                                         environment: environment, timeout: timeout, stdin: Data(), maxOutputBytes: 400_000))
         let redactor = Redactor()
         result.stdout = redactor.redact(stripANSI(result.stdout))
         result.stderr = redactor.redact(stripANSI(result.stderr))

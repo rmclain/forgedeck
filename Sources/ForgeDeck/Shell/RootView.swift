@@ -248,6 +248,7 @@ struct Sidebar: View {
                             Text(product.name).kitType(model.route == .product(product.id) ? .bodyMedium : .body).lineLimit(1)
                             Spacer(minLength: 0)
                             TerminalIndicator(product: product, compact: true)
+                            MCPBadge(product: product, compact: true)
                             Dot(color: Ink.tone(model.badge(product).tone))
                         }
                         .padding(.leading, Space.xl).padding(.trailing, Space.sm)
@@ -454,7 +455,7 @@ struct TopBar: View {
             Ink.line.frame(width: Metric.hairline, height: 16)
             if !compact { IconButton(.bolt, label: "Quick actions (⌘K)", kind: .toolbar) { model.paletteOpen = true } }
             IconButton(.terminal, label: model.terminals.sessions.isEmpty ? "No terminal sessions (⌘`)" : "\(model.terminals.running.count) terminal session\(model.terminals.running.count == 1 ? "" : "s") running (⌘`)", kind: .toolbar) {
-                if model.terminals.sessions.isEmpty, let product = model.currentProduct, product.hasLocal, !product.isDemo {
+                if model.terminals.visible.isEmpty, let product = model.currentProduct, product.hasLocal, !product.isDemo {
                     model.openTerminal(product)
                 } else {
                     model.terminals.isVisible.toggle()

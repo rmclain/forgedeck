@@ -91,6 +91,8 @@ enum SelfTest {
                 if Runtime.usesRealKeychain { await keychainPass(model: model, productID: product.id) }
             }
             await terminalChecks(model: model)
+            skillChecks(model: model)
+            await mcpChecks(model: model)
             check("the palette never lists a secret", !model.paletteCommands {}.contains { $0.label.contains("selftest-value") })
             model.removeDemo()
             check("removing the demo leaves real products", !model.hasDemo && model.products.count == 3)
@@ -173,6 +175,74 @@ enum SelfTest {
     }
 
     /// The in-app terminal: a real PTY, the folder with an apostrophe, the running indicator, the exit code.
+    /// Adding skills from a fetched repository, into a temporary home folder (never the real ~/.claude).
+    private static func skillChecks(model: AppModel) {
+        let fm = FileManager.default
+        let base = model.store.location.directory.appending(path: "skills-test")
+        let home = base.appending(path: "home"), clone = fm.temporaryDirectory.appending(path: "ForgeDeck-skills-selftest-\(UUID().uuidString)/repo")
+        do {
+            for (path, name) in [(".claude/skills/demo-skill", "demo-skill"), ("skills/demo-skill", "demo-skill"), ("skills/other", "other")] {
+                let folder = clone.appending(path: path)
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                try "---\nname: \(name)\ndescription: Self-test skill \(path).\n---\n".write(to: folder.appending(path: "SKILL.md"), atomically: true, encoding: .utf8)
+            }
+            try fm.createDirectory(at: home.appending(path: ".claude/skills/other"), withIntermediateDirectories: true)
+            try "mine".write(to: home.appending(path: ".claude/skills/other/SKILL.md"), atomically: true, encoding: .utf8)
+        } catch {
+            return check("a skill repository can be laid out", false, error.localizedDescription)
+        }
+        model.agentHome = home
+        let found = AgentSkills.discover(in: clone)
+        check("skills are found in a repository, one entry per skill", found.map(\.name) == ["demo-skill", "other"], found.map(\.name).joined(separator: ","))
+        model.installSkills(SkillPlan(repository: "example/skills", commit: "0123456789abcdef", folder: clone, skills: found), names: ["demo-skill", "other"], targets: [.claude])
+        let added = home.appending(path: ".claude/skills/demo-skill/SKILL.md")
+        check("an added skill is copied from the Claude Code copy", (try? String(contentsOf: added, encoding: .utf8))?.contains(".claude/skills/demo-skill") == true)
+        check("a skill added some other way is kept", (try? String(contentsOf: home.appending(path: ".claude/skills/other/SKILL.md"), encoding: .utf8)) == "mine")
+        check("the toast says what happened", model.toast?.text.contains("Kept your own other") == true, model.toast?.text ?? "")
+        check("the clone is deleted after adding", !fm.fileExists(atPath: clone.path))
+        check("the Toolbox lists the added skill", AgentSkills.installed(home: home).map(\.name) == ["demo-skill"])
+        model.agentHome = nil
+        try? fm.removeItem(at: base)
+    }
+
+    /// MCP servers from a temporary home folder and checkout: configs matched to a product, tools read from its code.
+    private static func mcpChecks(model: AppModel) async {
+        let fm = FileManager.default
+        let base = model.store.location.directory.appending(path: "mcp-test")
+        let home = base.appending(path: "home"), checkout = base.appending(path: "code/acme-cme")
+        do {
+            try fm.createDirectory(at: home, withIntermediateDirectories: true)
+            try fm.createDirectory(at: checkout.appending(path: "includes/Mcp"), withIntermediateDirectories: true)
+            let config = #"{"mcpServers":{"acme-cme-prod":{"type":"http","url":"https://acme.example/wp-json/acme-cme/mcp","headers":{"Authorization":"Basic c2VjcmV0"}}},"projects":{"\#(checkout.path)":{"mcpServers":{"acme-cme":{"type":"http","url":"http://localhost:10003/wp-json/acme-cme/mcp"}}}}}"#
+            try config.write(to: home.appending(path: ".claude.json"), atomically: true, encoding: .utf8)
+            try "<?php\nreturn array(\n 'get-thing' => array(\n  'label' => 'Get a thing',\n  'description' => 'Reads one thing.',\n  'readonly' => true,\n  'run' => 'x',\n ),\n 'save-thing' => array(\n  'label' => 'Save a thing',\n  'description' => 'Saves it.',\n  'run' => 'y',\n ),\n);\n"
+                .write(to: checkout.appending(path: "includes/Mcp/Abilities.php"), atomically: true, encoding: .utf8)
+        } catch {
+            return check("an MCP setup can be laid out", false, error.localizedDescription)
+        }
+        var product = Product()
+        product.slug = "acme-cme"
+        product.name = "Acme CME"
+        var local = LocalCheckout()
+        local.path = checkout.path
+        product.checkouts = [local]
+        model.agentHome = home
+        let before = model.mcpVersion
+        model.refreshMCP(only: product)
+        for _ in 0..<50 where model.mcpVersion == before { try? await Task.sleep(for: .milliseconds(100)) }
+        let info = model.mcpInfo(product)
+        check("MCP servers are matched to the product from its configs", Set(info.serverNames) == ["acme-cme", "acme-cme-prod"], info.serverNames.joined(separator: ","))
+        check("a production MCP server is flagged", info.reachesProduction)
+        check("MCP tools are read from the code, with reads and writes told apart", info.primaryCode?.readOnlyCount == 1 && info.primaryCode?.writeCount == 1)
+        check("no MCP credential or URL path reaches the context file",
+              MCPInventory.contextSection(info).map { !$0.contains("c2VjcmV0") && !$0.contains("wp-json") && $0.contains("acme-cme-prod") } == true)
+        model.agentHome = nil
+        model.mcpEntries = []
+        model.mcpCode = [:]
+        model.mcpCache.removeAll()
+        try? fm.removeItem(at: base)
+    }
+
     private static func terminalChecks(model: AppModel) async {
         func wait(_ seconds: Double, until condition: () -> Bool) async -> Bool {
             for _ in 0..<Int(seconds * 10) {
@@ -204,6 +274,27 @@ enum SelfTest {
         check("a busy session counts as running", second.isBusy && model.terminals.running.contains { $0.id == second.id })
         model.terminals.close(second)
         check("closing a session ends its processes", await wait(5) { !second.isRunning }, "\(second.state)")
+        // The dock follows the product the window shows.
+        let productA = UUID(), productB = UUID()
+        let host = model.terminals
+        host.scope = nil
+        let otherShell = host.open(echo, productID: productB, checkoutID: nil)
+        host.scope = productA
+        check("on a product page another product's terminal is hidden", !host.visible.contains { $0.id == otherShell.id } && host.hiddenCount == 1)
+        check("a shell with no product shows on every page", host.visible.contains { $0.id == first.id })
+        let ownShell = host.open(echo, productID: productA, checkoutID: nil)
+        check("the dock shows this product's terminal", host.selected?.id == ownShell.id)
+        host.showAll = true
+        host.select(otherShell)
+        check("All Terminals shows every product's sessions", host.visible.count == host.sessions.count)
+        host.scope = productB
+        check("changing page goes back to following the product", host.isScoped && host.selected?.id == otherShell.id)
+        host.scope = productA
+        check("coming back to a product shows its own terminal", host.selected?.id == ownShell.id)
+        host.close(otherShell)
+        host.close(ownShell)
+        host.scope = nil
+
         model.terminals.close(first)
         check("closing the last session hides the dock", !model.terminals.isVisible && model.terminals.sessions.isEmpty)
     }

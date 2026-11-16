@@ -35,7 +35,23 @@ enum Snapshot {
             Shot(name: "infrastructure-connections") { $0.route = .infrastructure; $0.infraTab = .connections },
             Shot(name: "git") { $0.route = .git },
             Shot(name: "terminals") { $0.route = .terminals },
-            Shot(name: "toolbox") { $0.route = .toolbox },
+            Shot(name: "product-mcp") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.route = .product(lumen.id); model.productTab = .overview }
+            },
+            Shot(name: "toolbox") { model in
+                // Skills are read from a folder inside the snapshot data, so the picture is the same on every Mac.
+                model.agentHome = model.store.location.directory.appending(path: "snapshot-home")
+                model.route = .toolbox
+            },
+            Shot(name: "sheet-skills") { model in
+                model.agentHome = model.store.location.directory.appending(path: "snapshot-home")
+                model.sheet = .skills(SkillPlan(repository: "anthropics/skills", commit: "9f2c41e0b7d3", folder: model.store.location.directory.appending(path: "none"), skills: [
+                    FoundSkill(name: "frontend-design", summary: "Create distinctive, production-grade frontend interfaces that avoid generic AI aesthetics.", sources: ["skills/frontend-design"], recommended: true),
+                    FoundSkill(name: "pdf", summary: "Read, fill, merge, and split PDF files.", sources: ["skills/pdf"], recommended: true),
+                    FoundSkill(name: "skill-creator", summary: "Guide for creating and testing new skills.", sources: ["skills/skill-creator"], recommended: true),
+                    FoundSkill(name: "template", summary: "A starting point for a new skill.", sources: ["template"], recommended: false),
+                ]))
+            },
             Shot(name: "secrets") { $0.route = .secrets },
             Shot(name: "activity") { $0.route = .activity },
             Shot(name: "production-context") { $0.route = .overview; $0.context = .production },
@@ -86,6 +102,18 @@ enum Snapshot {
                     model.terminals.open(shell, productID: beacon.id, checkoutID: nil)
                 }
                 if let first = model.terminals.sessions.first { model.terminals.selectedID = first.id }
+            },
+            // On Beacon's page the dock shows only Beacon's shell; Lumen's dev server is under All Terminals.
+            Shot(name: "terminal-dock-product") { model in
+                model.toast = nil
+                if let beacon = model.products.first(where: { $0.slug == "beacon" }) { model.route = .product(beacon.id) }
+                model.terminals.isVisible = true
+            },
+            // A product with no terminal of its own: the dock says so instead of showing another product's.
+            Shot(name: "terminal-dock-empty") { model in
+                model.toast = nil
+                if let other = model.products.first(where: { $0.slug != "beacon" && $0.slug != "lumen" }) { model.route = .product(other.id) }
+                model.terminals.isVisible = true
             },
         ]
         return shots

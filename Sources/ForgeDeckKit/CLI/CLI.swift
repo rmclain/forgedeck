@@ -45,7 +45,7 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.4"
+    public static let version = "0.5"
     public static let commands = ["list", "status", "open", "doctor", "env", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
@@ -561,7 +561,7 @@ public struct CLI: Sendable {
                 }
                 let cache = store.loadCache()
                 let brief = try CIFixPrompt.write(report, product: product, checkout: checkout, git: cache.git[checkout.id], location: contextLocation)
-                let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation)
+                let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: MCPInventory.info(for: product))
                 let command = CIFixPrompt.command(program: program, bundle: bundle, brief: brief, run: run, model: args.flags["model"] ?? portfolio.settings.model(for: name))
                 if args.switches.contains("print") {
                     io.out(TerminalLauncher.copyCommand(directory: checkout.path, command: command))
@@ -702,7 +702,7 @@ public struct CLI: Sendable {
         guard let portfolio = loadPortfolio(), let product = product(args.positional.first, in: portfolio) else { return CLIExit.failure }
         if args.switches.contains("write") {
             do {
-                let bundle = try AgentContextBundle.write(for: product, portfolio: portfolio, cache: store.loadCache(), location: contextLocation)
+                let bundle = try AgentContextBundle.write(for: product, portfolio: portfolio, cache: store.loadCache(), location: contextLocation, mcp: MCPInventory.info(for: product))
                 io.out(bundle.contextFile.path)
                 io.err("about \(bundle.approxTokens) tokens\(bundle.relatedNames.isEmpty ? "" : ", related: \(bundle.relatedNames.joined(separator: ", "))")")
             } catch {
@@ -773,7 +773,7 @@ public struct CLI: Sendable {
         }
         let bundle: AgentContextBundle
         do {
-            bundle = try AgentContextBundle.write(for: product, portfolio: portfolio, cache: store.loadCache(), location: contextLocation)
+            bundle = try AgentContextBundle.write(for: product, portfolio: portfolio, cache: store.loadCache(), location: contextLocation, mcp: MCPInventory.info(for: product))
         } catch {
             io.err("error: \(error)")
             return CLIExit.failure

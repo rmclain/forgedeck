@@ -374,7 +374,6 @@ struct ActionsTab: View {
         VStack(alignment: .leading, spacing: Space.lg) {
             if product.isArchived { ErrorState(title: "Archived", detail: "Actions are disabled for archived products.") }
             RecipeList(product: product)
-            ProductToolsCard(product: product)
             ProfileList(product: product)
         }
     }

@@ -219,6 +219,7 @@ enum KitIcon: String {
     case leads = "person.2"
     case stethoscope = "stethoscope"
     case sparkle = "sparkles"
+    case mcp = "point.3.connected.trianglepath.dotted"
     case question = "questionmark.circle"
     case wifiOff = "wifi.slash"
     case archive = "archivebox"

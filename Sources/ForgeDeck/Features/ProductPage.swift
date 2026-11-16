@@ -117,6 +117,7 @@ struct ProductPage: View {
                         if product.isDemo { DemoBadge() }
                         if product.isArchived { TagBadge("Archived") }
                         TerminalIndicator(product: product)
+                        MCPBadge(product: product)
                     }
                     Text(product.tagline.isEmpty ? "No description yet" : product.tagline).kitType(.body, Ink.text2).lineLimit(2)
                     HStack(spacing: Space.xs) {
@@ -180,6 +181,8 @@ struct ProductOverviewTab: View {
                 EnvironmentCard(product: product, tier: .staging)
                 EnvironmentCard(product: product, tier: .production)
             }
+            if !model.mcpInfo(product).isEmpty { MCPCard(product: product) }
+            if product.hasLocal, !product.isDemo { ProductToolsCard(product: product) }
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: Space.lg) {
                     VStack(spacing: Space.lg) {

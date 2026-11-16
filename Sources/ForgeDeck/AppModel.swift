@@ -118,6 +118,7 @@ enum SheetKind: Identifiable {
     case ciFailure(productID: UUID, runID: Int?)
     case rename(RenameTarget)
     case update(AppRelease)
+    case skills(SkillPlan)
 
     var id: String {
         switch self {
@@ -136,6 +137,7 @@ enum SheetKind: Identifiable {
         case .ciFailure(let p, let r): "ci-\(p)-\(r.map(String.init) ?? "latest")"
         case .rename(let target): "rename-\(target.id)"
         case .update(let release): "update-\(release.version)"
+        case .skills(let plan): "skills-\(plan.id)"
         }
     }
 }
@@ -203,7 +205,9 @@ final class AppModel {
     var loadError: String?
 
     // Navigation
-    var route: Route = .overview
+    var route: Route = .overview {
+        didSet { terminals.scope = currentProduct?.id }
+    }
     private var backStack: [Route] = []
     private var forwardStack: [Route] = []
     var productTab: ProductTab = .overview
@@ -211,6 +215,12 @@ final class AppModel {
     /// The environment new terminals, previews, and actions are aimed at.
     var context: EnvironmentTier = .development
     var collapsedGroups: Set<String> = []
+    // MCP servers, read from agent configs and product code on this Mac.
+    var mcpEntries: [MCPServerEntry] = []
+    var mcpCode: [String: MCPServerCode] = [:]
+    var mcpScanning = false
+    var mcpVersion = 0
+    @ObservationIgnored var mcpCache: [UUID: (product: Product, info: MCPProductInfo)] = [:]
     @ObservationIgnored var playCache: [UUID: (product: Product, options: [PlayOption])] = [:]
     /// Sites made with Local, read once at launch. Play opens a plugin's site from here.
     @ObservationIgnored lazy var localSites: [LocalSite] = Runtime.isAutomated ? [] : LocalSite.load()
@@ -242,6 +252,14 @@ final class AppModel {
     var packing: Set<UUID> = []
     /// Bumped to re-check which tools are installed.
     var toolsVersion = 0
+    /// Tools being installed in the background, by catalog id.
+    var installingTools: Set<String> = []
+    /// The skill repository being downloaded, as owner/repo.
+    var fetchingSkills: String?
+    /// Bumped after skills are added or removed, so the Toolbox reads the folders again.
+    var skillsVersion = 0
+    /// Overrides the home folder where agents keep skills and MCP configs. The self-test and snapshots set it.
+    var agentHome: URL?
     /// Bumped after a link changes, to re-read the file system.
     var linksVersion = 0
     // AI usage panel
@@ -292,6 +310,7 @@ final class AppModel {
         monitor.start(queue: .global(qos: .utility))
         cache.prune(retentionDays: portfolio.settings.cacheRetentionDays)
         checkForUpdatesIfDue()
+        refreshMCP()
         pollTask = Task { [weak self] in
             // Local Git state first: it is cheap and works offline.
             await self?.refreshLocal()
@@ -454,6 +473,8 @@ final class AppModel {
         }
         lastRefresh = .now
         now = .now
+        // Code scans are slower than config reads: only when someone asks, not on every poll.
+        if announce { refreshMCP() }
         if announce {
             show(targets.isEmpty ? "Nothing to refresh yet" : isOnline ? "Refreshed \(targets.count) product\(targets.count == 1 ? "" : "s")" : "Offline: refreshed local state only")
         }
@@ -462,7 +483,7 @@ final class AppModel {
     /// Cmd-R: refresh what the current page shows.
     func refreshCurrentPage() {
         Task {
-            if let product = currentProduct { await refresh(product) } else { await refreshAll() }
+            if let product = currentProduct { refreshMCP(only: product); await refresh(product) } else { await refreshAll() }
             if route == .infrastructure { await refreshDocker() }
         }
     }

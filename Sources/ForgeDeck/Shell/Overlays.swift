@@ -65,6 +65,16 @@ extension AppModel {
                 self.confirmRemove(product)
             })
             commands.append(PaletteCommand(id: "refresh-\(product.id)", label: "Refresh \(product.name)", group: "Product", icon: .sync, kbd: "⌘R") { Task { await self.refresh(product) } })
+            if !product.isDemo, let checkout = product.primaryCheckout {
+                for spec in Toolbox.catalog where Toolbox.status(spec).isUsable {
+                    for action in spec.actions where action.scope == .checkout {
+                        commands.append(PaletteCommand(id: "tool-\(product.id)-\(action.id)", label: "\(spec.name): \(action.label) · \(product.name)", group: "Tools", icon: .bolt) {
+                            self.paletteOpen = false
+                            self.runTool(action, of: spec, product: product, checkout: checkout)
+                        })
+                    }
+                }
+            }
         }
         for product in activeProducts where product.id != current?.id {
             commands.append(PaletteCommand(id: "open-\(product.id)", label: "Open \(product.name)", group: "Products", icon: .projects) { self.open(product) })
@@ -77,6 +87,12 @@ extension AppModel {
         }
         commands.append(PaletteCommand(id: "add", label: "Add Product", group: Brand.name, icon: .plus, kbd: "⌘N") { self.paletteOpen = false; self.sheet = .addProduct })
         commands.append(PaletteCommand(id: "add-variable", label: "Add Variable or Secret", group: Brand.name, icon: .key) { self.paletteOpen = false; self.sheet = .variable(VariableDraft()) })
+        for repository in AgentSkills.catalog {
+            commands.append(PaletteCommand(id: "skills-\(repository.id)", label: "Add Skills from \(repository.name)…", group: "Agent Skills", icon: .sparkle) {
+                self.paletteOpen = false
+                self.lookUpSkills(repository.id)
+            })
+        }
         commands.append(PaletteCommand(id: "refresh-all", label: "Refresh Everything", group: Brand.name, icon: .sync) { Task { await self.refreshAll() } })
         for tier in [EnvironmentTier.development, .staging, .production] where tier != context {
             commands.append(PaletteCommand(id: "ctx-\(tier.rawValue)", label: "Switch to \(tier.title)", group: "Environment", icon: .globe,
@@ -267,6 +283,7 @@ struct SheetHost: View {
                     case .ciFailure(let productID, let runID): CIFailureSheet(productID: productID, runID: runID)
                     case .rename(let target): RenameSheet(target: target)
                     case .update(let release): UpdateSheet(release: release)
+                    case .skills(let plan): SkillsSheet(plan: plan)
                     }
                 }
                 .id(sheet.id)

@@ -39,7 +39,7 @@ extension AppModel {
         guard let url = ExecutableLocator.find(program) else { return show("\(program) is not installed. Choose another agent in Settings.", isError: true) }
         do {
             let brief = try ciBrief(report, product: product)
-            let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation)
+            let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(product))
             let command = CIFixPrompt.command(program: url, bundle: bundle, brief: brief, run: report.run, model: portfolio.settings.model(for: program))
             sheet = nil
             if terminalsInApp {

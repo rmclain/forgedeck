@@ -149,7 +149,7 @@ extension AppModel {
         }
         let bundle: AgentContextBundle
         do {
-            bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation)
+            bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(product))
         } catch {
             return show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }
@@ -229,7 +229,7 @@ extension AppModel {
             return show("\(portfolio.settings.aiAgentProgram) is not installed.", isError: true)
         }
         do {
-            let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation)
+            let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(product))
             copy(TerminalLauncher.copyCommand(directory: checkout.path, command: bundle.command(program: url, model: portfolio.settings.model(for: portfolio.settings.aiAgentProgram))), message: "Copied the agent command")
         } catch {
             show("Could not write the context file: \(error.localizedDescription)", isError: true)
