@@ -124,6 +124,7 @@ enum SheetKind: Identifiable {
     case update(AppRelease)
     case skills(SkillPlan)
     case releaseChannel(UUID)
+    case environmentProposals(UUID)
 
     var id: String {
         switch self {
@@ -145,6 +146,7 @@ enum SheetKind: Identifiable {
         case .update(let release): "update-\(release.version)"
         case .skills(let plan): "skills-\(plan.id)"
         case .releaseChannel(let product): "release-\(product)"
+        case .environmentProposals(let product): "env-proposals-\(product)"
         }
     }
 }
@@ -229,6 +231,8 @@ final class AppModel {
     var mcpVersion = 0
     /// Versions each product's primary checkout declares (plugin header, package.json, ...). Read on refresh.
     var localReleases: [UUID: LocalRelease] = [:]
+    /// `.forgedeck/environments.json` as last read from each product's folders.
+    var environmentFiles: [UUID: [EnvironmentProposalFile]] = [:]
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
@@ -473,6 +477,8 @@ final class AppModel {
             let found = await Task.detached { LocalRelease.detect(in: path) }.value
             if localReleases[product.id] != found { localReleases[product.id] = found }
         }
+        let proposals = await Task.detached { EnvironmentProposals.read(product) }.value
+        if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
         if isOnline {
             async let remote = engine.refreshRemote(product, portfolio: portfolio)
             async let probes = engine.refreshProbes(product, portfolio: portfolio)

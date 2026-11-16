@@ -292,6 +292,7 @@ struct SheetHost: View {
                     case .update(let release): UpdateSheet(release: release)
                     case .skills(let plan): SkillsSheet(plan: plan)
                     case .releaseChannel(let product): ReleaseChannelSheet(productID: product)
+                    case .environmentProposals(let product): EnvironmentProposalsSheet(productID: product)
                     }
                 }
                 .id(sheet.id)

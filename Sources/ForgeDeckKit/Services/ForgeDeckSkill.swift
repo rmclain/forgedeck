@@ -45,6 +45,24 @@ public enum ForgeDeckSkill {
 
         Do not read the context file for a question that `status`, `ci`, or `links` answers.
 
+        ## Set up production or another environment
+
+        You cannot add an environment yourself; you propose one and the person approves it in \(Brand.name).
+
+        1. Find where the product runs from its own files: deploy workflows (`.github/workflows`, look for `environment:`), \
+        `vercel.json`, `netlify.toml`, `fly.toml`, `CNAME`, Docker or server configs, a WordPress plugin's `Plugin URI`, the README. \
+        Ask the person for anything you cannot find. Never guess a domain.
+        2. Look for a URL that names the running release (a `forgedeck-release.json`, `/version`, `/health` with a commit) \
+        and a health URL. Check them with a plain GET. If none exists and the person wants one, add a small file or route that \
+        returns `{"commit_sha": "…", "version": "…"}` from the deploy, in a separate change they approve.
+        3. Write `.forgedeck/environments.json` in the product's folder:
+           `{"environments": [{"tier": "production", "name": "Production", "domains": ["example.com"], \
+        "versionURL": "https://example.com/forgedeck-release.json", "healthURL": "https://example.com/health", \
+        "github": "production", "note": "which files told you"}]}`
+           Tiers: production, staging, development, preview, custom. Domains are hosts only. URLs are https.
+        4. Run `\(tool) env check <slug>` and fix every problem it prints.
+        5. Tell the person to open the product in \(Brand.name) and press Review… on Proposed environments. Nothing is added before that.
+
         ## Rules
 
         - One product per task. Never change two products unless the person asks for exactly that.

@@ -24,3 +24,18 @@ extension DemoFixtures {
         return (local, [(channel, observation)], "v1.3.2")
     }
 }
+
+extension DemoFixtures {
+    /// Demo `.forgedeck/environments.json` for Lumen: production gains a Version URL, and a preview site is new.
+    public static func environmentProposals(for product: Product) -> [EnvironmentProposalFile] {
+        guard product.isDemo, product.slug == "lumen", let checkout = product.checkouts.first else { return [] }
+        return [EnvironmentProposalFile(checkoutID: checkout.id, checkoutName: checkout.name, entries: [
+            ProposedEnvironment(name: "Production", tier: "production", domains: ["lumen.example"],
+                                versionURL: "https://lumen.example/forgedeck-release.json",
+                                note: "The deploy workflow writes forgedeck-release.json to the web root."),
+            ProposedEnvironment(name: "Preview", tier: "preview", domains: ["preview.lumen.example"],
+                                healthURL: "https://preview.lumen.example/health", note: "Pull requests deploy here."),
+            ProposedEnvironment(name: "Old box", tier: "prod-ish", domains: ["https://old.lumen.example/"]),
+        ])]
+    }
+}

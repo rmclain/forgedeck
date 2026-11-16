@@ -181,6 +181,7 @@ struct ProductOverviewTab: View {
                 EnvironmentCard(product: product, tier: .staging)
                 EnvironmentCard(product: product, tier: .production)
             }
+            if !model.environmentProposals(product).isEmpty { ProposedEnvironmentsCard(product: product) }
             if !model.releaseState(product).isEmpty { ReleasesCard(product: product) }
             if !model.mcpInfo(product).isEmpty { MCPCard(product: product) }
             if product.hasLocal, !product.isDemo { ProductToolsCard(product: product) }

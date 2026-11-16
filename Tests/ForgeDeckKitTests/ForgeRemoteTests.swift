@@ -121,3 +121,79 @@ import Testing
         }
     }
 }
+
+@Suite struct EnvironmentProposalTests {
+    private func product() -> Product {
+        var product = Product(name: "Acme")
+        product.slug = "acme"
+        var production = ProductEnvironment(name: "Production", tier: .production)
+        production.domains = ["acme.example"]
+        product.environments = [ProductEnvironment(name: "Local", tier: .development), production]
+        return product
+    }
+
+    @Test func theFileIsParsedAndBadFilesSayWhy() {
+        let good = EnvironmentProposals.parse(Data(#"{"environments":[{"tier":"production","domains":["acme.example"]}]}"#.utf8))
+        #expect(good.error == nil && good.entries.count == 1)
+        #expect(EnvironmentProposals.parse(Data("[]".utf8)).error != nil)
+        let many = "{\"environments\":[" + Array(repeating: #"{"tier":"custom"}"#, count: 11).joined(separator: ",") + "]}"
+        #expect(EnvironmentProposals.parse(Data(many.utf8)).error != nil)
+    }
+
+    @Test func anExistingProductionGainsOnlyWhatIsMissing() {
+        var product = product()
+        let entry = ProposedEnvironment(tier: "prod", domains: ["ACME.example", "www.acme.example"], versionURL: "https://acme.example/forgedeck-release.json")
+        let proposal = EnvironmentProposals.check(entry, in: product)
+        #expect(proposal.tier == .production)
+        #expect(proposal.existingID == product.environments[1].id)
+        #expect(proposal.changes == ["Domain www.acme.example", "Version URL https://acme.example/forgedeck-release.json"])
+        EnvironmentProposals.apply(proposal, to: &product)
+        #expect(product.environments.count == 2)
+        #expect(product.environments[1].domains == ["acme.example", "www.acme.example"])
+        #expect(product.environments[1].probes.map(\.kind) == [.release])
+        // Applying the same file again changes nothing.
+        #expect(EnvironmentProposals.check(entry, in: product).changes.isEmpty)
+    }
+
+    @Test func aNewEnvironmentIsAddedWithItsChecks() {
+        var product = product()
+        let proposal = EnvironmentProposals.check(ProposedEnvironment(name: "Preview", tier: "preview", healthURL: "https://preview.acme.example/health"), in: product)
+        #expect(proposal.existingID == nil && proposal.isAddable)
+        EnvironmentProposals.apply(proposal, to: &product)
+        #expect(product.environments.last?.name == "Preview")
+        #expect(product.environments.last?.probes.first?.kind == .health)
+    }
+
+    @Test func badValuesAreProblemsAndCannotBeAdded() {
+        var product = product()
+        let entry = ProposedEnvironment(tier: "live", domains: ["https://acme.example/"], versionURL: "http://acme.example/v", healthURL: "https://user:pw@acme.example/",
+                                        github: "prod")
+        let proposal = EnvironmentProposals.check(entry, in: product)
+        #expect(!proposal.isAddable)
+        #expect(proposal.problems.count == 5)
+        let before = product.environments
+        EnvironmentProposals.apply(proposal, to: &product)
+        #expect(product.environments == before)
+    }
+
+    @Test func theFileIsReadFromTheCheckout() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "fd-envs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(EnvironmentProposals.read(folder: folder.path) == nil)
+        try FileManager.default.createDirectory(at: folder.appending(path: ".forgedeck"), withIntermediateDirectories: true)
+        try #"{"environments":[{"tier":"staging","domains":["staging.acme.example"]}]}"#.write(to: folder.appending(path: EnvironmentProposals.relativePath), atomically: true, encoding: .utf8)
+        var product = product()
+        var checkout = LocalCheckout()
+        checkout.path = folder.path
+        product.checkouts = [checkout]
+        let files = EnvironmentProposals.read(product)
+        let plan = EnvironmentProposals.plan(product, files: files)
+        #expect(plan.map(\.name) == ["Staging"])
+        #expect(plan.first?.changes.first == "New Staging environment \"Staging\"")
+    }
+
+    @Test func theSkillAndContextExplainHowToProposeProduction() {
+        #expect(ForgeDeckSkill.text(cli: "forgedeck").contains("forgedeck env check <slug>"))
+        #expect(ForgeDeckSkill.text(cli: "forgedeck").contains(".forgedeck/environments.json"))
+    }
+}

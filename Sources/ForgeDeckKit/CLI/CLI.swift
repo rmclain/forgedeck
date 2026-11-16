@@ -45,7 +45,7 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.7.1"
+    public static let version = "0.8"
     public static let commands = ["list", "status", "open", "doctor", "env", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
@@ -84,6 +84,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) open <product> [--checkout <name>] [--terminal <name>] [--editor]
       \(Brand.cliName) doctor [--product <product>] [--ssh <host-alias>] [--json]
       \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]
+      \(Brand.cliName) env check <product>        (checks .forgedeck/environments.json, changes nothing)
       \(Brand.cliName) actions list <product> [--json]
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
       \(Brand.cliName) context <product> [--write]
@@ -105,6 +106,13 @@ public struct CLI: Sendable {
       Values reach the program through its environment, in memory. They are never printed,
       written to a file, or placed on a command line. The program and anything it starts
       can read them: grant only what the program needs.
+
+    PROPOSING ENVIRONMENTS
+      A repository can propose its environments in .forgedeck/environments.json:
+        {"environments": [{"tier": "production", "name": "Production", "domains": ["example.com"],
+          "versionURL": "https://example.com/forgedeck-release.json", "healthURL": "https://example.com/health",
+          "github": "production", "note": "Deploys from .github/workflows/deploy.yml"}]}
+      `env check` shows what \(Brand.name) would add. Nothing is added until you review it in the app.
 
     AGENT CONTEXT
       `agent` writes CONTEXT.md for the product (a short brief of it and of each related product
@@ -423,9 +431,33 @@ public struct CLI: Sendable {
         public var note: String
     }
 
+    /// Checks the product's .forgedeck/environments.json and prints what the app would offer to add. Changes nothing.
+    private func envCheck(_ args: Arguments) -> Int32 {
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.dropFirst().first, in: portfolio) else { return CLIExit.failure }
+        let files = EnvironmentProposals.read(product)
+        guard !files.isEmpty else {
+            io.out("No \(EnvironmentProposals.relativePath) in \(product.name)'s folders. Write one there; see `\(Brand.cliName) help`.")
+            return CLIExit.ok
+        }
+        var failed = false
+        for file in files {
+            if let error = file.error { io.out("\(file.checkoutName): \(error)"); failed = true }
+        }
+        for proposal in EnvironmentProposals.plan(product, files: files) {
+            let label = proposal.existingID == nil ? "new" : "adds to existing"
+            io.out("\(proposal.name) (\(proposal.tier?.title ?? proposal.entry.tier), \(label))")
+            for problem in proposal.problems { io.out("  problem: \(problem)"); failed = true }
+            if proposal.problems.isEmpty && proposal.changes.isEmpty { io.out("  already set up: nothing to add") }
+            for change in proposal.changes where proposal.problems.isEmpty { io.out("  + \(change)") }
+        }
+        io.out(failed ? "Fix the problems above, then run this again." : "Review and add it in \(Brand.name): \(product.name) › Overview › Proposed environments.")
+        return failed ? CLIExit.failure : CLIExit.ok
+    }
+
     private func env(_ args: Arguments) -> Int32 {
+        if args.positional.first == "check" { return envCheck(args) }
         guard args.positional.first == "list" else {
-            io.err("usage: \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]")
+            io.err("usage: \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]\n       \(Brand.cliName) env check <product>")
             return CLIExit.usage
         }
         guard let portfolio = loadPortfolio(), let product = product(args.positional.dropFirst().first, in: portfolio) else { return CLIExit.failure }

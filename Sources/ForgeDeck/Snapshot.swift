@@ -55,6 +55,9 @@ enum Snapshot {
             Shot(name: "sheet-release-channel") { model in
                 if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.sheet = .releaseChannel(lumen.id) }
             },
+            Shot(name: "sheet-env-proposals") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.sheet = .environmentProposals(lumen.id) }
+            },
             Shot(name: "sheet-probe") { model in
                 if let lumen = model.products.first(where: { $0.slug == "lumen" }), let production = lumen.environments.first(where: { $0.tier == .production }) {
                     model.sheet = .probe(productID: lumen.id, environmentID: production.id)

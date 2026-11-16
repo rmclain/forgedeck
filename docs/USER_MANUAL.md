@@ -354,6 +354,22 @@ ForgeDeck rewrites these files when products change. On your phone, open the Cla
 
 Settings › Command Line › Agent skill › **Install** puts the same skill in `~/.claude/skills/forgedeck`, so any Claude Code session on this Mac can find a product and its context when you mention it, without loading anything first. It never replaces a `forgedeck` skill that ForgeDeck did not write, and Remove deletes only its own copy.
 
+## Let a repository propose its environments
+
+An agent (or you) can describe where a product runs in `.forgedeck/environments.json` in its folder:
+
+```json
+{"environments": [{"tier": "production", "name": "Production", "domains": ["example.com"],
+  "versionURL": "https://example.com/forgedeck-release.json", "healthURL": "https://example.com/health",
+  "github": "production", "note": "Deploys from .github/workflows/deploy.yml"}]}
+```
+
+Tiers are production, staging, development (or local), preview, and custom. Domains are host names only. URLs must be https, except on localhost. `forgedeck env check <product>` prints what ForgeDeck would add and every problem, and changes nothing.
+
+On refresh, the product's Overview shows **Proposed environments**. **Review…** lists each one with what it adds; production is drawn in red. Tick the ones you want and press Add. A proposal for an environment that exists (same name, or the same production, staging, or local tier) only adds missing domains, a Version URL, a health check, or the GitHub environment name. Nothing is removed or replaced. Proposals with problems cannot be added until the file is fixed. The card disappears once everything in the file is set up.
+
+The forgedeck skill has the steps, so you can ask an agent, even from your phone through Forge Remote, to "set up production for this plugin". It reads the repository's deploy files, writes the file, runs `env check`, and asks you to review it. A product with no production environment says so in its CONTEXT.md.
+
 ## Organizing products
 
 - **Rename**: right-click a product in the sidebar › Rename…, or use the palette. The display name changes; the CLI name stays the same.

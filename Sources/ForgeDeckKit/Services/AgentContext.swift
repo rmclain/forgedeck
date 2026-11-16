@@ -457,7 +457,11 @@ public struct AgentContextBundle: Sendable, Equatable {
         let tools = hints.isEmpty ? [] : ["## Tools on this Mac\n\nCheaper than reading whole files:\n\n" + hints.map { "- \($0)" }.joined(separator: "\n")]
         let servers = mcp.flatMap(MCPInventory.contextSection).map { [$0] } ?? []
         let variables = variablesSection(product, portfolio: portfolio).map { [$0] } ?? []
-        let text = Redactor().redact(([header] + sections + variables + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
+        let production = product.environments.contains { $0.tier == .production } ? [] : [
+            "## No production environment\n\n\(Brand.name) has no production environment for \(product.name), so it cannot say what is live. "
+            + "If the person asks, propose one in `\(EnvironmentProposals.relativePath)` in this folder and run `\(Brand.cliName) env check \(product.slug)`. "
+            + "The forgedeck skill has the steps. The person approves it in \(Brand.name); you cannot add it yourself."]
+        let text = Redactor().redact(([header] + sections + variables + production + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
         let folder = location.productFolder(product)
         try location.prepare(folder)
         let file = location.contextFile(product)
