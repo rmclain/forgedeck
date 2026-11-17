@@ -14,7 +14,7 @@ Version: 0.1 (`Info.plist.in`). Bundle id: `com.forgedeck.app`. Minimum system: 
 | `node` | The acceptance walkthroughs and the Node companion tests |
 | `python3`, `php` | The Python and WordPress companion tests only |
 | An Apple Development certificate | Optional. A stable signature, so the Keychain does not ask again after each rebuild |
-| A Developer ID Application certificate and a `notarytool` keychain profile | Notarization. Not present on this Mac |
+| A Developer ID Application certificate and a `notarytool` keychain profile | Notarization. Releases from 0.11.1 use the profile `forgedeck-notary` |
 
 `scripts/doctor.sh` prints what this Mac has.
 
@@ -71,7 +71,7 @@ The script:
 6. Zips to `dist/ForgeDeck-<version>.zip` with `ditto -c -k --keepParent`.
 7. Notarizes and staples only when the identity is a Developer ID Application identity **and** `NOTARY_PROFILE` is set. Otherwise it prints `notarized: no (...)` and stops. It never claims a notarization it did not do.
 
-Today on this Mac: `dist/ForgeDeck-0.1.zip` exists. With no Developer ID here, the script's rules sign it with the Apple Development identity and the hardened runtime. It was **not notarized**. It runs on this Mac. Gatekeeper on another Mac will block it.
+Releases up to 0.11 were signed with the Apple Development identity and were **not notarized**. From 0.11.1 they are signed with the Developer ID Application identity and notarized: run `NOTARY_PROFILE=forgedeck-notary scripts/release.sh`. Both identities belong to the same team, so copies signed either way accept the update.
 
 `dist/` is build output. It is not listed in `.gitignore` today.
 

@@ -62,3 +62,19 @@ extension DemoFixtures {
         ]
     }
 }
+
+extension DemoFixtures {
+    /// Lumen's Issues list: short notes, the way people write them, one already on GitHub, one done.
+    public static func issues(now: Date = .now) -> [ProductIssue] {
+        var exportBug = ProductIssue(title: "CSV export drops the last row", notes: "Seen on the Demo dashboard with 3+ filters.",
+                                     createdAt: now.addingTimeInterval(-86_400 * 2))
+        exportBug.githubNumber = 214
+        exportBug.githubURL = "https://github.com/northwind-demo/lumen/issues/214"
+        var started = ProductIssue(title: "dark mode for the embed widget", createdAt: now.addingTimeInterval(-86_400 * 5))
+        started.startedAt = now.addingTimeInterval(-3_600 * 3)
+        started.startedWith = "claude"
+        var done = ProductIssue(title: "Rename \"Seats\" to \"Members\" in billing", isDone: true, createdAt: now.addingTimeInterval(-86_400 * 9))
+        done.doneAt = now.addingTimeInterval(-86_400)
+        return [ProductIssue(title: "onboarding email feels long", createdAt: now.addingTimeInterval(-3_600)), exportBug, started, done]
+    }
+}

@@ -19,6 +19,10 @@ public struct AgentSpec: Sendable, Hashable, Identifiable {
     public var systemPromptFlag: String?
     /// The agent takes its working folder as an argument instead of the current directory.
     public var takesDirectoryArgument = false
+    /// Folders the app writes for the agent (context, packs) are granted with a read rule passed in
+    /// --settings instead of the folder flag. Claude Code asks to trust every --add-dir folder it has not
+    /// opened as a project, and nobody opens the context folder, so --add-dir would ask every session.
+    public var grantsReadBySettings = false
     /// Models offered in Settings when the agent cannot list its own.
     public var suggestedModels: [String] = []
     /// A command that prints the available models, one `id<TAB>name` per line.
@@ -28,7 +32,7 @@ public struct AgentSpec: Sendable, Hashable, Identifiable {
 public enum AgentCatalog {
     public static let all: [AgentSpec] = [
         AgentSpec(program: "claude", name: "Claude Code", addFolderFlag: "--add-dir", modelFlag: "--model", firstMessage: .positional,
-                  systemPromptFlag: "--append-system-prompt", suggestedModels: ["opus", "sonnet", "haiku"]),
+                  systemPromptFlag: "--append-system-prompt", grantsReadBySettings: true, suggestedModels: ["opus", "sonnet", "haiku"]),
         AgentSpec(program: "codex", name: "Codex", addFolderFlag: nil, modelFlag: "--model", firstMessage: .positional),
         AgentSpec(program: "opencode", name: "OpenCode", addFolderFlag: nil, modelFlag: "--model", firstMessage: .flag("--prompt"),
                   takesDirectoryArgument: true),
@@ -43,15 +47,22 @@ public enum AgentCatalog {
     public static func installed() -> [AgentSpec] { all.filter { ExecutableLocator.find($0.program) != nil } }
 
     /// The agent's command line.
-    /// - folders: readable folders beyond the working directory (context, packs, related checkouts).
+    /// - folders: related checkouts the agent may read beyond the working directory.
+    /// - contextFolders: folders the app writes for the agent (context, packs). Read-only where the agent allows it.
     /// - pointer: one line about CONTEXT.md. A system-prompt flag carries it where the agent has one;
     ///   otherwise it leads the first message.
     /// - message: what the agent should do first, if anything.
-    public static func command(program: URL, folders: [String], pointer: String?, message: String?, model: String?, workingDirectory: String) -> [String] {
+    public static func command(program: URL, folders: [String], contextFolders: [String] = [], pointer: String?, message: String?,
+                               model: String?, workingDirectory: String) -> [String] {
         let name = program.lastPathComponent
         guard let spec = spec(name) else { return [program.path] }
         var argv = [program.path]
-        if let flag = spec.addFolderFlag { argv += folders.flatMap { [flag, $0] } }
+        if spec.grantsReadBySettings, let settings = readSettings(contextFolders) {
+            argv += ["--settings", settings]
+            if let flag = spec.addFolderFlag { argv += folders.flatMap { [flag, $0] } }
+        } else if let flag = spec.addFolderFlag {
+            argv += (contextFolders + folders).flatMap { [flag, $0] }
+        }
         if let flag = spec.modelFlag, let model = model?.trimmingCharacters(in: .whitespaces), !model.isEmpty { argv += [flag, model] }
         var first = message
         if let pointer, !pointer.isEmpty {
@@ -65,6 +76,16 @@ public enum AgentCatalog {
         }
         if spec.takesDirectoryArgument { argv.append(workingDirectory) }
         return argv
+    }
+
+    /// Claude Code settings JSON that lets the agent read these folders without asking: one `Read(//path/**)`
+    /// allow rule each (a leading `//` marks an absolute path). Read only: no edit or write rule.
+    public static func readSettings(_ folders: [String]) -> String? {
+        let rules = folders.filter { $0.hasPrefix("/") }.map { "Read(/\($0.hasSuffix("/") ? String($0.dropLast()) : $0)/**)" }
+        guard !rules.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: ["permissions": ["allow": rules]], options: [.sortedKeys, .withoutEscapingSlashes])
+        else { return nil }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Models the agent offers. Reads the agent's own list when it has one, else the suggestions.

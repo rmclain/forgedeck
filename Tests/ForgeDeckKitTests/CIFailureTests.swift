@@ -92,9 +92,10 @@ import Testing
         #expect(brief.contains("(deploy or release)"))
         #expect(brief.contains("Do not push, tag, deploy"))
         #expect(brief.contains("Do not invent values"))
-        let bundle = AgentContextBundle(contextFile: URL(fileURLWithPath: "/ctx/CONTEXT.md"), workingDirectory: "/code/r", readableFolders: ["/ctx"], relatedNames: [], approxTokens: 1)
+        let bundle = AgentContextBundle(contextFile: URL(fileURLWithPath: "/ctx/CONTEXT.md"), workingDirectory: "/code/r", readableFolders: ["/code/api"], relatedNames: [], approxTokens: 1, contextFolders: ["/ctx"])
         let command = CIFixPrompt.command(program: URL(fileURLWithPath: "/bin/claude"), bundle: bundle, brief: URL(fileURLWithPath: "/ctx/ci-failure-9.md"), run: report.run)
         #expect(command.last?.contains("/ctx/ci-failure-9.md") == true)
-        #expect(command.contains("--add-dir"))
+        #expect(command.contains("--add-dir") && command.contains("/code/api") && !command.contains("/ctx"))
+        #expect(command.contains("--settings"))
     }
 }

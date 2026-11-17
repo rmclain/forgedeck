@@ -51,7 +51,7 @@ enum Route: Hashable {
 }
 
 enum ProductTab: String, CaseIterable, Identifiable {
-    case overview = "Overview", development = "Development", environments = "Environments", metrics = "Metrics"
+    case overview = "Overview", issues = "Issues", development = "Development", environments = "Environments", metrics = "Metrics"
     case connections = "Connections", secrets = "Secrets", actions = "Actions", activity = "Activity", settings = "Settings"
     var id: String { rawValue }
 }
@@ -245,6 +245,8 @@ final class AppModel {
     var installedPlugins: Set<String>?
     /// Plugins being installed right now.
     var installingSkills: Set<String> = []
+    /// Set to move the cursor to the Issues tab's add field.
+    var focusIssueField = false
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.

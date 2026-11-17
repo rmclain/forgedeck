@@ -129,7 +129,7 @@ enum Snapshot {
                    let beacon = model.products.first(where: { $0.slug == "beacon" }) {
                     // The header an agent with linked context gets, so the snapshot shows it.
                     shell.banner = AgentContextBundle(contextFile: URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/ForgeDeck/context/beacon/CONTEXT.md"),
-                                                      workingDirectory: folder, readableFolders: ["/ctx", "/code/lumen"], relatedNames: ["Lumen"], approxTokens: 2_400)
+                                                      workingDirectory: folder, readableFolders: ["/code/lumen"], relatedNames: ["Lumen"], approxTokens: 2_400, contextFolders: ["/ctx"])
                         .banner(product: "Beacon", program: "claude")
                     model.terminals.open(shell, productID: beacon.id, checkoutID: nil)
                 }

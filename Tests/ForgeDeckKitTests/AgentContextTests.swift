@@ -140,6 +140,8 @@ import Testing
         #expect(bundle.workingDirectory == app.path)
         #expect(bundle.readableFolders.contains(api.path))
         #expect(!bundle.readableFolders.contains(app.path))
+        #expect(bundle.contextFolders.first == bundle.contextFile.deletingLastPathComponent().path)
+        #expect(!bundle.readableFolders.contains(bundle.contextFile.deletingLastPathComponent().path))
         #expect(bundle.relatedNames == ["API"])
         #expect(text.contains("## API"))
         #expect(text.contains("The app calls this API"))
@@ -159,9 +161,10 @@ import Testing
 
     @Test func eachAgentGetsTheContextItCanUse() {
         let bundle = AgentContextBundle(contextFile: URL(fileURLWithPath: "/ctx/app/CONTEXT.md"), workingDirectory: "/code/app",
-                                        readableFolders: ["/ctx/app", "/code/it's api"], relatedNames: ["API"], approxTokens: 500)
+                                        readableFolders: ["/code/it's api"], relatedNames: ["API"], approxTokens: 500, contextFolders: ["/ctx/app"])
         let claude = bundle.command(program: URL(fileURLWithPath: "/usr/local/bin/claude"))
-        #expect(claude == ["/usr/local/bin/claude", "--add-dir", "/ctx/app", "--add-dir", "/code/it's api", "--append-system-prompt", bundle.pointer])
+        #expect(claude == ["/usr/local/bin/claude", "--settings", #"{"permissions":{"allow":["Read(//ctx/app/**)"]}}"#,
+                           "--add-dir", "/code/it's api", "--append-system-prompt", bundle.pointer])
         #expect(bundle.pointer.contains("/ctx/app/CONTEXT.md"))
         #expect(bundle.pointer.count < 400)
         #expect(bundle.command(program: URL(fileURLWithPath: "/bin/codex")) == ["/bin/codex", bundle.pointer])
@@ -173,15 +176,16 @@ import Testing
 
     @Test func theTerminalShowsWhatTheAgentWasStartedWith() {
         let bundle = AgentContextBundle(contextFile: URL(fileURLWithPath: "/Users/me/ctx/app/CONTEXT.md"), workingDirectory: "/code/app",
-                                        readableFolders: ["/ctx/app", "/code/api"], relatedNames: ["API", "Plugin"], approxTokens: 2_400)
+                                        readableFolders: ["/code/api"], relatedNames: ["API", "Plugin"], approxTokens: 2_400, contextFolders: ["/ctx/app"])
         let claude = bundle.banner(product: "App", program: "claude", home: "/Users/me")
         #expect(claude.contains("~/ctx/app/CONTEXT.md"))
         #expect(claude.contains("API, Plugin"))
-        #expect(claude.contains("2 folders added with --add-dir"))
+        #expect(claude.contains("1 folder added with --add-dir") && claude.contains("no trust prompt"))
         #expect(claude.contains("system prompt"))
         #expect(claude.hasSuffix("\r\n"))
         let codex = bundle.banner(product: "App", program: "codex", home: "/Users/me")
         #expect(!codex.contains("--add-dir"))
+        #expect(bundle.banner(product: "App", program: "gemini").contains("2 folders added with --include-directories"))
         #expect(codex.contains("first message"))
         let alone = AgentContextBundle(contextFile: URL(fileURLWithPath: "/c/CONTEXT.md"), workingDirectory: "/w", readableFolders: [], relatedNames: [], approxTokens: 10)
         #expect(alone.banner(product: "W", program: "claude").contains("none linked"))

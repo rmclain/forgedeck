@@ -10,13 +10,8 @@ Requirements
 
 Install
 1. Drag ForgeDeck.app into your Applications folder.
-2. Open it. macOS will say it cannot verify the app, because this copy is not notarized
-   by Apple. Click Done (not Move to Trash).
-3. Open System Settings > Privacy & Security, scroll down to the message about ForgeDeck,
-   and click Open Anyway. Confirm with your password or Touch ID.
-   You only need to do this once.
-
-   Or, in Terminal:  xattr -dr com.apple.quarantine /Applications/ForgeDeck.app
+2. Open it. ForgeDeck is signed with a Developer ID and notarized by Apple, so it opens
+   like any other app.
 
 First steps
 - Click "Add 3 Demo Products" on the welcome screen to look around with sample data

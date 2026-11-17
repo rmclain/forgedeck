@@ -3,23 +3,38 @@ import Testing
 @testable import ForgeDeckKit
 
 @Suite struct AgentCatalogTests {
-    let folders = ["/ctx/app", "/code/it's api"]
+    let folders = ["/code/it's api"]
+    let context = ["/Users/me/Library/Application Support/ForgeDeck/context/app"]
     let pointer = "Read /ctx/app/CONTEXT.md first."
 
     func command(_ program: String, message: String? = nil, model: String? = nil) -> [String] {
-        AgentCatalog.command(program: URL(fileURLWithPath: "/bin/\(program)"), folders: folders, pointer: pointer, message: message, model: model, workingDirectory: "/code/app")
+        AgentCatalog.command(program: URL(fileURLWithPath: "/bin/\(program)"), folders: folders, contextFolders: context, pointer: pointer, message: message, model: model, workingDirectory: "/code/app")
     }
 
     @Test func everyAgentGetsFoldersModelAndFirstMessageItsOwnWay() {
         #expect(command("claude", message: "Fix it.", model: "opus") ==
-                ["/bin/claude", "--add-dir", "/ctx/app", "--add-dir", "/code/it's api", "--model", "opus", "--append-system-prompt", pointer, "Fix it."])
+                ["/bin/claude", "--settings", AgentCatalog.readSettings(context)!, "--add-dir", "/code/it's api", "--model", "opus", "--append-system-prompt", pointer, "Fix it."])
         #expect(command("gemini", message: "Fix it.", model: "gemini-x") ==
-                ["/bin/gemini", "--include-directories", "/ctx/app", "--include-directories", "/code/it's api", "--model", "gemini-x", "--prompt-interactive", "\(pointer) Fix it."])
+                ["/bin/gemini", "--include-directories", context[0], "--include-directories", "/code/it's api", "--model", "gemini-x", "--prompt-interactive", "\(pointer) Fix it."])
         #expect(command("agy", model: "gemini-3.8-flash-low") ==
-                ["/bin/agy", "--add-dir", "/ctx/app", "--add-dir", "/code/it's api", "--model", "gemini-3.8-flash-low", "--prompt-interactive", pointer])
+                ["/bin/agy", "--add-dir", context[0], "--add-dir", "/code/it's api", "--model", "gemini-3.8-flash-low", "--prompt-interactive", pointer])
         #expect(command("codex") == ["/bin/codex", pointer])
         #expect(command("opencode", model: "anthropic/claude") == ["/bin/opencode", "--model", "anthropic/claude", "--prompt", pointer, "/code/app"])
         #expect(command("unknown-agent") == ["/bin/unknown-agent"])
+    }
+
+    /// Claude Code asks to trust every --add-dir folder it has not opened as a project. The context folder is
+    /// never opened as one, so it gets a read-only allow rule instead and the session starts without a prompt.
+    @Test func claudeReadsTheContextFolderWithoutATrustPrompt() throws {
+        let argv = command("claude")
+        #expect(!argv.contains(context[0]))
+        let settings = try #require(AgentCatalog.readSettings(context + ["/packs/"]))
+        let json = try #require(JSONSerialization.jsonObject(with: Data(settings.utf8)) as? [String: [String: [String]]])
+        #expect(json == ["permissions": ["allow": ["Read(//Users/me/Library/Application Support/ForgeDeck/context/app/**)", "Read(//packs/**)"]]])
+        #expect(!settings.contains("Edit") && !settings.contains("Write") && !settings.contains("Bash"))
+        #expect(AgentCatalog.readSettings([]) == nil && AgentCatalog.readSettings(["relative"]) == nil)
+        let bare = AgentCatalog.command(program: URL(fileURLWithPath: "/bin/claude"), folders: [], pointer: nil, message: nil, model: nil, workingDirectory: "/w")
+        #expect(bare == ["/bin/claude"])
     }
 
     @Test func aBlankModelUsesTheAgentsDefault() {

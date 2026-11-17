@@ -418,8 +418,10 @@ public enum RepoBrief {
 public struct AgentContextBundle: Sendable, Equatable {
     public var contextFile: URL
     public var workingDirectory: String
-    /// Folders to pass with --add-dir: the context folder, the pack folder, and related checkouts.
+    /// Related checkouts, passed with --add-dir.
     public var readableFolders: [String]
+    /// The context folder and the pack folder. Claude Code reads them through a read rule, so it never asks to trust them.
+    public var contextFolders: [String] = []
     public var relatedNames: [String]
     public var approxTokens: Int
     /// The active skills, one line for the prompt.
@@ -427,7 +429,8 @@ public struct AgentContextBundle: Sendable, Equatable {
     public var skillNames: [String] = []
 
     public init(contextFile: URL, workingDirectory: String, readableFolders: [String], relatedNames: [String], approxTokens: Int,
-                skillsLine: String? = nil, skillNames: [String] = []) {
+                contextFolders: [String] = [], skillsLine: String? = nil, skillNames: [String] = []) {
+        self.contextFolders = contextFolders
         self.skillsLine = skillsLine
         self.skillNames = skillNames
         self.contextFile = contextFile
@@ -474,11 +477,11 @@ public struct AgentContextBundle: Sendable, Equatable {
         try Data(text.utf8).write(to: file, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
         let packFolderUsed = product.contextLinks.contains(where: \.includePack) && FileManager.default.fileExists(atPath: location.packsFolder.path)
-        var readable = [folder.path] + (packFolderUsed ? [location.packsFolder.path] : []) + folders
-        var seen = Set<String>()
-        readable = readable.filter { $0 != primary?.path && seen.insert($0).inserted }
+        let owned = [folder.path] + (packFolderUsed ? [location.packsFolder.path] : [])
+        var seen = Set(owned)
+        let readable = folders.filter { $0 != primary?.path && seen.insert($0).inserted }
         return AgentContextBundle(contextFile: file, workingDirectory: primary?.path ?? NSHomeDirectory(), readableFolders: readable,
-                                  relatedNames: names, approxTokens: text.utf8.count / 4, skillsLine: SkillSuggestions.promptLine(for: product),
+                                  relatedNames: names, approxTokens: text.utf8.count / 4, contextFolders: owned, skillsLine: SkillSuggestions.promptLine(for: product),
                                   skillNames: SkillSuggestions.activeNames(product))
     }
 
@@ -536,8 +539,11 @@ public struct AgentContextBundle: Sendable, Equatable {
         let related = relatedNames.isEmpty ? "none linked. Link products in the Agent context card." : relatedNames.joined(separator: ", ")
         rows.append(("Related", related))
         if !skillNames.isEmpty { rows.append(("Skills", skillNames.joined(separator: ", ") + "  \(dim)named in the prompt\(reset)")) }
-        if spec?.addFolderFlag != nil, !readableFolders.isEmpty {
-            rows.append(("Readable", "\(readableFolders.count) folder\(readableFolders.count == 1 ? "" : "s") added with \(spec?.addFolderFlag ?? "")"))
+        if let flag = spec?.addFolderFlag {
+            let added = spec?.grantsReadBySettings == true ? readableFolders.count : readableFolders.count + contextFolders.count
+            var parts = added > 0 ? ["\(added) folder\(added == 1 ? "" : "s") added with \(flag)"] : []
+            if spec?.grantsReadBySettings == true, !contextFolders.isEmpty { parts.append("context folder read-only, no trust prompt") }
+            if !parts.isEmpty { rows.append(("Readable", parts.joined(separator: "; "))) }
         }
         rows.append(("Prompt", spec?.systemPromptFlag != nil ? "a pointer to the context file is in \(agent)'s system prompt" : "the pointer to the context file is the first message"))
         let lines = ["\(dim)── \(reset)\(bold)\(Brand.name)\(reset)\(dim) · \(agent) with agent context for \(reset)\(bold)\(product)\(reset)"]
@@ -546,9 +552,9 @@ public struct AgentContextBundle: Sendable, Equatable {
         return lines.joined(separator: "\r\n") + "\r\n"
     }
 
-    /// The agent's command line, as an argument array. Claude Code gets the folders with --add-dir and the
+    /// The agent's command line, as an argument array. Claude Code gets related checkouts with --add-dir, its context folder by read rule, and the
     /// pointer with --append-system-prompt. Codex and OpenCode get the pointer as their first prompt.
     public func command(program: URL, model: String? = nil, message: String? = nil) -> [String] {
-        AgentCatalog.command(program: program, folders: readableFolders, pointer: pointer, message: message, model: model, workingDirectory: workingDirectory)
+        AgentCatalog.command(program: program, folders: readableFolders, contextFolders: contextFolders, pointer: pointer, message: message, model: model, workingDirectory: workingDirectory)
     }
 }

@@ -317,6 +317,10 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     public var releaseChannels: [ReleaseChannel]?
     /// Claude Code plugins chosen for this product. Active ones are named in the agent's prompt. Optional so older files load.
     public var agentSkills: [AgentSkill]?
+    /// The Issues tab's to-do list. Optional, so products saved before it load unchanged.
+    public var issues: [ProductIssue]?
+    /// Lets items be copied to GitHub as issues. Off (nil) by default.
+    public var issuesToGitHub: Bool?
 
     public init() {}
 

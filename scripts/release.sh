@@ -42,7 +42,7 @@ if [[ -z "$notes_file" ]]; then
     echo
     echo "## Install"
     echo
-    echo "Unzip, drag ForgeDeck.app to Applications, and open it. The first time, macOS asks: click Done, then System Settings › Privacy & Security › Open Anyway. Copies that are already installed update themselves."
+    echo "Unzip, drag ForgeDeck.app to Applications, and open it. Copies that are already installed update themselves."
   } > "$notes_file"
 fi
 gh release create "$tag" "$zip" --repo "$repo" --title "ForgeDeck $version" --notes-file "$notes_file" "${draft[@]}"

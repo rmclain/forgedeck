@@ -403,6 +403,16 @@ Play (⌘⇧P, in the product header, the right-click menu, and the palette) lau
 
 A recipe that is not approved opens for review first. Saving approves it, and Play runs it right away.
 
+### Issues for a product
+
+The **Issues** tab is a to-do list for the product, kept on this Mac. Type a short note and press Return; the first line is the title and any further lines are notes. File › New Issue (⌘⇧I) jumps to the field.
+
+**Implement with Claude Code** opens your agent in the product's folder with the item. Items are usually quick notes, not prompts, so the agent first reads the code, says what it thinks the item asks for, and asks up to four questions. It starts only after you answer. It does not push, deploy, or touch GitHub issues. Mark the item done with its checkbox when you are happy.
+
+Double-click an item, or use its ••• menu, to edit the title and notes. Notes help, but they are optional.
+
+**Add to GitHub** is off by default. Turn it on at the bottom of the tab, and each item's menu gets **Add to GitHub…**, which creates an issue in the product's GitHub repository with your `gh` login after a press-and-hold confirmation. ForgeDeck's own GitHub token stays read-only. Deleting an item here does not close the GitHub issue.
+
 ### Skills for a product
 
 The **Skills** card on a product's Development tab holds the skills and Claude Code plugins chosen for that product. The active ones are named in the agent's prompt each time it starts there, so the agent knows to use them.

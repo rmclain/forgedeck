@@ -328,7 +328,7 @@ public enum CIFixPrompt {
     public static func command(program: URL, bundle: AgentContextBundle, brief: URL, run: CIRun, model: String? = nil) -> [String] {
         // Agents without a system-prompt flag get the brief pointer alone: the brief already names the run.
         let hasSystemPrompt = AgentCatalog.spec(program.lastPathComponent)?.systemPromptFlag != nil
-        return AgentCatalog.command(program: program, folders: bundle.readableFolders, pointer: hasSystemPrompt ? bundle.pointer : nil,
+        return AgentCatalog.command(program: program, folders: bundle.readableFolders, contextFolders: bundle.contextFolders, pointer: hasSystemPrompt ? bundle.pointer : nil,
                                     message: opening(brief, run: run), model: model, workingDirectory: bundle.workingDirectory)
     }
 }

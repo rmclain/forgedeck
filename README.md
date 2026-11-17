@@ -29,7 +29,7 @@ Everything stays on your Mac. There is no account, no server, and no telemetry. 
 
 1. Download `ForgeDeck-<version>.zip` from the [latest release](https://github.com/rmclain/forgedeck/releases/latest) and unzip it.
 2. Drag **ForgeDeck.app** into **Applications**.
-3. Open it. The app is signed but not notarized, so the first time macOS says it cannot check it. Click **Done**, open **System Settings › Privacy & Security**, and click **Open Anyway**. You only do this once.
+3. Open it. From 0.11.1 the app is signed with a Developer ID and notarized by Apple, so it opens like any other app.
 
 Requires macOS 26 or later, on Apple silicon or Intel.
 

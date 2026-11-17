@@ -40,6 +40,23 @@ extension AppModel {
             for link in product.links where !product.isDemo {
                 commands.append(PaletteCommand(id: "link-\(link.id)", label: "Open \(link.label) · \(product.name)", group: "Links", icon: .external) { self.openLink(link.url) })
             }
+            commands.append(PaletteCommand(id: "issues-\(product.id)", label: "Issues · \(product.name)", group: "Issues", icon: .check) {
+                self.paletteOpen = false
+                self.route = .product(product.id)
+                self.productTab = .issues
+            })
+            if !product.isDemo {
+                commands.append(PaletteCommand(id: "issue-new-\(product.id)", label: "New Issue · \(product.name)", group: "Issues", icon: .plus, kbd: "⌘⇧I") {
+                    self.paletteOpen = false
+                    self.newIssue(product)
+                })
+                for issue in ProductIssues.sorted(product.issues ?? []) where !issue.isDone && product.hasLocal {
+                    commands.append(PaletteCommand(id: "issue-implement-\(issue.id)", label: "Implement: \(issue.title) · \(product.name)", group: "Issues", icon: .sparkle) {
+                        self.paletteOpen = false
+                        self.implementIssue(issue, in: product)
+                    })
+                }
+            }
             if !product.isDemo, product.repositories.contains(where: { $0.provider == "github" }) {
                 commands.append(PaletteCommand(id: "ci-\(product.id)", label: "Show Last CI Failure · \(product.name)", group: "CI", icon: .error) {
                     self.paletteOpen = false

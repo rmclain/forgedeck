@@ -14,6 +14,9 @@ struct ProductPage: View {
         case .secrets:
             let n = model.portfolio.variables.filter { $0.scope.productID == product.id }.count
             return n > 0 ? "\(n)" : nil
+        case .issues:
+            let n = ProductIssues.openCount(product)
+            return n > 0 ? "\(n)" : nil
         case .actions: return product.recipes.isEmpty ? nil : "\(product.recipes.count)"
         case .environments: return product.environments.isEmpty ? nil : "\(product.environments.count)"
         default: return nil
@@ -27,6 +30,7 @@ struct ProductPage: View {
                 Group {
                     switch model.productTab {
                     case .overview: ProductOverviewTab(product: product)
+                    case .issues: IssuesTab(product: product)
                     case .development: DevelopmentTab(product: product)
                     case .environments: EnvironmentsTab(product: product)
                     case .metrics: LeadsContent(product: product)
