@@ -91,6 +91,16 @@ public enum ForgeDeckSkill {
         4. The metrics source is proposed in `.forgedeck/environments.json` with "metricsURL" and "metricsToken" (a variable name), \
         checked with `\(tool) env check <slug>`, and added when the person presses Review….
 
+        ## Suggest skills for a product
+
+        When the person asks which skills, plugins, or add-ons would help with a product:
+
+        1. Run `\(tool) skills <slug>` to see what is already chosen. Look at the product and its recent work, then find skills \
+        that fit (GitHub skills repositories, skills.sh, `claude plugin list --available --json`). Read each one before suggesting it.
+        2. Write `.forgedeck/skills.json`: `{"skills": [{"name": "skill-folder", "repo": "owner/repo", "why": "…"}, \
+        {"name": "plugin", "plugin": "plugin", "marketplace": "owner/repo", "includes": ["skills", "hooks"]}]}`. Install nothing.
+        3. Run `\(tool) skills check <slug>`, then tell the person to press Install in \(Brand.name) › the product › Development › Skills.
+
         ## Rules
 
         - One product per task. Never change two products unless the person asks for exactly that.

@@ -403,6 +403,16 @@ Play (⌘⇧P, in the product header, the right-click menu, and the palette) lau
 
 A recipe that is not approved opens for review first. Saving approves it, and Play runs it right away.
 
+### Skills for a product
+
+The **Skills** card on a product's Development tab holds the skills and Claude Code plugins chosen for that product. The active ones are named in the agent's prompt each time it starts there, so the agent knows to use them.
+
+- **Suggest with Claude Code…** (also in the right-click menu, the palette, and Product › Suggest Skills…) starts your agent with a prompt about the product: its folder, stack, top files, and what is already installed. It reads the code and recent commits, looks for skills that fit the work (GitHub skills repositories, skills.sh, Claude Code marketplaces), and writes `.forgedeck/skills.json`. It installs nothing.
+- Each suggestion shows why it fits. **Install…** on a skill downloads its repository and opens the same sheet as the Toolbox, so you pick where it goes; nothing in it runs. **Install…** on a plugin asks first, then runs `claude plugin install` for your user. A plugin marked **Runs code** includes hooks or an MCP server, which run in every Claude Code session. Read it first.
+- **Use** chooses a suggestion that is already installed. **×** turns one down; it is not suggested again. **Add Installed** chooses anything already on this Mac.
+- Untick **Active** to keep a skill on the list without naming it in the prompt. The trash button takes it off the product; it stays installed.
+- `forgedeck skills <product>` lists the chosen skills. `forgedeck skills check <product>` checks the file.
+
 ### Set up how a product runs
 
 When Play has nothing to launch, or launches the wrong thing, choose **Set Up Run with Claude Code…** from the Play menu (also in the right-click menu, the palette, and Product › Set Up Run…). With nothing to launch yet, the button itself says **Set Up Run**.

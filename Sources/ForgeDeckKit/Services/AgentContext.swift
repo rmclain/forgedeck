@@ -422,8 +422,14 @@ public struct AgentContextBundle: Sendable, Equatable {
     public var readableFolders: [String]
     public var relatedNames: [String]
     public var approxTokens: Int
+    /// The active skills, one line for the prompt.
+    public var skillsLine: String?
+    public var skillNames: [String] = []
 
-    public init(contextFile: URL, workingDirectory: String, readableFolders: [String], relatedNames: [String], approxTokens: Int) {
+    public init(contextFile: URL, workingDirectory: String, readableFolders: [String], relatedNames: [String], approxTokens: Int,
+                skillsLine: String? = nil, skillNames: [String] = []) {
+        self.skillsLine = skillsLine
+        self.skillNames = skillNames
         self.contextFile = contextFile
         self.workingDirectory = workingDirectory
         self.readableFolders = readableFolders
@@ -472,7 +478,8 @@ public struct AgentContextBundle: Sendable, Equatable {
         var seen = Set<String>()
         readable = readable.filter { $0 != primary?.path && seen.insert($0).inserted }
         return AgentContextBundle(contextFile: file, workingDirectory: primary?.path ?? NSHomeDirectory(), readableFolders: readable,
-                                  relatedNames: names, approxTokens: text.utf8.count / 4)
+                                  relatedNames: names, approxTokens: text.utf8.count / 4, skillsLine: SkillSuggestions.promptLine(for: product),
+                                  skillNames: SkillSuggestions.activeNames(product))
     }
 
     /// Variable names per environment and the exact `forgedeck exec` line for each profile. Never a value:
@@ -515,6 +522,7 @@ public struct AgentContextBundle: Sendable, Equatable {
     public var pointer: String {
         "\(Brand.name) wrote a context file for this session at \(contextFile.path). Read it before working across repositories."
             + (relatedNames.isEmpty ? "" : " Related repositories you may read: \(relatedNames.joined(separator: ", ")).")
+            + (skillsLine.map { " " + $0 } ?? "")
     }
 
     /// A few lines printed above the agent in the in-app terminal. The system-prompt flag and the folder flags
@@ -527,6 +535,7 @@ public struct AgentContextBundle: Sendable, Equatable {
         var rows: [(String, String)] = [("Context", "\(tilde(contextFile.path))  \(dim)~\(max(1, approxTokens / 1_000))k tokens, read when needed\(reset)")]
         let related = relatedNames.isEmpty ? "none linked. Link products in the Agent context card." : relatedNames.joined(separator: ", ")
         rows.append(("Related", related))
+        if !skillNames.isEmpty { rows.append(("Skills", skillNames.joined(separator: ", ") + "  \(dim)named in the prompt\(reset)")) }
         if spec?.addFolderFlag != nil, !readableFolders.isEmpty {
             rows.append(("Readable", "\(readableFolders.count) folder\(readableFolders.count == 1 ? "" : "s") added with \(spec?.addFolderFlag ?? "")"))
         }

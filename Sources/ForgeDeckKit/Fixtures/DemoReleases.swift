@@ -51,4 +51,14 @@ extension DemoFixtures {
             ProposedRun(label: "Deploy Preview", steps: [["npx", "vercel", "deploy"]]),
         ])]
     }
+
+    /// Demo skill suggestions for Lumen. Made-up names; nothing installs.
+    public static func skillSuggestions(for product: Product) -> [ProposedSkill] {
+        guard product.isDemo, product.slug == "lumen" else { return [] }
+        return [
+            ProposedSkill(name: "demo-design-review", repo: "example/demo-skills", why: "Reviews the React screens for layout, contrast, and empty states."),
+            ProposedSkill(name: "demo-vitest", plugin: "demo-vitest", marketplace: "example/demo-plugins",
+                          why: "Writes and fixes Vitest tests; the repo uses Vitest.", includes: ["skills", "hooks"]),
+        ]
+    }
 }

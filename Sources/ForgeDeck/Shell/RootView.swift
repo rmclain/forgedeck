@@ -333,6 +333,7 @@ struct ProductMenu: View {
                 Button("Review Run Setup…") { model.reviewRunSetup(product) }.disabled(!product.hasLocal)
             }
             Button("Set Up Leads…") { model.setUpLeads(product) }.disabled(!product.hasLocal)
+            Button("Suggest Skills…") { model.suggestSkills(product) }.disabled(!product.hasLocal)
         }
         Divider()
         Button("Rename…") { model.sheet = .rename(.product(product.id)) }

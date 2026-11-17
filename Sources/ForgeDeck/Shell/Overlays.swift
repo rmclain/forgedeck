@@ -54,6 +54,8 @@ extension AppModel {
                 if product.hasLocal {
                     commands.append(PaletteCommand(id: "run-setup-\(product.id)", label: "Set Up Run with \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) · \(product.name)",
                                                    group: "Play", icon: .play) { self.paletteOpen = false; self.setUpRun(product) })
+                    commands.append(PaletteCommand(id: "skills-suggest-\(product.id)", label: "Suggest Skills with \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) · \(product.name)",
+                                                   group: "Agent", icon: .sparkle) { self.paletteOpen = false; self.suggestSkills(product) })
                     commands.append(PaletteCommand(id: "leads-setup-\(product.id)", label: "Set Up Leads · \(product.name)", group: "Leads", icon: .leads) {
                         self.paletteOpen = false
                         self.setUpLeads(product)

@@ -315,6 +315,8 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     public var installLinks: [InstallLink] = []
     /// Registries this product publishes to (WordPress.org, npm, PyPI). Optional so older files load.
     public var releaseChannels: [ReleaseChannel]?
+    /// Claude Code plugins chosen for this product. Active ones are named in the agent's prompt. Optional so older files load.
+    public var agentSkills: [AgentSkill]?
 
     public init() {}
 

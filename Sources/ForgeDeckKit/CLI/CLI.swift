@@ -45,8 +45,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.10"
-    public static let commands = ["list", "status", "open", "doctor", "env", "run", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.11"
+    public static let commands = ["list", "status", "open", "doctor", "env", "run", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -86,6 +86,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]
       \(Brand.cliName) env check <product>        (checks .forgedeck/environments.json, changes nothing)
       \(Brand.cliName) run check <product>        (checks .forgedeck/run.json, changes nothing)
+      \(Brand.cliName) skills <product> | skills check <product>  (skills chosen for the product; checks .forgedeck/skills.json)
       \(Brand.cliName) leads <product> [--json]   (what each metrics source last delivered: counts, newest lead, problems)
       \(Brand.cliName) actions list <product> [--json]
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
@@ -122,6 +123,14 @@ public struct CLI: Sendable {
           "url": "http://localhost:5173"}, {"label": "Run Tests", "steps": [["npm", "test"]]}]}
       kind web, desktop, mobile, or site puts it on Play. `run check` shows what \(Brand.name) would save.
       Nothing is saved or run until you review it in the app.
+
+    SUGGESTING SKILLS
+      An agent can suggest skills for a product in .forgedeck/skills.json:
+        {"skills": [{"name": "skill-name", "repo": "owner/repo", "why": "what it does here"},
+          {"name": "plugin-name", "plugin": "plugin-name", "marketplace": "owner/repo", "includes": ["skills", "hooks"]}]}
+      A repo entry is a skill folder in a GitHub repository; a marketplace entry is a Claude Code plugin.
+      `skills check` checks it. Nothing is installed until you press Install in the app.
+      Active skills are named in the agent's prompt when it starts in the product.
 
     AGENT CONTEXT
       `agent` writes CONTEXT.md for the product (a short brief of it and of each related product
@@ -214,6 +223,7 @@ public struct CLI: Sendable {
         case "env": return env(args)
         case "run": return runCheck(args)
         case "leads": return leads(args)
+        case "skills": return skills(args)
         case "actions": return actions(args)
         case "exec": return await execute(args)
         case "context": return context(args)
@@ -497,6 +507,38 @@ public struct CLI: Sendable {
             for change in proposal.changes where proposal.problems.isEmpty { io.out("  + \(change)") }
         }
         io.out(failed ? "Fix the problems above, then run this again." : "Review and add it in \(Brand.name): \(product.name) › Overview › Proposed environments.")
+        return failed ? CLIExit.failure : CLIExit.ok
+    }
+
+    private func skills(_ args: Arguments) -> Int32 {
+        let checking = args.positional.first == "check"
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.dropFirst(checking ? 1 : 0).first, in: portfolio) else { return CLIExit.failure }
+        if !checking {
+            let chosen = (product.agentSkills ?? []).filter { !$0.isDismissed }
+            if chosen.isEmpty { io.out("No skills chosen for \(product.name).") }
+            for skill in chosen {
+                let origin = skill.marketplace.map { "plugin from \($0)" } ?? skill.repo ?? "installed"
+                io.out("\(skill.id) (\(origin)\(skill.isActive ? ", active" : ""))\(skill.why.isEmpty ? "" : ": \(skill.why)")")
+            }
+            return CLIExit.ok
+        }
+        let file = SkillSuggestions.read(product)
+        guard !file.entries.isEmpty || !file.errors.isEmpty else {
+            io.out("No \(SkillSuggestions.relativePath) in \(product.name)'s folders. Write one there; see `\(Brand.cliName) help`.")
+            return CLIExit.ok
+        }
+        var failed = !file.errors.isEmpty
+        for error in file.errors { io.out(error) }
+        let known = Dictionary((product.agentSkills ?? []).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for entry in file.entries {
+            let suggestion = SkillSuggestions.check(entry)
+            let state = known[entry.name].map { $0.isDismissed ? "turned down before: remove it" : "already chosen" } ?? "new"
+            io.out("\(entry.name): \(entry.isPlugin ? "plugin" : "skill"), \(entry.origin) (\(state))")
+            if let why = entry.why, !why.isEmpty { io.out("  \(why)") }
+            if suggestion.runsCode { io.out("  note: includes hooks or an MCP server, which run in every session") }
+            for problem in suggestion.problems { io.out("  problem: \(problem)"); failed = true }
+        }
+        io.out(failed ? "Fix the problems above, then run this again." : "Install them in \(Brand.name): \(product.name) › Development › Skills.")
         return failed ? CLIExit.failure : CLIExit.ok
     }
 

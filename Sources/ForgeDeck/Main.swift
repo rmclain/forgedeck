@@ -139,6 +139,8 @@ struct AppCommands: Commands {
                 .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("Set Up Leads…") { if let product = model.currentProduct { model.setUpLeads(product) } }
                 .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
+            Button("Suggest Skills…") { if let product = model.currentProduct { model.suggestSkills(product) } }
+                .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("Reveal in Finder") { if let product = model.currentProduct { model.reveal(product) } }
                 .keyboardShortcut("r", modifiers: [.command, .shift]).disabled(model.currentProduct == nil)
         }

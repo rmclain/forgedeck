@@ -103,6 +103,7 @@ public enum DemoFixtures {
             product.stack = spec.stack
             product.isDemo = true
             product.isFavorite = ["lumen", "beacon"].contains(spec.id)
+            if spec.id == "lumen" { product.agentSkills = [AgentSkill(id: "demo-release-notes", repo: "example/demo-skills", why: "Writes release notes from merged pull requests.")] }
             product.lifecycle = spec.id == "ledgerly" ? .maintenance : .active
             product.tags = [spec.group == "Client Work" ? "client" : spec.group == "Internal" ? "internal" : "saas"]
             product.links = [ProductLink(label: "Site", url: "https://\(spec.id).example", kind: .site),

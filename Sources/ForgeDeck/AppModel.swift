@@ -239,6 +239,12 @@ final class AppModel {
     var environmentFiles: [UUID: [EnvironmentProposalFile]] = [:]
     /// `.forgedeck/run.json` in each product's checkouts, read on refresh.
     var runFiles: [UUID: [RunProposalFile]] = [:]
+    /// `.forgedeck/skills.json` in each product's checkouts, read on refresh.
+    var skillFiles: [UUID: SkillFile] = [:]
+    /// Claude Code plugins installed on this Mac, by name. nil until read.
+    var installedPlugins: Set<String>?
+    /// Plugins being installed right now.
+    var installingSkills: Set<String> = []
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
@@ -489,6 +495,8 @@ final class AppModel {
         if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
         let runs = await Task.detached { RunSetup.read(product) }.value
         if runFiles[product.id] != runs { runFiles[product.id] = runs }
+        let skillFile = await Task.detached { SkillSuggestions.read(product) }.value
+        if skillFiles[product.id] != skillFile { skillFiles[product.id] = skillFile }
         if isOnline {
             async let remote = engine.refreshRemote(product, portfolio: portfolio)
             async let probes = engine.refreshProbes(product, portfolio: portfolio)

@@ -93,13 +93,13 @@
 
   <aside class="titleblock" aria-label="Release">
     <div class="tb-name"><span class="tb-k">Title</span><strong>ForgeDeck</strong></div>
-    <div><span class="tb-k">Rev</span><strong data-version>0.10</strong></div>
+    <div><span class="tb-k">Rev</span><strong data-version>0.11</strong></div>
     <div><span class="tb-k">Fits</span>macOS 26+</div>
     <div><span class="tb-k">Arch</span>Apple silicon · Intel</div>
     <div><span class="tb-k">Price</span>Free</div>
     <a class="stamp" data-download href="https://github.com/rmclain/forgedeck/releases/latest">
       <span class="seal" aria-hidden="true"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17"/><circle cx="20" cy="20" r="13"/><path d="M13.5 20.5l4.5 4.5 8.5-9"/></svg></span>
-      <span class="stamp-text"><span class="stamp-k">Approved · Rev <span data-version>0.10</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
+      <span class="stamp-text"><span class="stamp-k">Approved · Rev <span data-version>0.11</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
     </a>
     <a class="tb-link" href="https://github.com/rmclain/forgedeck">Source on GitHub</a>
   </aside>
@@ -114,6 +114,9 @@
       <tr><td class="ball">2</td><td>Evidence chain</td><td>Local, GitHub, Staging, Production for each product, each with the evidence behind it.</td><td><a href="#detail-a">A</a></td></tr>
       <tr><td class="ball">3</td><td>Play</td><td>Launches what the product builds: the simulator, the desktop app, the dev server and its page, or the local site.</td><td><a href="#detail-b">B</a></td></tr>
       <tr><td class="ball">4</td><td>Provenance</td><td>Every deployment says where the fact came from and how old it is.</td><td><a href="#detail-a">A</a></td></tr>
+      <tr><td class="ball">5</td><td>Agent setup</td><td>Your AI agent proposes a product's environments, how it runs, how its leads arrive, and the skills it needs. You review each one before anything changes.</td><td><a href="#detail-d">D</a></td></tr>
+      <tr><td class="ball">6</td><td>Leads and releases</td><td>New leads, signups, and purchases from each product, and which version is live on WordPress.org, npm, PyPI, or your own site.</td><td><a href="#detail-d">D</a></td></tr>
+      <tr><td class="ball">7</td><td>Agent workbench</td><td>Terminal, editor, and agent in the product's folder, with linked repos, CI fix prompts, and Remote Control from the Claude app.</td><td><a href="#detail-c">C</a></td></tr>
     </tbody>
   </table>
 </section>
@@ -173,10 +176,24 @@
       <li><strong>Editor</strong> Cursor, VS Code, Zed, or Xcode, in a window of its own for that project.</li>
       <li><strong>Agent</strong> Claude Code, Codex, Gemini, OpenCode, and others start in the folder with a compact map of the repo and of any repos you link to it.</li>
       <li><strong>CI fix</strong> Pulls the failing GitHub Actions log, trimmed to the error, and writes a fix prompt you can hand to an agent.</li>
+      <li><strong>Remote</strong> Forge Remote keeps Claude Code's Remote Control running, so you can work on any product from the Claude app.</li>
+      <li><strong>Releases</strong> Shows which version is live: a site's release URL, WordPress.org, npm, PyPI, and GitHub releases.</li>
       <li><strong>AI usage</strong> A side panel reads your agents' local logs: tokens used, limits left. Nothing is uploaded.</li>
       <li><strong>Command line</strong> The app is also <code>forgedeck</code>: list, status, exec, context, ci, usage.</li>
     </ul>
   </div>
+</section>
+
+<section class="detail" id="detail-d" aria-labelledby="d-title">
+  <header class="dh"><span class="dletter" aria-hidden="true">D</span><h2 id="d-title">Detail D · Your agent sets it up</h2></header>
+  <p class="lede">Ask once and your agent reads the product, works out the setup, and writes it into a file in the repository. ForgeDeck checks the file, and you approve it before anything changes.</p>
+  <ul class="modes" role="list">
+    <li class="mode" tabindex="0"><span class="m-k">Environments</span><span class="m-t">Finds where the product is deployed and how to read the live version, from its deploy files</span><code>.forgedeck/environments.json</code></li>
+    <li class="mode" tabindex="0"><span class="m-k">Run</span><span class="m-t">Works out how it runs (npm, Docker, a Local site, tests), tries it, and fills the Play button</span><code>.forgedeck/run.json</code></li>
+    <li class="mode" tabindex="0"><span class="m-k">Leads</span><span class="m-t">Lists what the product collects (forms, signups, orders) and asks which to track before it builds the check</span><code>forgedeck leads &lt;product&gt;</code></li>
+    <li class="mode" tabindex="0"><span class="m-k">Skills</span><span class="m-t">Suggests agent skills and plugins that fit the product. Install the ones you want with a click</span><code>.forgedeck/skills.json</code></li>
+  </ul>
+  <p class="aside-note">The agent only proposes. It never deploys, never sees a token (it gets only its hash), and installs nothing. <code>forgedeck env check</code>, <code>run check</code>, and <code>skills check</code> let it fix mistakes before you look.</p>
 </section>
 
 <section class="notes" id="notes" aria-labelledby="notes-title">
@@ -207,6 +224,7 @@
   <table>
     <thead><tr><th scope="col">Rev</th><th scope="col">Description</th></tr></thead>
     <tbody>
+      <tr><td>0.11</td><td>Skills per product: your agent looks at a product and suggests skills and Claude Code plugins that fit the work. Install the ones you want with one click, and the active ones are named in the agent's prompt whenever it starts there.</td></tr>
       <tr><td>0.10</td><td>Set Up Leads: your agent finds what a product collects (forms, signups, orders, subscriptions, bookings), asks which ones to track, and only then sets up the check. ForgeDeck keeps the token in the Keychain and the agent gets only its hash. forgedeck leads confirms leads are arriving.</td></tr>
       <tr><td>0.9</td><td>Set Up Run: from the Play menu, your agent works out how a product runs (npm, Docker, a Local site, tests), tries it, and proposes the commands in .forgedeck/run.json. forgedeck run check validates them, and you approve them in one review. A served WordPress readme.txt now names the running release, and new checks run as soon as proposed environments are added.</td></tr>
       <tr><td>0.8</td><td>Repositories propose their environments, production included, in .forgedeck/environments.json. An agent writes it, forgedeck env check validates it, and you review and add it in one step. Nothing becomes production without your approval.</td></tr>

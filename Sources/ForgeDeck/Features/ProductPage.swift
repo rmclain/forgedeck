@@ -613,6 +613,7 @@ struct DevelopmentTab: View {
             EvidenceChain(product: product)
             InstallLinksCard(product: product)
             AgentContextCard(product: product)
+            SkillsCard(product: product)
             checkouts
             repositories
             HStack(alignment: .top, spacing: Space.lg) {
