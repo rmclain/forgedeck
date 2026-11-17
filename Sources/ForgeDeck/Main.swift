@@ -137,6 +137,8 @@ struct AppCommands: Commands {
                 .keyboardShortcut("p", modifiers: [.command, .shift]).disabled(model.currentProduct.map { model.playOptions($0).isEmpty } ?? true)
             Button("Set Up Run…") { if let product = model.currentProduct { model.setUpRun(product) } }
                 .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
+            Button("Set Up Leads…") { if let product = model.currentProduct { model.setUpLeads(product) } }
+                .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("Reveal in Finder") { if let product = model.currentProduct { model.reveal(product) } }
                 .keyboardShortcut("r", modifiers: [.command, .shift]).disabled(model.currentProduct == nil)
         }

@@ -126,6 +126,7 @@ enum SheetKind: Identifiable {
     case releaseChannel(UUID)
     case environmentProposals(UUID)
     case runSetup(UUID)
+    case leadsSetup(UUID)
 
     var id: String {
         switch self {
@@ -149,6 +150,7 @@ enum SheetKind: Identifiable {
         case .releaseChannel(let product): "release-\(product)"
         case .environmentProposals(let product): "env-proposals-\(product)"
         case .runSetup(let product): "run-setup-\(product)"
+        case .leadsSetup(let product): "leads-setup-\(product)"
         }
     }
 }

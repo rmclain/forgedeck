@@ -113,6 +113,18 @@ The page shows a funnel of event counts for the chosen window, the counters each
 
 If a source stops answering, its numbers stay and turn Stale. They do not drop to zero.
 
+### Let your agent set up leads
+
+Choose **Set Up Leads…** on a product (right-click menu, Product menu, the palette, or the empty Metrics tab). Pick the environment leads come from, usually Production, and press Start.
+
+1. ForgeDeck makes a token for that environment and keeps it in the Keychain as `FORGEDECK_TOKEN_PRODUCTION` (or the environment's tier). The agent never sees it; its prompt carries only the token's SHA-256, which is what the server stores.
+2. The agent looks first and changes nothing. It finds what the product collects (contact and quote forms, signups and trials, WooCommerce, Stripe, or other orders, subscriptions, bookings) and where each is stored. It shows you a short table.
+3. It asks which ones ForgeDeck should see and whether to set up the check now, and waits for your answer.
+4. With your yes, it adds the companion routes to the product in a change you review, tests them locally, and proposes the metrics source in `.forgedeck/environments.json` (`metricsURL` and `metricsToken`, the variable's name). It does not deploy.
+5. Once it is live, press Review… on Proposed environments. ForgeDeck reads counts and leads from then on.
+
+`forgedeck leads <product>` shows each source, when it last answered, its counters, and the newest lead, so an agent can confirm leads are coming in. Contacts are never sent: only ids, kinds, times, and a source name. If an existing token's hash never reached the server, open Set Up Leads again and tick Make a new token.
+
 Revenue is shown only when a source reports a counter named `mrr_cents`. ForgeDeck does not calculate revenue. There is no Stripe, WooCommerce, or analytics connector yet.
 
 ## Secrets and variables

@@ -17,9 +17,13 @@ public struct ProposedEnvironment: Codable, Hashable, Sendable {
     public var github: String?
     /// Why the agent thinks this is right: the files it read. Shown in the review.
     public var note: String?
+    /// The companion's site root or its /_forgedeck/v1 URL. Becomes a metrics source that reads counters and leads.
+    public var metricsURL: String?
+    /// The name of the ForgeDeck variable that holds the token for it. Never the token.
+    public var metricsToken: String?
 
     public init(name: String? = nil, tier: String, domains: [String]? = nil, versionURL: String? = nil, healthURL: String? = nil,
-                github: String? = nil, note: String? = nil) {
+                github: String? = nil, note: String? = nil, metricsURL: String? = nil, metricsToken: String? = nil) {
         self.name = name
         self.tier = tier
         self.domains = domains
@@ -27,6 +31,8 @@ public struct ProposedEnvironment: Codable, Hashable, Sendable {
         self.healthURL = healthURL
         self.github = github
         self.note = note
+        self.metricsURL = metricsURL
+        self.metricsToken = metricsToken
     }
 }
 
@@ -118,6 +124,14 @@ public enum EnvironmentProposals {
         (1...64).contains(text.count) && text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || " _.-".contains($0)) }
     }
 
+    /// The companion root a metrics URL names, for comparing: lowercased, without the contract path or a trailing slash.
+    static func metricsBase(_ text: String?) -> String? {
+        guard var value = text?.trimmingCharacters(in: .whitespaces).lowercased(), !value.isEmpty else { return nil }
+        while value.hasSuffix("/") { value.removeLast() }
+        for suffix in ["/_forgedeck/v1", "/wp-json/forgedeck/v1"] where value.hasSuffix(suffix) { value.removeLast(suffix.count) }
+        return value
+    }
+
     /// Every proposal across the product's files, checked against its current environments.
     public static func plan(_ product: Product, files: [EnvironmentProposalFile]) -> [EnvironmentProposal] {
         var seen = Set<String>()
@@ -148,6 +162,14 @@ public enum EnvironmentProposals {
             do { _ = try URLPolicy.validate(text) } catch { problems.append("\(label): \(error)") }
         }
         if let github = entry.github, !github.isEmpty, !isValidGitHubName(github) { problems.append("\"\(github)\" is not a GitHub environment name.") }
+        let metricsURL = metricsBase(entry.metricsURL)
+        if let text = entry.metricsURL, !text.isEmpty {
+            do { _ = try URLPolicy.validate(text) } catch { problems.append("Metrics URL: \(error)") }
+        }
+        if let key = entry.metricsToken, !key.isEmpty {
+            if !VariableResolver.isValidKey(key) { problems.append("metricsToken is the name of a \(Brand.name) variable, like FORGEDECK_TOKEN_PRODUCTION. Never the token.") }
+            if metricsURL == nil { problems.append("metricsToken is given without a metricsURL.") }
+        }
 
         // Same name, or for single-use tiers the same tier: add to that environment instead of making a second one.
         let existing = product.environments.first { $0.name.lowercased() == name.lowercased() }
@@ -158,6 +180,9 @@ public enum EnvironmentProposals {
         let urls = Set(existing?.probes.map { $0.url.lowercased() } ?? [])
         if let url = entry.versionURL, !url.isEmpty, !urls.contains(url.lowercased()) { changes.append("Version URL \(url)") }
         if let url = entry.healthURL, !url.isEmpty, !urls.contains(url.lowercased()) { changes.append("Health check \(url)") }
+        if let metricsURL, !(existing?.metricSources.contains { metricsBase($0.baseURL) == metricsURL } ?? false) {
+            changes.append("Leads and metrics from \(metricsURL)" + (entry.metricsToken.map { $0.isEmpty ? "" : " with \($0)" } ?? ""))
+        }
         if let github = entry.github, !github.isEmpty, existing?.githubEnvironmentName == nil {
             if product.hasRemote { changes.append("GitHub environment \(github)") } else { problems.append("GitHub environment \"\(github)\" given, but the product has no GitHub repository.") }
         }
@@ -188,6 +213,15 @@ public enum EnvironmentProposals {
             probe.name = kind == .release ? "Version" : "Health"
             probe.url = text
             environment.probes.append(probe)
+        }
+        if let base = metricsBase(proposal.entry.metricsURL), !environment.metricSources.contains(where: { metricsBase($0.baseURL) == base }) {
+            var source = MetricSource()
+            source.name = "Companion"
+            source.baseURL = proposal.entry.metricsURL?.trimmingCharacters(in: .whitespaces) ?? base
+            source.bearerVariableKey = proposal.entry.metricsToken?.nilIfEmpty
+            source.leadsEnabled = true
+            source.eventsEnabled = false
+            environment.metricSources.append(source)
         }
         if let github = proposal.entry.github, !github.isEmpty, environment.githubEnvironmentName == nil, product.hasRemote {
             environment.githubEnvironmentName = github

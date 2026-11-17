@@ -148,9 +148,11 @@ struct LeadsContent: View {
             }
             if leads.isEmpty && sources.isEmpty {
                 EmptyState(icon: .leads, title: "No lead source connected",
-                           message: "Add a metrics source to a product's environment. It reads a small versioned endpoint your own app serves: counts by default, no contact details.",
-                           cta: product == nil ? nil : "Add Metrics Source") {
-                    if let product, let environment = product.environment(tier: .production) ?? product.environments.first {
+                           message: "Add a metrics source to a product's environment. It reads a small versioned endpoint your own app serves: counts by default, no contact details. Or choose Set Up Leads on a product and your agent sets it up.",
+                           cta: product == nil ? nil : product?.hasLocal == true && product?.isDemo == false ? "Set Up Leads…" : "Add Metrics Source") {
+                    if let product, product.hasLocal, !product.isDemo {
+                        model.setUpLeads(product)
+                    } else if let product, let environment = product.environment(tier: .production) ?? product.environments.first {
                         model.sheet = .metricSource(productID: product.id, environmentID: environment.id)
                     } else if let product {
                         model.sheet = .environment(productID: product.id)

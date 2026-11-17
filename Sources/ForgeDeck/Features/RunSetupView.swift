@@ -20,6 +20,14 @@ extension AppModel {
     func setUpRun(_ product: Product, checkout wanted: LocalCheckout? = nil) {
         guard !product.isDemo else { return show("\(product.name) is a demo product. There is nothing to set up.", isError: true) }
         guard let checkout = checkout(for: product, wanted) else { return }
+        let site = localSites.first { $0.contains(checkout.path) }
+        let prompt = RunSetup.prompt(for: product, checkout: checkout, cli: cliCommand, localSite: site)
+        startSetupAgent(product, checkout: checkout, prompt: prompt, title: "Set Up Run", audit: "run.setup")
+    }
+
+    /// Starts the chosen agent with a first message, in ForgeDeck's terminal or the preferred one.
+    /// The product is refreshed when an in-app session ends, so proposals it wrote appear at once.
+    func startSetupAgent(_ product: Product, checkout: LocalCheckout, prompt: String, title: String, audit: String) {
         let program = portfolio.settings.aiAgentProgram
         guard let url = ExecutableLocator.find(program) else {
             return show("\(AgentCatalog.name(program)) is not installed. Choose another agent in Settings › Agents.", isError: true)
@@ -30,12 +38,9 @@ extension AppModel {
         } catch {
             return show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }
-        let site = localSites.first { $0.contains(checkout.path) }
-        let prompt = RunSetup.prompt(for: product, checkout: checkout, cli: cliCommand, localSite: site)
         let argv = bundle.command(program: url, model: portfolio.settings.model(for: program), message: prompt)
-        let title = "Set Up Run · \(product.name)"
         if terminalsInApp {
-            guard var launch = TerminalLaunch.command(argv, kind: .agent, title: title, in: checkout.path) else {
+            guard var launch = TerminalLaunch.command(argv, kind: .agent, title: "\(title) · \(product.name)", in: checkout.path) else {
                 return show("\(AgentCatalog.name(program)) could not be started.", isError: true)
             }
             launch.banner = bundle.banner(product: product.name, program: program)
@@ -44,17 +49,17 @@ extension AppModel {
                 guard let self else { return }
                 Task { await self.refresh(product, announce: false) }
             }
-            self.session(program, product: product, checkout: checkout, command: "run-setup")
-            record("run.setup", product: product, detail: "agent=\(program) checkout=\(checkout.name)")
+            self.session(program, product: product, checkout: checkout, command: audit)
+            record(audit, product: product, detail: "agent=\(program) checkout=\(checkout.name)")
             return
         }
         Task {
             let outcome = await launcher.run(command: argv, in: checkout.path, terminalBundleID: terminalForCommands)
             if outcome.didOpen {
-                session(program, product: product, checkout: checkout, command: "run-setup")
-                record("run.setup", product: product, detail: "agent=\(program) checkout=\(checkout.name) app=terminal")
+                session(program, product: product, checkout: checkout, command: audit)
+                record(audit, product: product, detail: "agent=\(program) checkout=\(checkout.name) app=terminal")
             }
-            report(outcome, success: "Started \(AgentCatalog.name(program)) to set up how \(product.name) runs. Refresh when it is done.")
+            report(outcome, success: "Started \(AgentCatalog.name(program)) for \(title.lowercased()) in \(product.name). Refresh when it is done.")
         }
     }
 

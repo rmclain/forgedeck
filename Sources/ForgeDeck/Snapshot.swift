@@ -61,6 +61,9 @@ enum Snapshot {
             Shot(name: "sheet-run-setup") { model in
                 if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.sheet = .runSetup(lumen.id) }
             },
+            Shot(name: "sheet-leads-setup") { model in
+                if let lumen = model.products.first(where: { $0.slug == "lumen" }) { model.sheet = .leadsSetup(lumen.id) }
+            },
             Shot(name: "sheet-probe") { model in
                 if let lumen = model.products.first(where: { $0.slug == "lumen" }), let production = lumen.environments.first(where: { $0.tier == .production }) {
                     model.sheet = .probe(productID: lumen.id, environmentID: production.id)

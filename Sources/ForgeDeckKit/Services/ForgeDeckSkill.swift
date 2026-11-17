@@ -11,7 +11,7 @@ public enum ForgeDeckSkill {
 
     public static let description = "Find a ForgeDeck product and the context a task needs: its folder, CONTEXT.md, related products, "
         + "what is deployed, CI failures, links, and variable names. Use when the person names a product or project, asks to work on one, "
-        + "asks what is deployed or broken, asks how to run or set up a product, or needs a secret or environment variable."
+        + "asks what is deployed or broken, asks how to run or set up a product, asks whether leads or sales come in, or needs a secret or environment variable."
 
     /// The SKILL.md text. `cli` is the command to run: the installed link or the app's own binary.
     public static func text(cli: String) -> String {
@@ -77,6 +77,19 @@ public enum ForgeDeckSkill {
         arguments: no shell strings, `&&`, or pipes. url is a page on this Mac. Nothing that deploys, publishes, or pushes.
         3. Run `\(tool) run check <slug>` and fix every problem it prints.
         4. Tell the person to choose Review Run Setup… in the Play menu in \(Brand.name). Nothing is saved before that.
+
+        ## Leads, signups, and purchases
+
+        When the person asks whether leads, sales, or signups reach \(Brand.name), or to set that up:
+
+        1. Run `\(tool) leads <slug>`. It shows each metrics source, when it last answered, counts, and the newest lead.
+        2. If there is no source, or it misses something: look first, change nothing. Find what the product collects (forms, signups, \
+        orders, subscriptions, bookings) and where each is stored. Tell the person in a short table and ask which ones \(Brand.name) \
+        should see, and whether to set up the check now. Wait for the answer.
+        3. To set it up, the person chooses Set Up Leads… on the product in \(Brand.name): it makes the token in the Keychain and \
+        starts an agent with the token's hash and the companion contract. Never ask for the token itself.
+        4. The metrics source is proposed in `.forgedeck/environments.json` with "metricsURL" and "metricsToken" (a variable name), \
+        checked with `\(tool) env check <slug>`, and added when the person presses Review….
 
         ## Rules
 

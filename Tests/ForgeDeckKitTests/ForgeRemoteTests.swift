@@ -308,3 +308,83 @@ import Testing
         #expect(recipe.play == nil)
     }
 }
+
+@Suite struct LeadsSetupTests {
+    @Test func tokensAreRandomAndOnlyTheirHashLeaves() {
+        let a = LeadsSetup.generateToken(), b = LeadsSetup.generateToken()
+        #expect(a != b && a.hasPrefix("fdk_") && a.count == 47)
+        #expect(LeadsSetup.hash("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        #expect(LeadsSetup.tokenVariable(for: .production) == "FORGEDECK_TOKEN_PRODUCTION")
+    }
+
+    @Test func thePromptLooksAndAsksBeforeItBuildsAndNeverHoldsTheToken() {
+        var product = Product(name: "Acme")
+        product.slug = "acme"
+        var checkout = LocalCheckout()
+        checkout.path = "/tmp/fd-leads/acme"
+        product.checkouts = [checkout]
+        var production = ProductEnvironment(name: "Production", tier: .production)
+        production.domains = ["acme.example"]
+        product.environments = [production]
+        let token = LeadsSetup.generateToken()
+        let prompt = LeadsSetup.prompt(for: product, environment: production, checkout: checkout, tokenVariable: "FORGEDECK_TOKEN_PRODUCTION",
+                                       tokenHash: LeadsSetup.hash(token), cli: "forgedeck", localSite: nil)
+        #expect(!prompt.contains(token))
+        #expect(prompt.contains(LeadsSetup.hash(token)))
+        #expect(prompt.contains("Stop and wait for my answer"))
+        #expect(prompt.contains("WooCommerce") && prompt.contains("Gravity Forms") && prompt.contains("Stripe"))
+        #expect(prompt.contains("forgedeck leads acme") && prompt.contains("forgedeck env check acme"))
+        let again = LeadsSetup.prompt(for: product, environment: production, checkout: checkout, tokenVariable: "FORGEDECK_TOKEN_PRODUCTION",
+                                      tokenHash: nil, cli: "forgedeck", localSite: nil)
+        #expect(again.contains("already has a token"))
+        #expect(ForgeDeckSkill.text(cli: "forgedeck").contains("forgedeck leads <slug>"))
+    }
+
+    @Test func anEnvironmentProposalAddsAMetricsSourceOnce() {
+        var product = Product(name: "Acme")
+        product.environments = [ProductEnvironment(name: "Production", tier: .production)]
+        let entry = ProposedEnvironment(tier: "production", metricsURL: "https://acme.example/_forgedeck/v1/", metricsToken: "FORGEDECK_TOKEN_PRODUCTION")
+        let proposal = EnvironmentProposals.check(entry, in: product)
+        #expect(proposal.isAddable)
+        #expect(proposal.changes == ["Leads and metrics from https://acme.example with FORGEDECK_TOKEN_PRODUCTION"])
+        EnvironmentProposals.apply(proposal, to: &product)
+        let source = product.environments[0].metricSources.first
+        #expect(source?.bearerVariableKey == "FORGEDECK_TOKEN_PRODUCTION" && source?.leadsEnabled == true && source?.eventsEnabled == false)
+        #expect(EnvironmentProposals.check(ProposedEnvironment(tier: "production", metricsURL: "https://ACME.example"), in: product).changes.isEmpty)
+        let bad = EnvironmentProposals.check(ProposedEnvironment(tier: "production", metricsURL: "http://acme.example", metricsToken: "fdk_abc-123"), in: product)
+        #expect(bad.problems.count == 2)
+    }
+
+    @Test func theReportSaysWhatArrived() {
+        var product = Product(name: "Acme")
+        var production = ProductEnvironment(name: "Production", tier: .production)
+        var source = MetricSource()
+        source.baseURL = "https://acme.example"
+        production.metricSources = [source]
+        product.environments = [production]
+        var cache = ObservationCache()
+        let now = Date.now
+        var state = SyncState()
+        state.lastAttempt = now.addingTimeInterval(-60)
+        state.lastSuccess = state.lastAttempt
+        cache.sync["metrics:\(source.id.uuidString)"] = state
+        cache.sync["leads:\(source.id.uuidString)"] = state
+        for (index, age) in ([600.0, 259_200.0, 1_728_000.0] as [Double]).enumerated() {
+            var lead = LeadEvent()
+            lead.id = "\(source.id):\(index)"
+            lead.sourceID = source.id
+            lead.occurredAt = now.addingTimeInterval(-age)
+            cache.leads.append(lead)
+        }
+        var sample = MetricSample()
+        sample.sourceID = source.id
+        sample.key = "leads"
+        sample.value = 4
+        cache.metrics = [sample]
+        let report = LeadsSetup.report(for: product, cache: cache, now: now)
+        #expect(report.count == 1)
+        #expect(report[0].leads24h == 1 && report[0].leads7d == 2 && report[0].problem == nil)
+        #expect(report[0].counters == ["leads": 4])
+        #expect(report[0].newestLead == now.addingTimeInterval(-600))
+    }
+}

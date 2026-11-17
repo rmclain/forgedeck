@@ -45,8 +45,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.9"
-    public static let commands = ["list", "status", "open", "doctor", "env", "run", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.10"
+    public static let commands = ["list", "status", "open", "doctor", "env", "run", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -86,6 +86,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]
       \(Brand.cliName) env check <product>        (checks .forgedeck/environments.json, changes nothing)
       \(Brand.cliName) run check <product>        (checks .forgedeck/run.json, changes nothing)
+      \(Brand.cliName) leads <product> [--json]   (what each metrics source last delivered: counts, newest lead, problems)
       \(Brand.cliName) actions list <product> [--json]
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
       \(Brand.cliName) context <product> [--write]
@@ -212,6 +213,7 @@ public struct CLI: Sendable {
         case "doctor": return await runDoctor(args)
         case "env": return env(args)
         case "run": return runCheck(args)
+        case "leads": return leads(args)
         case "actions": return actions(args)
         case "exec": return await execute(args)
         case "context": return context(args)
@@ -330,6 +332,41 @@ public struct CLI: Sendable {
         for relation in report.relations { io.out("  \(relation)") }
         for incident in report.openIncidents { io.out("  ! \(incident)") }
         return CLIExit.ok
+    }
+
+    // MARK: leads
+
+    private func leads(_ args: Arguments) -> Int32 {
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.first, in: portfolio) else { return CLIExit.failure }
+        let report = LeadsSetup.report(for: product, cache: store.loadCache())
+        if args.switches.contains("json") {
+            io.out(json(report))
+            return CLIExit.ok
+        }
+        guard !report.isEmpty else {
+            io.out("\(product.name) has no metrics source, so no leads come in yet. In \(Brand.name): \(product.name) › Set Up Leads….")
+            return CLIExit.failure
+        }
+        var failing = false
+        for source in report {
+            io.out("\(source.name) · \(source.environment) · \(source.url)")
+            if let problem = source.problem { io.out("  problem: \(problem)"); failing = true }
+            io.out("  last checked \(source.lastChecked.map { RelativeTime.short($0) } ?? "never")"
+                   + (source.lastSuccess.map { ", last answered \(RelativeTime.short($0))" } ?? ", never answered"))
+            if source.lastChecked == nil { failing = true }
+            if !source.counters.isEmpty {
+                io.out("  24h counters: " + source.counters.sorted { $0.key < $1.key }.map { "\($0.key) \(Int($0.value))" }.joined(separator: ", "))
+            }
+            if source.leadsEnabled {
+                io.out("  leads: \(source.leads24h) in 24h, \(source.leads7d) in 7d"
+                       + (source.newestLead.map { ", newest \(source.newestKind ?? "lead") \(RelativeTime.short($0))" } ?? ", none received yet"))
+            } else {
+                io.out("  leads: off for this source")
+            }
+        }
+        io.out(failing ? "\(Brand.name) is not receiving everything. Fix the problem above; \(Brand.name) checks again on its next refresh (⌘R in the app)."
+                       : "\(Brand.name) is receiving from every source.")
+        return failing ? CLIExit.failure : CLIExit.ok
     }
 
     // MARK: open

@@ -395,10 +395,13 @@ struct TrendCard: View {
                     .padding(.top, Space.md).hairlineAbove()
                 }
             } else {
+                let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
                 EmptyState(icon: .chart, title: "Connect a metrics source",
-                           message: "Point \(Brand.name) at a metrics endpoint your app serves to see leads, signups, and revenue here. Nothing is shown until a source reports it.",
-                           cta: product.environments.isEmpty ? "Add Environment" : "Add Metrics Source", compact: true) {
-                    if let environment = product.environment(tier: .production) ?? product.environments.first {
+                           message: "See leads, signups, and purchases here. \(product.hasLocal && !product.isDemo ? "\(agent) can find what \(product.name) collects and set up the check, or point" : "Point") \(Brand.name) at a metrics endpoint your app serves. Nothing is shown until a source reports it.",
+                           cta: product.hasLocal && !product.isDemo ? "Set Up Leads with \(agent)…" : product.environments.isEmpty ? "Add Environment" : "Add Metrics Source", compact: true) {
+                    if product.hasLocal && !product.isDemo {
+                        model.setUpLeads(product)
+                    } else if let environment = product.environment(tier: .production) ?? product.environments.first {
                         model.sheet = .metricSource(productID: product.id, environmentID: environment.id)
                     } else {
                         model.sheet = .environment(productID: product.id)
