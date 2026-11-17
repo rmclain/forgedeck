@@ -83,7 +83,7 @@ extension Portfolio {
 
 /// One way to launch what a product builds: a mobile app, a desktop app, a web app, or a site.
 public struct PlayOption: Sendable, Equatable, Identifiable {
-    public enum Kind: String, Sendable, Comparable {
+    public enum Kind: String, Codable, Sendable, Comparable {
         case mobile, desktop, web, site
         public var title: String {
             switch self {
@@ -106,6 +106,8 @@ public struct PlayOption: Sendable, Equatable, Identifiable {
     public var suggestion: ActionRecipe?
     /// A page to open: right away when there is nothing to run, or once the dev server answers.
     public var url: String?
+    /// Set up on purpose (run setup), so it comes before anything detected.
+    public var isSetUp = false
 }
 
 public enum PlayPlanner {
@@ -115,8 +117,14 @@ public enum PlayPlanner {
         guard !product.isDemo || allowDemo, !product.isArchived else { return [] }
         var out: [PlayOption] = []
         let developmentURL = product.environment(tier: .development)?.domains.lazy.compactMap { localURL($0.contains("://") ? $0 : "http://" + $0) }.first
-        for recipe in product.recipes where recipe.executor == .local {
+        for recipe in product.recipes where recipe.executor == .local || (recipe.executor == .openURL && recipe.play != nil) {
             let label = recipe.label
+            if let kind = recipe.play {
+                // A command run setup saved: it says what it launches and which page to open.
+                out.append(PlayOption(kind: kind, title: label, recipeID: recipe.id,
+                                      url: recipe.executor == .openURL ? nil : recipe.url.flatMap(localURL), isSetUp: true))
+                continue
+            }
             let checkout = product.checkout(id: recipe.checkoutID) ?? product.primaryCheckout
             if label.hasPrefix("Build and Run on") {
                 out.append(PlayOption(kind: .mobile, title: label.replacingOccurrences(of: "Build and Run on", with: "Run on"), recipeID: recipe.id))
@@ -148,7 +156,12 @@ public enum PlayPlanner {
         }
         var seen = Set<String>()
         return out.filter { seen.insert($0.id).inserted }.enumerated()
-            .sorted { $0.element.kind != $1.element.kind ? $0.element.kind < $1.element.kind : $0.offset < $1.offset }
+            .sorted {
+                if $0.element.isSetUp != $1.element.isSetUp { return $0.element.isSetUp }
+                // What run setup saved keeps the order it was proposed in.
+                if $0.element.isSetUp || $0.element.kind == $1.element.kind { return $0.offset < $1.offset }
+                return $0.element.kind < $1.element.kind
+            }
             .map(\.element)
     }
 

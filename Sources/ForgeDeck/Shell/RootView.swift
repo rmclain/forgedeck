@@ -325,9 +325,12 @@ struct ProductMenu: View {
             Button("Open on GitHub") { model.openLink(repo.webURL) }
         }
         let options = product.isDemo ? [] : model.playOptions(product)
-        if !options.isEmpty {
+        if !product.isDemo, product.hasLocal || !options.isEmpty {
             Menu("Play") {
                 ForEach(options) { option in Button(option.title) { model.play(product, option: option) } }
+                if !options.isEmpty { Divider() }
+                Button("Set Up Run…") { model.setUpRun(product) }.disabled(!product.hasLocal)
+                Button("Review Run Setup…") { model.reviewRunSetup(product) }.disabled(!product.hasLocal)
             }
         }
         Divider()

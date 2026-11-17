@@ -37,6 +37,10 @@ public enum ReleaseMarker {
         } else if body.count <= 200, let text = String(data: body, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty, !text.contains(where: \.isWhitespace), !text.hasPrefix("<") {
             if let value = sha(text), !text.contains(".") { found.sha = value } else { found.version = version(text) }
+        } else if let text = String(data: body.prefix(16_384), encoding: .utf8), !text.trimmingCharacters(in: .whitespaces).hasPrefix("<") {
+            // A WordPress readme.txt or plugin file served by the site: its Stable tag or Version header.
+            let headers = LocalRelease.pluginHeaders(text)
+            found.version = (headers["stable tag"].flatMap(version)) ?? (headers["version"].flatMap(version))
         }
         if found.sha == nil { found.sha = shaHeaders.lazy.compactMap { headers[$0] }.compactMap(sha).first }
         if found.version == nil {

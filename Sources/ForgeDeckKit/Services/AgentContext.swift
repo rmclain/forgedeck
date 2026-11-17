@@ -539,7 +539,7 @@ public struct AgentContextBundle: Sendable, Equatable {
 
     /// The agent's command line, as an argument array. Claude Code gets the folders with --add-dir and the
     /// pointer with --append-system-prompt. Codex and OpenCode get the pointer as their first prompt.
-    public func command(program: URL, model: String? = nil) -> [String] {
-        AgentCatalog.command(program: program, folders: readableFolders, pointer: pointer, message: nil, model: model, workingDirectory: workingDirectory)
+    public func command(program: URL, model: String? = nil, message: String? = nil) -> [String] {
+        AgentCatalog.command(program: program, folders: readableFolders, pointer: pointer, message: message, model: model, workingDirectory: workingDirectory)
     }
 }

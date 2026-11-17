@@ -7,7 +7,7 @@ import SwiftUI
 extension AppModel {
     // MARK: Launching
 
-    private func report(_ outcome: LaunchOutcome, success: String) {
+    func report(_ outcome: LaunchOutcome, success: String) {
         switch outcome {
         case .opened:
             show(success)
@@ -22,7 +22,7 @@ extension AppModel {
         }
     }
 
-    private func session(_ app: String, product: Product, checkout: LocalCheckout?, command: String) {
+    func session(_ app: String, product: Product, checkout: LocalCheckout?, command: String) {
         var record = SessionRecord()
         record.app = app
         record.productID = product.id

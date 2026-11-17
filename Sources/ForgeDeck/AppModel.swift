@@ -125,6 +125,7 @@ enum SheetKind: Identifiable {
     case skills(SkillPlan)
     case releaseChannel(UUID)
     case environmentProposals(UUID)
+    case runSetup(UUID)
 
     var id: String {
         switch self {
@@ -147,6 +148,7 @@ enum SheetKind: Identifiable {
         case .skills(let plan): "skills-\(plan.id)"
         case .releaseChannel(let product): "release-\(product)"
         case .environmentProposals(let product): "env-proposals-\(product)"
+        case .runSetup(let product): "run-setup-\(product)"
         }
     }
 }
@@ -233,6 +235,8 @@ final class AppModel {
     var localReleases: [UUID: LocalRelease] = [:]
     /// `.forgedeck/environments.json` as last read from each product's folders.
     var environmentFiles: [UUID: [EnvironmentProposalFile]] = [:]
+    /// `.forgedeck/run.json` in each product's checkouts, read on refresh.
+    var runFiles: [UUID: [RunProposalFile]] = [:]
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
@@ -465,6 +469,8 @@ final class AppModel {
 
     /// Refreshes one product: Git first, then the network sources, then the commit counts between stages.
     func refresh(_ product: Product, announce: Bool = true) async {
+        // Callers may hold a copy from before an edit; check what is saved now, including new checks.
+        let product = self.product(product.id) ?? product
         guard !product.isDemo else {
             if announce { show("\(product.name) is a demo product. Its data comes from a fixture.") }
             return
@@ -479,6 +485,8 @@ final class AppModel {
         }
         let proposals = await Task.detached { EnvironmentProposals.read(product) }.value
         if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
+        let runs = await Task.detached { RunSetup.read(product) }.value
+        if runFiles[product.id] != runs { runFiles[product.id] = runs }
         if isOnline {
             async let remote = engine.refreshRemote(product, portfolio: portfolio)
             async let probes = engine.refreshProbes(product, portfolio: portfolio)

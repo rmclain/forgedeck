@@ -192,8 +192,119 @@ import Testing
         #expect(plan.first?.changes.first == "New Staging environment \"Staging\"")
     }
 
+    @Test func aServedWordPressReadmeNamesTheRelease() {
+        let readme = "=== Acme Tools ===\nContributors: acme\nTags: tools\nStable tag: 2.4.1\nLicense: GPLv2\n\n== Description ==\nVersion: 9.9 in prose\n"
+        #expect(ReleaseMarker.read(body: Data(readme.utf8), headers: [:]).version == "2.4.1")
+        #expect(ReleaseMarker.read(body: Data("Name: Acme\nVersion: 1.3.0\n".utf8), headers: [:]).version == "1.3.0")
+        #expect(ReleaseMarker.read(body: Data("Stable tag: trunk\n".utf8), headers: [:]).version == nil)
+        #expect(ReleaseMarker.read(body: Data("<html><body>Version: 1.0</body></html>".utf8), headers: [:]).version == nil)
+    }
+
     @Test func theSkillAndContextExplainHowToProposeProduction() {
         #expect(ForgeDeckSkill.text(cli: "forgedeck").contains("forgedeck env check <slug>"))
         #expect(ForgeDeckSkill.text(cli: "forgedeck").contains(".forgedeck/environments.json"))
+    }
+}
+
+@Suite struct RunSetupTests {
+    private func setup() throws -> (product: Product, folder: URL) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "fd-run-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder.appending(path: "web"), withIntermediateDirectories: true)
+        var product = Product(name: "Acme")
+        product.slug = "acme"
+        var checkout = LocalCheckout()
+        checkout.name = "acme"
+        checkout.path = folder.path
+        product.checkouts = [checkout]
+        product.environments = [ProductEnvironment(name: "Local", tier: .development)]
+        return (product, folder)
+    }
+
+    private func check(_ entry: ProposedRun, _ product: Product, _ folder: URL) -> RunProposal {
+        RunSetup.check(entry, in: product, checkoutID: product.checkouts[0].id, checkoutPath: folder.path)
+    }
+
+    @Test func aWebCommandBecomesAnApprovedPlayRecipeThatPlayRunsFirst() throws {
+        var (product, folder) = try setup()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let proposal = check(ProposedRun(label: "Start Dev Server", kind: "web", steps: [["git", "status"], ["git", "log"]], directory: "web",
+                                         url: "http://localhost:5173", variables: ["DATABASE_URL"]), product, folder)
+        #expect(proposal.problems.isEmpty && proposal.isAddable)
+        #expect(proposal.recipe.isApproved && proposal.recipe.opensInTerminal && proposal.recipe.play == .web)
+        #expect(proposal.recipe.steps == [["git", "status"], ["git", "log"]])
+        #expect(proposal.recipe.workingSubdirectory == "web" && proposal.recipe.variableKeys == ["DATABASE_URL"])
+        #expect(proposal.recipe.environmentID == product.environments[0].id)
+        RunSetup.apply(proposal, to: &product)
+        let options = PlayPlanner.options(for: product, localSites: [])
+        #expect(options.first?.title == "Start Dev Server")
+        #expect(options.first?.url == "http://localhost:5173")
+        // Proposing the same thing again changes nothing; a changed command replaces the saved one.
+        #expect(!check(proposal.entry, product, folder).changes)
+        var changed = proposal.entry
+        changed.steps = [["git", "diff"]]
+        let again = check(changed, product, folder)
+        #expect(again.existingID == product.recipes[0].id && again.isAddable)
+        RunSetup.apply(again, to: &product)
+        #expect(product.recipes.count == 1 && product.recipes[0].steps == [["git", "diff"]])
+    }
+
+    @Test func testsAreActionsAndASiteOnlyOpensItsPage() throws {
+        var (product, folder) = try setup()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let tests = check(ProposedRun(label: "Run Tests", steps: [["git", "status"]]), product, folder)
+        #expect(tests.recipe.play == nil && !tests.recipe.opensInTerminal && tests.isAddable)
+        let site = check(ProposedRun(label: "Open Site", kind: "site", url: "http://acme.local/"), product, folder)
+        #expect(site.isAddable && site.recipe.executor == .openURL)
+        RunSetup.apply(tests, to: &product)
+        RunSetup.apply(site, to: &product)
+        let options = PlayPlanner.options(for: product, localSites: [])
+        #expect(options.map(\.title) == ["Open Site"])
+        #expect(options.first?.url == nil && options.first?.recipeID == product.recipes[1].id)
+    }
+
+    @Test func shellStringsRemoteCommandsAndEscapesAreRefused() throws {
+        let (product, folder) = try setup()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let cases: [ProposedRun] = [
+            ProposedRun(label: "Dev", kind: "web", steps: [["bash", "-c", "npm i && npm run dev"]]),
+            ProposedRun(label: "Ship", steps: [["npx", "vercel", "deploy"]]),
+            ProposedRun(label: "Push", steps: [["git", "push"]]),
+            ProposedRun(label: "Up", steps: [["/usr/bin/env", "true"]]),
+            ProposedRun(label: "Out", steps: [["git", "status"]], directory: "../other"),
+            ProposedRun(label: "Missing", steps: [["git", "status"]], directory: "nope"),
+            ProposedRun(label: "Remote page", kind: "web", steps: [["git", "status"]], url: "https://acme.example"),
+            ProposedRun(label: "Nothing", kind: "web"),
+            ProposedRun(label: "Bad kind", kind: "server", steps: [["git", "status"]]),
+            ProposedRun(label: "Secret", steps: [["git", "status"]], variables: ["sk-live=abc"]),
+            ProposedRun(label: "", steps: [["git", "status"]]),
+        ]
+        for entry in cases {
+            let proposal = check(entry, product, folder)
+            #expect(!proposal.isAddable, "\(entry.label) should be refused")
+        }
+        #expect(RunSetup.parse(Data(#"{"commands":[{"label":"x"}]}"#.utf8)).error == nil)
+        #expect(RunSetup.parse(Data(#"{"environments":[]}"#.utf8)).error != nil)
+    }
+
+    @Test func theFileIsReadAndThePromptCarriesWhatForgeDeckKnows() throws {
+        let (product, folder) = try setup()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder.appending(path: ".forgedeck"), withIntermediateDirectories: true)
+        try #"{"commands":[{"label":"Run Tests","steps":[["git","status"]]}]}"#.write(to: folder.appending(path: RunSetup.relativePath), atomically: true, encoding: .utf8)
+        try "{}".write(to: folder.appending(path: "package.json"), atomically: true, encoding: .utf8)
+        let plan = RunSetup.plan(product, files: RunSetup.read(product))
+        #expect(plan.map(\.recipe.label) == ["Run Tests"])
+        let prompt = RunSetup.prompt(for: product, checkout: product.checkouts[0], cli: "/Users/me/.local/bin/forgedeck", localSite: nil)
+        #expect(prompt.contains(folder.path))
+        #expect(prompt.contains("package.json"))
+        #expect(prompt.contains("/Users/me/.local/bin/forgedeck run check acme"))
+        #expect(prompt.contains(RunSetup.relativePath))
+        #expect(ForgeDeckSkill.text(cli: "forgedeck").contains("forgedeck run check <slug>"))
+    }
+
+    @Test func oldRecipesStillLoad() throws {
+        let data = Data(#"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","label":"x","executor":"local","executable":"git","arguments":[],"workingSubdirectory":"","variableKeys":[],"safety":"readOnly","timeoutSeconds":600,"isApproved":false,"isSuggested":false,"opensInTerminal":false}"#.utf8)
+        let recipe = try JSONDecoder().decode(ActionRecipe.self, from: data)
+        #expect(recipe.play == nil)
     }
 }

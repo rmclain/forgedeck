@@ -51,6 +51,14 @@ extension AppModel {
                     commands.append(PaletteCommand(id: "play-\(option.id)", label: "Play: \(option.title) · \(product.name)", group: "Play", icon: .play,
                                                    kbd: index == 0 ? "⌘⇧P" : "") { self.play(product, option: option) })
                 }
+                if product.hasLocal {
+                    commands.append(PaletteCommand(id: "run-setup-\(product.id)", label: "Set Up Run with \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) · \(product.name)",
+                                                   group: "Play", icon: .play) { self.paletteOpen = false; self.setUpRun(product) })
+                    commands.append(PaletteCommand(id: "run-review-\(product.id)", label: "Review Run Setup · \(product.name)", group: "Play", icon: .play) {
+                        self.paletteOpen = false
+                        self.reviewRunSetup(product)
+                    })
+                }
             }
             commands.append(PaletteCommand(id: "rename-\(product.id)", label: "Rename \(product.name)…", group: "Product", icon: .pencil) {
                 self.paletteOpen = false
@@ -293,6 +301,7 @@ struct SheetHost: View {
                     case .skills(let plan): SkillsSheet(plan: plan)
                     case .releaseChannel(let product): ReleaseChannelSheet(productID: product)
                     case .environmentProposals(let product): EnvironmentProposalsSheet(productID: product)
+                    case .runSetup(let product): RunSetupSheet(productID: product)
                     }
                 }
                 .id(sheet.id)

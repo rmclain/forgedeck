@@ -38,4 +38,17 @@ extension DemoFixtures {
             ProposedEnvironment(name: "Old box", tier: "prod-ish", domains: ["https://old.lumen.example/"]),
         ])]
     }
+
+    /// Demo `.forgedeck/run.json` for Lumen: a dev server, Docker, tests, and one command that is refused.
+    public static func runProposals(for product: Product) -> [RunProposalFile] {
+        guard product.isDemo, product.slug == "lumen", let checkout = product.checkouts.first else { return [] }
+        return [RunProposalFile(checkoutID: checkout.id, checkoutName: checkout.name, checkoutPath: checkout.path, entries: [
+            ProposedRun(label: "Start Dev Server", kind: "web", steps: [["npm", "install"], ["npm", "run", "dev"]], url: "http://localhost:5173",
+                        note: "package.json dev script runs Vite; the README says npm install first."),
+            ProposedRun(label: "Start with Docker", kind: "web", steps: [["docker", "compose", "up", "--build"]], url: "http://localhost:8080",
+                        variables: ["DATABASE_URL"], note: "compose.yaml starts the app and Postgres."),
+            ProposedRun(label: "Run Tests", steps: [["npm", "test"]], terminal: false, note: "Vitest, from package.json."),
+            ProposedRun(label: "Deploy Preview", steps: [["npx", "vercel", "deploy"]]),
+        ])]
+    }
 }

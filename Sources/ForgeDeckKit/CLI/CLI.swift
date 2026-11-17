@@ -45,8 +45,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.8"
-    public static let commands = ["list", "status", "open", "doctor", "env", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.9"
+    public static let commands = ["list", "status", "open", "doctor", "env", "run", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -85,6 +85,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) doctor [--product <product>] [--ssh <host-alias>] [--json]
       \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]
       \(Brand.cliName) env check <product>        (checks .forgedeck/environments.json, changes nothing)
+      \(Brand.cliName) run check <product>        (checks .forgedeck/run.json, changes nothing)
       \(Brand.cliName) actions list <product> [--json]
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
       \(Brand.cliName) context <product> [--write]
@@ -113,6 +114,13 @@ public struct CLI: Sendable {
           "versionURL": "https://example.com/forgedeck-release.json", "healthURL": "https://example.com/health",
           "github": "production", "note": "Deploys from .github/workflows/deploy.yml"}]}
       `env check` shows what \(Brand.name) would add. Nothing is added until you review it in the app.
+
+    SETTING UP RUN
+      A repository can propose how it runs on this Mac in .forgedeck/run.json:
+        {"commands": [{"label": "Start Dev Server", "kind": "web", "steps": [["npm", "install"], ["npm", "run", "dev"]],
+          "url": "http://localhost:5173"}, {"label": "Run Tests", "steps": [["npm", "test"]]}]}
+      kind web, desktop, mobile, or site puts it on Play. `run check` shows what \(Brand.name) would save.
+      Nothing is saved or run until you review it in the app.
 
     AGENT CONTEXT
       `agent` writes CONTEXT.md for the product (a short brief of it and of each related product
@@ -203,6 +211,7 @@ public struct CLI: Sendable {
         case "open": return await open(args)
         case "doctor": return await runDoctor(args)
         case "env": return env(args)
+        case "run": return runCheck(args)
         case "actions": return actions(args)
         case "exec": return await execute(args)
         case "context": return context(args)
@@ -451,6 +460,34 @@ public struct CLI: Sendable {
             for change in proposal.changes where proposal.problems.isEmpty { io.out("  + \(change)") }
         }
         io.out(failed ? "Fix the problems above, then run this again." : "Review and add it in \(Brand.name): \(product.name) › Overview › Proposed environments.")
+        return failed ? CLIExit.failure : CLIExit.ok
+    }
+
+    private func runCheck(_ args: Arguments) -> Int32 {
+        guard args.positional.first == "check" else {
+            io.err("usage: \(Brand.cliName) run check <product>")
+            return CLIExit.usage
+        }
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.dropFirst().first, in: portfolio) else { return CLIExit.failure }
+        let files = RunSetup.read(product)
+        guard !files.isEmpty else {
+            io.out("No \(RunSetup.relativePath) in \(product.name)'s folders. Write one there; see `\(Brand.cliName) help`.")
+            return CLIExit.ok
+        }
+        var failed = false
+        for file in files {
+            if let error = file.error { io.out("\(file.checkoutName): \(error)"); failed = true }
+        }
+        for proposal in RunSetup.plan(product, files: files) {
+            let recipe = proposal.recipe
+            let state = proposal.existingID == nil ? "new" : proposal.changes ? "replaces the saved one" : "already saved"
+            io.out("\(recipe.label) (\(recipe.play.map { "Play: \($0.title)" } ?? "action"), \(state))")
+            if recipe.executor == .openURL { io.out("  opens \(recipe.url ?? "")") }
+            for step in proposal.problems.isEmpty ? recipe.steps : [] where recipe.executor == .local { io.out("  $ \(step.joined(separator: " "))") }
+            for problem in proposal.problems { io.out("  problem: \(problem)"); failed = true }
+            for warning in proposal.warnings { io.out("  note: \(warning)") }
+        }
+        io.out(failed ? "Fix the problems above, then run this again." : "Review it in \(Brand.name): \(product.name) › Play menu › Review Run Setup….")
         return failed ? CLIExit.failure : CLIExit.ok
     }
 

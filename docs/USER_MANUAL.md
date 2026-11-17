@@ -391,6 +391,26 @@ Play (⌘⇧P, in the product header, the right-click menu, and the palette) lau
 
 A recipe that is not approved opens for review first. Saving approves it, and Play runs it right away.
 
+### Set up how a product runs
+
+When Play has nothing to launch, or launches the wrong thing, choose **Set Up Run with Claude Code…** from the Play menu (also in the right-click menu, the palette, and Product › Set Up Run…). With nothing to launch yet, the button itself says **Set Up Run**.
+
+ForgeDeck starts your agent (Settings › Agents) in the product's folder with a prompt that says what ForgeDeck already knows: the folder, the stack, the files at the top (package.json, compose files, Makefile, and so on), the Local site, and the commands already saved. The agent works out what the product is and how people use it, installs what it needs, tries the commands, and writes them to `.forgedeck/run.json`:
+
+```json
+{"commands": [
+  {"label": "Start Dev Server", "kind": "web", "steps": [["npm", "install"], ["npm", "run", "dev"]], "url": "http://localhost:5173"},
+  {"label": "Start with Docker", "kind": "web", "steps": [["docker", "compose", "up", "--build"]], "url": "http://localhost:8080"},
+  {"label": "Run Tests", "steps": [["npm", "test"]]}
+]}
+```
+
+- `kind` web, desktop, mobile, or site puts the command on Play. Without it, the command is an action (tests, builds, seeding) in the Actions tab.
+- Each step is a program and its arguments. Shell strings, absolute program paths, folders outside the checkout, pages that are not on this Mac, and anything that deploys, publishes, or pushes are refused.
+- `forgedeck run check <product>` shows what would be saved and every problem. Nothing changes.
+
+When the agent finishes, choose **Review Run Setup…** in the Play menu, or press Review… on the Run setup card in Overview. Saving approves the commands you tick. A command with the same name as a saved one replaces it. What run setup saves comes first in Play, in the order the agent proposed.
+
 ## Toolbox and agent skills
 
 The Toolbox lists command-line tools that save AI tokens or check repositories. **Install with Homebrew** (or uv) runs in the background; the card shows Installing… and a failed install opens its output. Tools that run against a repository appear on each product's Overview tab, in the Tools card, with a checkout picker when the product has more than one.

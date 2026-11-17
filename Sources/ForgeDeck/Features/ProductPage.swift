@@ -85,9 +85,12 @@ struct ProductPage: View {
         .fixedSize()
     }
 
-    /// Play launches the best option; the menu lists the others.
+    /// Play launches the best option; the menu lists the others and run setup. With nothing to launch yet,
+    /// the button is Set Up Run.
     @ViewBuilder private func playButton(compact: Bool) -> some View {
         let options = product.isDemo ? PlayPlanner.options(for: product, localSites: [], allowDemo: true) : model.playOptions(product)
+        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let pending = !product.isDemo && !model.runProposals(product).isEmpty
         if let first = options.first {
             Menu {
                 ForEach(options) { option in
@@ -95,15 +98,37 @@ struct ProductPage: View {
                         Text(option.title + (option.recipeID.flatMap { id in product.recipes.first { $0.id == id } }.map { $0.isApproved ? "" : " (approve first)" } ?? (option.suggestion != nil ? " (approve first)" : "")))
                     }
                 }
+                Divider()
+                runSetupItems(agent: agent, pending: pending)
             } label: {
                 HStack(spacing: Space.sm) { Icon(.play, size: 12); if !compact { Text("Play"); Kbd("⌘⇧P") } }
             } primaryAction: {
                 model.play(product, option: first)
             }
             .menuStyle(.button).buttonStyle(.kit(.secondary)).fixedSize().disabled(product.isDemo)
-            .help(product.isDemo ? "Demo product: there is nothing to launch" : "\(first.title) (⌘⇧P). Open the menu for other ways to launch \(product.name).")
+            .help(product.isDemo ? "Demo product: there is nothing to launch" : "\(first.title) (⌘⇧P). Open the menu for other ways to launch \(product.name), or to set up how it runs.")
             .accessibilityLabel("Play: \(first.title)")
+        } else if product.hasLocal, !product.isArchived, !product.isDemo {
+            Menu {
+                runSetupItems(agent: agent, pending: pending)
+            } label: {
+                HStack(spacing: Space.sm) { Icon(.play, size: 12); if !compact { Text(pending ? "Review Run Setup" : "Set Up Run") } }
+            } primaryAction: {
+                if pending { model.reviewRunSetup(product) } else { model.setUpRun(product) }
+            }
+            .menuStyle(.button).buttonStyle(.kit(.secondary)).fixedSize()
+            .help(pending ? "Review the commands \(agent) proposed for running \(product.name)"
+                          : "Nothing to launch yet. \(agent) works out how \(product.name) runs, tries it, and proposes the commands for you to review.")
+            .accessibilityLabel(pending ? "Review Run Setup" : "Set Up Run")
         }
+    }
+
+    @ViewBuilder private func runSetupItems(agent: String, pending: Bool) -> some View {
+        Button("Set Up Run with \(agent)…") { model.setUpRun(product) }
+            .disabled(product.isDemo || !product.hasLocal)
+        // Always offered: it reads the folder first, so a file the agent just wrote is found.
+        Button(pending ? "Review Run Setup (\(model.runProposals(product).count))…" : "Review Run Setup…") { model.reviewRunSetup(product) }
+            .disabled(product.isDemo || !product.hasLocal)
     }
 
     private var header: some View {
@@ -182,6 +207,7 @@ struct ProductOverviewTab: View {
                 EnvironmentCard(product: product, tier: .production)
             }
             if !model.environmentProposals(product).isEmpty { ProposedEnvironmentsCard(product: product) }
+            if !model.runProposals(product).isEmpty { ProposedRunCard(product: product) }
             if !model.releaseState(product).isEmpty { ReleasesCard(product: product) }
             if !model.mcpInfo(product).isEmpty { MCPCard(product: product) }
             if product.hasLocal, !product.isDemo { ProductToolsCard(product: product) }

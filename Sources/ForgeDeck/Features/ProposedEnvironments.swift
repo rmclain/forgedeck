@@ -35,6 +35,7 @@ extension AppModel {
                    detail: "source=\(EnvironmentProposals.relativePath) tier=\(proposal.tier?.rawValue ?? "") changes=\(proposal.changes.count)")
         }
         show(addable.count == 1 ? "Added \(addable[0].name)" : "Added \(addable.count) environments")
+        // Run the new checks at once. refresh reads the product as saved now.
         Task { await refresh(product, announce: false) }
     }
 }

@@ -11,7 +11,7 @@ public enum ForgeDeckSkill {
 
     public static let description = "Find a ForgeDeck product and the context a task needs: its folder, CONTEXT.md, related products, "
         + "what is deployed, CI failures, links, and variable names. Use when the person names a product or project, asks to work on one, "
-        + "asks what is deployed or broken, or needs a secret or environment variable."
+        + "asks what is deployed or broken, asks how to run or set up a product, or needs a secret or environment variable."
 
     /// The SKILL.md text. `cli` is the command to run: the installed link or the app's own binary.
     public static func text(cli: String) -> String {
@@ -52,7 +52,8 @@ public enum ForgeDeckSkill {
         1. Find where the product runs from its own files: deploy workflows (`.github/workflows`, look for `environment:`), \
         `vercel.json`, `netlify.toml`, `fly.toml`, `CNAME`, Docker or server configs, a WordPress plugin's `Plugin URI`, the README. \
         Ask the person for anything you cannot find. Never guess a domain.
-        2. Look for a URL that names the running release (a `forgedeck-release.json`, `/version`, `/health` with a commit) \
+        2. Look for a URL that names the running release (a `forgedeck-release.json`, `/version`, `/health` with a commit, \
+        or for a WordPress plugin its served `readme.txt` with a `Stable tag`) \
         and a health URL. Check them with a plain GET. If none exists and the person wants one, add a small file or route that \
         returns `{"commit_sha": "…", "version": "…"}` from the deploy, in a separate change they approve.
         3. Write `.forgedeck/environments.json` in the product's folder:
@@ -62,6 +63,20 @@ public enum ForgeDeckSkill {
            Tiers: production, staging, development, preview, custom. Domains are hosts only. URLs are https.
         4. Run `\(tool) env check <slug>` and fix every problem it prints.
         5. Tell the person to open the product in \(Brand.name) and press Review… on Proposed environments. Nothing is added before that.
+
+        ## Set up how a product runs
+
+        When the person asks how to run, start, launch, or test a product, or to set up its Play button:
+
+        1. Work out what it is and how it runs from its own files (README, package scripts, Docker or compose files, Makefile, \
+        Procfile, framework config). Install what it needs and try the commands; stop what you started. Ask before changing project files.
+        2. Write `.forgedeck/run.json` in its folder, best first:
+           `{"commands": [{"label": "Start Dev Server", "kind": "web", "steps": [["npm", "install"], ["npm", "run", "dev"]], \
+        "url": "http://localhost:5173", "note": "package.json dev script"}, {"label": "Run Tests", "steps": [["npm", "test"]]}]}`
+           kind web, desktop, mobile, or site goes on Play; leave it out for tests and builds. Each step is a program and its \
+        arguments: no shell strings, `&&`, or pipes. url is a page on this Mac. Nothing that deploys, publishes, or pushes.
+        3. Run `\(tool) run check <slug>` and fix every problem it prints.
+        4. Tell the person to choose Review Run Setup… in the Play menu in \(Brand.name). Nothing is saved before that.
 
         ## Rules
 

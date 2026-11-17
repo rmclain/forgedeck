@@ -238,6 +238,8 @@ public struct ActionRecipe: Codable, Identifiable, Hashable, Sendable {
     /// More commands after the first, run in order. The recipe stops at the first that fails.
     /// Optional so files written before steps existed still load.
     public var extraSteps: [[String]]?
+    /// What Play launches with it: set by run setup. nil for recipes Play does not offer. Optional so old files load.
+    public var play: PlayOption.Kind?
     public init() {}
 
     /// Every command the recipe runs, first to last.
