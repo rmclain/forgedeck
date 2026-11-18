@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ForgeDeck — a Mac control room for everything you build</title>
-<meta name="description" content="ForgeDeck is a native macOS app for running several software products at once: where the code is, what is deployed and how that is known, and one click into a terminal, editor, agent, or simulator. Local, private, free to download.">
+<title>ForgeDeck — one Mac window for every product you build</title>
+<meta name="description" content="ForgeDeck is a free, native macOS app for developers who build and run several products. See what is live in production and how that is known, catch failing CI and broken endpoints, run any project with one click, hand work to Claude Code or Codex with the right context, and keep secrets in the Keychain. Local and private.">
 <meta property="og:title" content="ForgeDeck">
-<meta property="og:description" content="A native Mac control room for everything you build. Evidence, not guesses.">
-<meta property="og:image" content="img/product-overview-light.webp">
+<meta property="og:description" content="One Mac window for every product you build: what's live, what's broken, and one click into a terminal, editor, or AI agent.">
+<meta property="og:image" content="img/overview-light.webp">
 <meta name="theme-color" content="#0e3361">
 <link rel="icon" href="img/icon.png">
 <link rel="preload" href="fonts/BarlowCondensed-700.woff2" as="font" type="font/woff2" crossorigin>
@@ -27,9 +27,9 @@
     <span>ForgeDeck</span>
   </a>
   <nav aria-label="Sections">
-    <a href="#detail-a">Evidence</a>
-    <a href="#detail-b">Play</a>
-    <a href="#detail-c">Work</a>
+    <a href="#jobs">What it's for</a>
+    <a href="#tour">Tour</a>
+    <a href="#agents">AI agents</a>
     <a href="#notes">Privacy</a>
     <a href="#install">Install</a>
     <a href="https://github.com/rmclain/forgedeck" class="gh"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
@@ -40,52 +40,52 @@
 
 <section class="first" aria-labelledby="title">
   <div class="copy">
-    <h1 id="title"><span class="t-name">ForgeDeck</span> <span class="t-desc">Portfolio control room for macOS</span></h1>
-    <p class="hook">Where each product's code lives, what's deployed, and how you know.</p>
-    <p class="note">No account. No server. No telemetry. Secrets stay in your Keychain.</p>
+    <h1 id="title"><span class="t-name">ForgeDeck</span> <span class="t-desc">One Mac window for every product you build</span></h1>
+    <p class="hook">You run a SaaS, a client site, a plugin, an app. Each has its own repo, host, dashboard, and terminal tab. ForgeDeck puts them side by side: what's live in production and how that's known, what's broken right now, and one click into a terminal, your editor, or an AI agent in the right folder.</p>
+    <p class="note">Free · native macOS · no account, no server, no telemetry · secrets stay in your Keychain</p>
   </div>
 
   <figure class="specimen" id="specimen">
-    <svg viewBox="-150 -110 1300 800" role="img" aria-labelledby="spec-title">
-      <title id="spec-title">The ForgeDeck window with demo data, with four labelled parts: products in groups, the evidence chain, the Play button, and the deployment history.</title>
+    <svg viewBox="-150 -110 1300 830" role="img" aria-labelledby="spec-title">
+      <title id="spec-title">A ForgeDeck product page with demo data, with four labelled parts: products in groups, the evidence for each environment, the Play button, and where each fact came from.</title>
       <defs>
         <marker id="arrow" viewBox="-2 -2 14 14" refX="9" refY="5" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" class="ink-fill arrowhead"/></marker>
       </defs>
       <g class="dim" aria-hidden="true">
-        <line x1="0" y1="618" x2="1000" y2="618"/>
-        <line x1="0" y1="604" x2="0" y2="632"/><line x1="1000" y1="604" x2="1000" y2="632"/>
-        <text x="500" y="648" text-anchor="middle">WINDOW · 1260 × 730 PT · DEMO DATA</text>
+        <line x1="0" y1="663" x2="1000" y2="663"/>
+        <line x1="0" y1="649" x2="0" y2="677"/><line x1="1000" y1="649" x2="1000" y2="677"/>
+        <text x="500" y="693" text-anchor="middle">WINDOW · 1440 × 900 PT · DEMO DATA</text>
       </g>
-      <rect x="-1" y="-1" width="1002" height="582" class="frame"/>
-      <image href="img/product-overview-light.webp" x="0" y="0" width="1000" height="580"/>
+      <rect x="-1" y="-1" width="1002" height="627" class="frame"/>
+      <image href="img/product-overview-light.webp" x="0" y="0" width="1000" height="625"/>
       <g class="leaders" aria-hidden="true">
-        <a href="#detail-b" class="callout" data-n="3">
-          <path class="case" d="M722 -62 L722 -20 L722 40"/>
-          <path class="lead" pathLength="1" d="M722 -62 L722 -20 L722 40" marker-end="url(#arrow)"/>
-          <circle cx="722" cy="-82" r="20"/><text x="722" y="-75" class="n">3</text>
-          <text x="752" y="-75" class="lbl">PLAY</text>
-          <text x="752" y="-48" class="see">SEE DETAIL B</text>
+        <a href="#view-work" class="callout" data-n="3">
+          <path class="case" d="M550 -62 L550 46"/>
+          <path class="lead" pathLength="1" d="M550 -62 L550 46" marker-end="url(#arrow)"/>
+          <circle cx="550" cy="-82" r="20"/><text x="550" y="-75" class="n">3</text>
+          <text x="520" y="-75" class="lbl" text-anchor="end">PLAY</text>
+          <text x="520" y="-48" class="see" text-anchor="end">SEE SHEET 3</text>
         </a>
-        <a href="#detail-a" class="callout" data-n="2">
-          <path class="case" d="M532 -62 L532 120"/>
-          <path class="lead" pathLength="1" d="M532 -62 L532 120" marker-end="url(#arrow)"/>
-          <circle cx="532" cy="-82" r="20"/><text x="532" y="-75" class="n">2</text>
-          <text x="502" y="-75" class="lbl" text-anchor="end">EVIDENCE CHAIN</text>
-          <text x="502" y="-48" class="see" text-anchor="end">SEE DETAIL A</text>
+        <a href="#view-deploy" class="callout" data-n="2">
+          <path class="case" d="M790 -62 L790 152"/>
+          <path class="lead" pathLength="1" d="M790 -62 L790 152" marker-end="url(#arrow)"/>
+          <circle cx="790" cy="-82" r="20"/><text x="790" y="-75" class="n">2</text>
+          <text x="820" y="-75" class="lbl">WHAT'S LIVE</text>
+          <text x="820" y="-48" class="see">SEE SHEET 2</text>
         </a>
-        <a href="#detail-c" class="callout" data-n="1">
+        <a href="#view-overview" class="callout" data-n="1">
           <path class="case" d="M-80 380 L-30 380 L12 330"/>
           <path class="lead" pathLength="1" d="M-80 380 L-30 380 L12 330" marker-end="url(#arrow)"/>
           <circle cx="-100" cy="380" r="20"/><text x="-100" y="387" class="n">1</text>
           <text x="-100" y="430" class="lbl" text-anchor="middle">GROUPS</text>
-          <text x="-100" y="456" class="see" text-anchor="middle">SEE DETAIL C</text>
+          <text x="-100" y="456" class="see" text-anchor="middle">SEE SHEET 1</text>
         </a>
-        <a href="#detail-a" class="callout" data-n="4">
-          <path class="case" d="M1080 330 L1040 330 L930 356"/>
-          <path class="lead" pathLength="1" d="M1080 330 L1040 330 L930 356" marker-end="url(#arrow)"/>
+        <a href="#view-deploy" class="callout" data-n="4">
+          <path class="case" d="M1080 330 L1040 330 L966 264"/>
+          <path class="lead" pathLength="1" d="M1080 330 L1040 330 L966 264" marker-end="url(#arrow)"/>
           <circle cx="1100" cy="330" r="20"/><text x="1100" y="337" class="n">4</text>
-          <text x="1100" y="380" class="lbl" text-anchor="middle">PROVENANCE</text>
-          <text x="1100" y="406" class="see" text-anchor="middle">SEE DETAIL A</text>
+          <text x="1100" y="380" class="lbl" text-anchor="middle">SOURCE</text>
+          <text x="1100" y="406" class="see" text-anchor="middle">SEE SHEET 2</text>
         </a>
       </g>
     </svg>
@@ -93,132 +93,235 @@
 
   <aside class="titleblock" aria-label="Release">
     <div class="tb-name"><span class="tb-k">Title</span><strong>ForgeDeck</strong></div>
-    <div><span class="tb-k">Rev</span><strong data-version>0.11.1</strong></div>
+    <div><span class="tb-k">Rev</span><strong data-version>0.11.2</strong></div>
     <div><span class="tb-k">Fits</span>macOS 26+</div>
     <div><span class="tb-k">Arch</span>Apple silicon · Intel</div>
     <div><span class="tb-k">Price</span>Free</div>
     <a class="stamp" data-download href="https://github.com/rmclain/forgedeck/releases/latest">
       <span class="seal" aria-hidden="true"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17"/><circle cx="20" cy="20" r="13"/><path d="M13.5 20.5l4.5 4.5 8.5-9"/></svg></span>
-      <span class="stamp-text"><span class="stamp-k">Approved · Rev <span data-version>0.11.1</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
+      <span class="stamp-text"><span class="stamp-k">Notarized · Rev <span data-version>0.11.2</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
     </a>
     <a class="tb-link" href="https://github.com/rmclain/forgedeck">Source on GitHub</a>
   </aside>
 </section>
 
-<section class="parts" aria-labelledby="parts-title">
-  <h2 id="parts-title">Parts list</h2>
+<section class="jobs" id="jobs" aria-labelledby="jobs-title">
+  <h2 id="jobs-title">What it's for</h2>
+  <p class="lede">ForgeDeck is for the developer, indie maker, or small team that ships more than one thing. It answers the questions you'd otherwise answer by opening ten tabs.</p>
   <table>
-    <thead><tr><th scope="col">Item</th><th scope="col">Part</th><th scope="col">What it does</th><th scope="col">Detail</th></tr></thead>
+    <thead><tr><th scope="col">The question</th><th scope="col">How ForgeDeck answers it</th><th scope="col">Sheet</th></tr></thead>
     <tbody>
-      <tr><td class="ball">1</td><td>Products in groups</td><td>Every product in one sidebar, grouped your way. Rename products and groups, drag a product to another group, remove it without touching its files.</td><td><a href="#detail-c">C</a></td></tr>
-      <tr><td class="ball">2</td><td>Evidence chain</td><td>Local, GitHub, Staging, Production for each product, each with the evidence behind it.</td><td><a href="#detail-a">A</a></td></tr>
-      <tr><td class="ball">3</td><td>Play</td><td>Launches what the product builds: the simulator, the desktop app, the dev server and its page, or the local site.</td><td><a href="#detail-b">B</a></td></tr>
-      <tr><td class="ball">4</td><td>Provenance</td><td>Every deployment says where the fact came from and how old it is.</td><td><a href="#detail-a">A</a></td></tr>
-      <tr><td class="ball">5</td><td>Agent setup</td><td>Your AI agent proposes a product's environments, how it runs, how its leads arrive, and the skills it needs. You review each one before anything changes.</td><td><a href="#detail-d">D</a></td></tr>
-      <tr><td class="ball">6</td><td>Leads and releases</td><td>New leads, signups, and purchases from each product, and which version is live on WordPress.org, npm, PyPI, or your own site.</td><td><a href="#detail-d">D</a></td></tr>
-      <tr><td class="ball">7</td><td>Agent workbench</td><td>Terminal, editor, and agent in the product's folder, with linked repos, CI fix prompts, and Remote Control from the Claude app.</td><td><a href="#detail-c">C</a></td></tr>
-      <tr><td class="ball">8</td><td>Issues</td><td>A to-do list per product. Implement an item with your agent: it reads the code and asks what it needs to know before it starts.</td><td><a href="#detail-c">C</a></td></tr>
+      <tr><td>Is anything broken right now?</td><td>One <em>Needs attention</em> list across every product: failing CI, endpoints that stopped answering, production falling behind, a disk filling up.</td><td><a href="#view-overview">1</a></td></tr>
+      <tr><td>Which version is live in production, and how do I know?</td><td>Local, GitHub, Staging, and Production side by side, each with where the fact came from and how old it is. Never guessed from a green build.</td><td><a href="#view-deploy">2</a></td></tr>
+      <tr><td>How do I run this project again?</td><td>The Play button works out how it runs (dev server, simulator, Mac app, Docker, a local WordPress site) and starts it.</td><td><a href="#view-work">3</a></td></tr>
+      <tr><td>Can an AI agent just fix this?</td><td>Keep a to-do list per product and send items to Claude Code, Codex, Gemini, or OpenCode, started in the right folder with a map of the code.</td><td><a href="#agents">4</a></td></tr>
+      <tr><td>Which CI run failed, and why?</td><td>Every checkout's branch, uncommitted work, and CI status in one table. A failed run opens its log trimmed to the error, with a fix prompt.</td><td><a href="#view-git">6</a></td></tr>
+      <tr><td>Did anyone sign up or pay today?</td><td>Leads, signups, and payments from each product, read from sources you connect, each labelled with where it came from.</td><td><a href="#view-leads">7</a></td></tr>
+      <tr><td>Where's the staging API key?</td><td>A Keychain vault scoped by product and environment. Commands get only the variables you allow; production asks for Touch ID.</td><td><a href="#view-secrets">8</a></td></tr>
     </tbody>
   </table>
 </section>
 
-<section class="detail" id="detail-a" aria-labelledby="a-title">
-  <header class="dh"><span class="dletter" aria-hidden="true">A</span><h2 id="a-title">Detail A · The evidence chain</h2></header>
-  <p class="lede">Production is never guessed from a green build or a <code>main</code> branch. Each step says how it is known, so "deployed" means something.</p>
-  <ol class="chain">
-    <li class="st verified">
-      <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="13"/></svg>
-      <span class="st-name">Local</span><span class="st-val">main · clean</span><span class="st-ev">Verified · read from git on this Mac</span>
-    </li>
-    <li class="st verified">
-      <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="13"/></svg>
-      <span class="st-name">GitHub</span><span class="st-val">in sync with origin</span><span class="st-ev">Verified · GitHub API</span>
-    </li>
-    <li class="st reported">
-      <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="12"/></svg>
-      <span class="st-name">Staging</span><span class="st-val">v2.15.0-rc.2</span><span class="st-ev">Reported · a deployment record, not checked</span>
-    </li>
-    <li class="st stale prod">
-      <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="12"/><line x1="8" y1="32" x2="32" y2="8"/></svg>
-      <span class="st-name">Production</span><span class="st-val">v2.14.0</span><span class="st-ev">Stale · last confirmed 3 days ago</span>
-    </li>
-  </ol>
-  <dl class="legend">
-    <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk verified"><circle cx="20" cy="20" r="13"/></svg>Verified</dt><dd>ForgeDeck checked it itself: git, the GitHub API, a status endpoint.</dd></div>
-    <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk reported"><circle cx="20" cy="20" r="12"/></svg>Reported</dt><dd>Something said so, like a deployment record. Not confirmed.</dd></div>
-    <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk stale"><circle cx="20" cy="20" r="12"/><line x1="8" y1="32" x2="32" y2="8"/></svg>Stale</dt><dd>It was true. It is too old to trust now.</dd></div>
-    <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk unknown"><circle cx="20" cy="20" r="12"/></svg>Unknown</dt><dd>No evidence, and the reason why.</dd></div>
-  </dl>
-  <p class="demo-note">Shown for a second demo product, mid-release, so every mark appears.</p>
-</section>
+<div id="tour" class="tour-head">
+  <h2>The tour</h2>
+  <p class="lede">Every picture below is the real app, filled with eight demo products. Nothing is mocked up.</p>
+</div>
 
-<section class="detail" id="detail-b" aria-labelledby="b-title">
-  <header class="dh"><span class="dletter" aria-hidden="true">B</span><h2 id="b-title">Detail B · Play</h2></header>
-  <p class="lede">One button launches what a product builds. ForgeDeck reads the project and picks the best way in. The others stay one click away in the menu.</p>
-  <ul class="modes" role="list">
-    <li class="mode" tabindex="0"><span class="m-k">Mobile</span><span class="m-t">Build and run on the iPhone simulator or an Android emulator</span><code>npx cap run ios --target …</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Desktop</span><span class="m-t">Start the Mac app, Tauri app, or Electron app</span><code>./build.sh --open · swift run</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Web</span><span class="m-t">Start the dev server, then open the page when it answers</span><code>npm run dev → localhost:5173</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Site</span><span class="m-t">Open a WordPress plugin's local site admin</span><code>http://site.local/wp-admin/</code></li>
-  </ul>
-  <p class="aside-note">Nothing runs until you approve it. A command ForgeDeck found on its own opens for review first, and runs the moment you save.</p>
-</section>
-
-<section class="detail" id="detail-c" aria-labelledby="c-title">
-  <header class="dh"><span class="dletter" aria-hidden="true">C</span><h2 id="c-title">Detail C · One click to work</h2></header>
-  <div class="c-grid">
-    <figure class="section-view">
-      <img src="img/terminal-dock-dark.webp" alt="The ForgeDeck overview in dark mode, with a built-in terminal running a dev server at the bottom and terminal icons beside products that have sessions open. Demo data." width="1600" height="1113" loading="lazy">
-      <figcaption>Section C–C · the built-in terminal, sessions marked in the sidebar · demo data</figcaption>
-    </figure>
+<section class="view" id="view-overview" aria-labelledby="v1-title">
+  <figure class="shot">
+    <a href="img/overview-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/overview-light.webp" alt="The ForgeDeck Overview with demo data: counts of active products, healthy environments, uncommitted codebases, failing pipelines, and new leads; a Needs attention list; product cards; and an activity feed." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 1 · Overview · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">1</span><h2 id="v1-title">See every product at once</h2></header>
+    <p class="lede">Open ForgeDeck in the morning and know where things stand before you open anything else.</p>
     <ul class="specs" role="list">
-      <li><strong>Groups</strong> Every product in one sidebar. Rename products and groups, drag a product to another group, or remove it from ForgeDeck without touching its files.</li>
-      <li><strong>Terminal</strong> Opens in the checkout, inside ForgeDeck or in your terminal app. The sidebar marks which products have a session running.</li>
-      <li><strong>Editor</strong> Cursor, VS Code, Zed, or Xcode, in a window of its own for that project.</li>
-      <li><strong>Agent</strong> Claude Code, Codex, Gemini, OpenCode, and others start in the folder with a compact map of the repo and of any repos you link to it.</li>
-      <li><strong>CI fix</strong> Pulls the failing GitHub Actions log, trimmed to the error, and writes a fix prompt you can hand to an agent.</li>
-      <li><strong>Remote</strong> Forge Remote keeps Claude Code's Remote Control running, so you can work on any product from the Claude app.</li>
-      <li><strong>Issues</strong> A to-do list per product. Implement with your agent asks about the item first; adding it to GitHub is off until you turn it on.</li>
-      <li><strong>Releases</strong> Shows which version is live: a site's release URL, WordPress.org, npm, PyPI, and GitHub releases.</li>
-      <li><strong>AI usage</strong> A side panel reads your agents' local logs: tokens used, limits left. Nothing is uploaded.</li>
-      <li><strong>Command line</strong> The app is also <code>forgedeck</code>: list, status, exec, context, ci, usage.</li>
+      <li><strong>Needs attention</strong> What to look at first, across all products: production behind staging, CI failing on main, a status endpoint rejecting its token.</li>
+      <li><strong>At a glance</strong> Healthy environments, codebases with uncommitted work, failing pipelines, and new leads this week.</li>
+      <li><strong>Product cards</strong> Each product's local branch, GitHub state, and production version in one row, with buttons for its terminal, editor, and agent.</li>
+      <li><strong>Groups</strong> SaaS, client work, internal tools: group them your way, star favorites, drag between groups.</li>
+      <li><strong>Activity</strong> New subscriptions, releases going live, slow endpoints, failed builds, as they happen.</li>
     </ul>
   </div>
 </section>
 
-<section class="detail" id="detail-d" aria-labelledby="d-title">
-  <header class="dh"><span class="dletter" aria-hidden="true">D</span><h2 id="d-title">Detail D · Your agent sets it up</h2></header>
-  <p class="lede">Ask once and your agent reads the product, works out the setup, and writes it into a file in the repository. ForgeDeck checks the file, and you approve it before anything changes.</p>
-  <ul class="modes" role="list">
-    <li class="mode" tabindex="0"><span class="m-k">Environments</span><span class="m-t">Finds where the product is deployed and how to read the live version, from its deploy files</span><code>.forgedeck/environments.json</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Run</span><span class="m-t">Works out how it runs (npm, Docker, a Local site, tests), tries it, and fills the Play button</span><code>.forgedeck/run.json</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Leads</span><span class="m-t">Lists what the product collects (forms, signups, orders) and asks which to track before it builds the check</span><code>forgedeck leads &lt;product&gt;</code></li>
-    <li class="mode" tabindex="0"><span class="m-k">Skills</span><span class="m-t">Suggests agent skills and plugins that fit the product. Install the ones you want with a click</span><code>.forgedeck/skills.json</code></li>
-  </ul>
-  <p class="aside-note">The agent only proposes. It never deploys, never sees a token (it gets only its hash), and installs nothing. <code>forgedeck env check</code>, <code>run check</code>, and <code>skills check</code> let it fix mistakes before you look.</p>
+<section class="view flip" id="view-deploy" aria-labelledby="v2-title">
+  <figure class="shot">
+    <a href="img/deployments-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/deployments-light.webp" alt="The Deployments page with demo data: a drift list of stages that differ, and a table of every product's local, GitHub, and production commits with the evidence for each: Verified, Reported, Stale, or Unknown." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 2 · Deployments · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">2</span><h2 id="v2-title">Know what's live, and how you know</h2></header>
+    <p class="lede">"Deployed" should mean something. ForgeDeck never assumes production from a <code>main</code> branch, a green CI run, or a release tag. Each stage says how it's known.</p>
+    <ol class="chain">
+      <li class="st verified">
+        <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="13"/></svg>
+        <span class="st-name">Local</span><span class="st-val">main · clean</span><span class="st-ev">Verified · git on this Mac</span>
+      </li>
+      <li class="st verified">
+        <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="13"/></svg>
+        <span class="st-name">GitHub</span><span class="st-val">in sync</span><span class="st-ev">Verified · GitHub API</span>
+      </li>
+      <li class="st reported">
+        <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="12"/></svg>
+        <span class="st-name">Staging</span><span class="st-val">v2.15.0-rc.2</span><span class="st-ev">Reported · not checked</span>
+      </li>
+      <li class="st stale prod">
+        <svg class="mk" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="12"/><line x1="8" y1="32" x2="32" y2="8"/></svg>
+        <span class="st-name">Production</span><span class="st-val">v2.14.0</span><span class="st-ev">Stale · 3 days old</span>
+      </li>
+    </ol>
+    <dl class="legend">
+      <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk verified"><circle cx="20" cy="20" r="13"/></svg>Verified</dt><dd>ForgeDeck checked it: git, the GitHub API, the site's own version URL or status endpoint.</dd></div>
+      <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk reported"><circle cx="20" cy="20" r="12"/></svg>Reported</dt><dd>Something said so, like a deployment record. Not confirmed.</dd></div>
+      <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk stale"><circle cx="20" cy="20" r="12"/><line x1="8" y1="32" x2="32" y2="8"/></svg>Stale</dt><dd>It was true. It's too old to trust now.</dd></div>
+      <div><dt><svg viewBox="0 0 40 40" aria-hidden="true" class="mk unknown"><circle cx="20" cy="20" r="12"/></svg>Unknown</dt><dd>No evidence, and the reason why.</dd></div>
+    </dl>
+    <p class="aside-note">Production is read from what you connect: a version URL, a status endpoint, GitHub deployments, an SSH host (read-only commands), Docker, or a release channel like WordPress.org, npm, or PyPI. Optional open-source companions for Node, Python, and WordPress report the exact running commit.</p>
+  </div>
+</section>
+
+<section class="view" id="view-work" aria-labelledby="v3-title">
+  <figure class="shot">
+    <a href="img/terminal-dock-product-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/terminal-dock-product-light.webp" alt="A product page in ForgeDeck with the built-in terminal open at the bottom, showing the header an AI agent gets: its context file, linked repositories, and permissions. Demo data." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 3 · Built-in terminal on a product page · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">3</span><h2 id="v3-title">Run it, open it, work on it</h2></header>
+    <p class="lede">Every product is one click from running. No more digging through a README to remember the dev command.</p>
+    <ul class="modes compact" role="list">
+      <li class="mode" tabindex="0"><span class="m-k">Web</span><span class="m-t">Starts the dev server, opens the page when it answers</span><code>npm run dev → localhost:5173</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Mobile</span><span class="m-t">Builds and runs on the iPhone simulator or an Android emulator</span><code>npx cap run ios</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Desktop</span><span class="m-t">Starts the Mac, Tauri, or Electron app</span><code>swift run · ./build.sh</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Site</span><span class="m-t">Opens a WordPress plugin's local site admin</span><code>site.local/wp-admin</code></li>
+    </ul>
+    <ul class="specs" role="list">
+      <li><strong>Terminal</strong> In the product's folder, inside ForgeDeck or in Terminal, iTerm, Ghostty, or Warp. Drop a file or screenshot on it to type its path.</li>
+      <li><strong>Editor</strong> Cursor, VS Code, Zed, or Xcode, in its own window for that project.</li>
+      <li><strong>Agent</strong> Claude Code and others start in the folder with a compact map of the repo and any repos you link to it.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="view flip" id="agents" aria-labelledby="v4-title">
+  <figure class="shot">
+    <a href="img/product-issues-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/product-issues-light.webp" alt="The Issues tab for a demo product: a to-do list of short notes, each with an Implement with Claude Code button, a GitHub issue number on one, and the Add to GitHub switch turned off." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 4 · Issues · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">4</span><h2 id="v4-title">Hand work to your AI agent</h2></header>
+    <p class="lede">Jot a short note, like "CSV export drops the last row". Press <em>Implement with Claude Code</em>. The agent opens in that product's folder, reads the code, tells you what it thinks the note means, and asks its questions before it changes anything.</p>
+    <ul class="specs" role="list">
+      <li><strong>Issues per product</strong> A to-do list that lives on your Mac. Select several and the agent asks about all of them at once, then works through them one at a time with tests after each.</li>
+      <li><strong>Any agent</strong> Claude Code, Codex, Gemini CLI, OpenCode, or Antigravity. Pick one in Settings.</li>
+      <li><strong>The right context</strong> The agent gets a short map of the product and of related repos, not a wall of text. It reads more only when the work needs it.</li>
+      <li><strong>GitHub, if you want</strong> Copy an item to a GitHub issue with your own <code>gh</code> login. Off until you turn it on.</li>
+      <li><strong>AI usage</strong> A side panel shows tokens used and limits left, read from your agents' local logs. Nothing is uploaded.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="view" id="view-setup" aria-labelledby="v5-title">
+  <figure class="shot">
+    <a href="img/sheet-run-setup-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/sheet-run-setup-light.webp" alt="The Review Run Setup sheet: commands an agent proposed for a demo product (start the dev server, start with Docker, run tests), each with why it was chosen, ready to approve. A deploy command is held back." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 5 · Reviewing what an agent proposed · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">5</span><h2 id="v5-title">Let the agent do the setup</h2></header>
+    <p class="lede">Adding a product shouldn't mean filling in forms. Ask once: your agent reads the repository, works out the setup, and writes it to a file. ForgeDeck checks it, and you approve it before anything changes.</p>
+    <ul class="modes compact" role="list">
+      <li class="mode" tabindex="0"><span class="m-k">Environments</span><span class="m-t">Where it's deployed and how to read the live version</span><code>.forgedeck/environments.json</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Run</span><span class="m-t">How it runs, tried first, filled into the Play button</span><code>.forgedeck/run.json</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Leads</span><span class="m-t">What it collects, and which of those to track</span><code>forgedeck leads</code></li>
+      <li class="mode" tabindex="0"><span class="m-k">Skills</span><span class="m-t">Agent skills and plugins that fit the product</span><code>.forgedeck/skills.json</code></li>
+    </ul>
+    <p class="aside-note">The agent only proposes. It never deploys, never sees a token, and installs nothing. Suggestions appear in ForgeDeck the moment the agent writes them.</p>
+  </div>
+</section>
+
+<section class="view flip" id="view-git" aria-labelledby="v6-title">
+  <figure class="shot">
+    <a href="img/git-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/git-light.webp" alt="The Git and CI page: every checkout with its branch, working tree state, commits ahead and behind, and CI status, one of them failing. Demo data." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 6 · Git &amp; CI · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">6</span><h2 id="v6-title">Catch what's uncommitted or failing</h2></header>
+    <p class="lede">Every checkout and worktree on your Mac in one table: branch, uncommitted work, ahead or behind, and whether CI passes.</p>
+    <ul class="specs" role="list">
+      <li><strong>Read from disk</strong> Local state comes straight from git and works offline.</li>
+      <li><strong>CI failures, explained</strong> A failed GitHub Actions run opens its log trimmed to the error, and writes a fix prompt to hand to your agent.</li>
+      <li><strong>Releases</strong> Which version is published on WordPress.org, npm, PyPI, or GitHub, next to the version in your code.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="view" id="view-leads" aria-labelledby="v7-title">
+  <figure class="shot">
+    <a href="img/leads-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/leads-light.webp" alt="The Leads and Metrics page: leads, signups, paid, and cancellations for the last 7 days with trends, a funnel, and a table of every number with its source and age. Demo data." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 7 · Leads &amp; Metrics · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">7</span><h2 id="v7-title">See what your products bring in</h2></header>
+    <p class="lede">Leads, signups, payments, and cancellations from every product in one place, so a quiet contact form doesn't go unnoticed for a week.</p>
+    <ul class="specs" role="list">
+      <li><strong>Only real sources</strong> Numbers come from endpoints you connect. Each shows its source and age; a source that stops answering turns Stale rather than dropping to zero.</li>
+      <li><strong>Set up by your agent</strong> It finds what the product collects (forms, signups, orders, bookings), asks which to track, and builds the check.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="view flip" id="view-secrets" aria-labelledby="v8-title">
+  <figure class="shot">
+    <a href="img/secrets-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/secrets-light.webp" alt="The Secrets Vault: variables scoped globally, by product, and by environment, with Keychain values hidden and production marked; a preview of what a process would receive in Staging. Demo data." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 8 · Secrets Vault · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">8</span><h2 id="v8-title">Keep secrets out of .env files</h2></header>
+    <p class="lede">API keys and database URLs live in the macOS Keychain, scoped to a product and an environment, and go only to the commands you allow.</p>
+    <ul class="specs" role="list">
+      <li><strong>Scoped</strong> Global, product, environment, or profile. See exactly what a process would receive before it runs.</li>
+      <li><strong>Production asks first</strong> Revealing or using a production secret asks for Touch ID.</li>
+      <li><strong>Safe for agents</strong> <code>forgedeck exec</code> runs a command with the right variables. Agents see names, never values.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="view" id="view-keys" aria-labelledby="v9-title">
+  <figure class="shot">
+    <a href="img/palette-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/palette-light.webp" alt="The command palette open over the Overview, listing products to open and actions to run." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 9 · Command palette · demo data</figcaption>
+  </figure>
+  <div class="v-text">
+    <header class="dh"><span class="dletter" aria-hidden="true">9</span><h2 id="v9-title">Keyboard first, and a command line</h2></header>
+    <p class="lede">Press ⌘K to open any product, start its agent, run an action, or jump to a page. Every button has a palette command.</p>
+    <ul class="specs" role="list">
+      <li><strong>The <code>forgedeck</code> command</strong> The app is also a CLI: <code>list</code>, <code>status</code>, <code>exec</code>, <code>context</code>, <code>ci</code>, <code>usage</code>. Your agents use it too.</li>
+      <li><strong>Remote</strong> Forge Remote keeps Claude Code's Remote Control running, so you can work on any product from the Claude app on your phone.</li>
+    </ul>
+  </div>
 </section>
 
 <section class="notes" id="notes" aria-labelledby="notes-title">
-  <h2 id="notes-title">General notes</h2>
+  <h2 id="notes-title">Privacy and safety</h2>
   <ol>
     <li>Everything stays on this Mac. No account, no analytics, no server.</li>
     <li>Secret values live only in the macOS Keychain. They are never written to ForgeDeck's files, logs, exports, or command arguments.</li>
     <li>Variables are scoped to a product and environment and go only to the commands you allow. Production secrets ask for Touch ID.</li>
-    <li>External systems are read only by default. Anything that writes remotely or touches production names its exact target and needs a press and hold.</li>
+    <li>External systems are read-only by default. Anything that writes remotely or touches production names its exact target and needs a press and hold.</li>
     <li>SSH runs a fixed list of read-only commands, with strict host key checking.</li>
     <li>The only automatic network request is a daily check for a new release on GitHub. It sends nothing about you, and it can be turned off.</li>
   </ol>
 </section>
 
 <section class="install" id="install" aria-labelledby="install-title">
-  <h2 id="install-title">Assembly</h2>
+  <h2 id="install-title">Install</h2>
   <ol class="steps">
     <li><span class="sn" aria-hidden="true">1</span><div><strong>Download</strong> the zip from the <a data-download href="https://github.com/rmclain/forgedeck/releases/latest">latest release</a> and unzip it.</div></li>
     <li><span class="sn" aria-hidden="true">2</span><div><strong>Drag</strong> ForgeDeck.app into Applications.</div></li>
     <li><span class="sn" aria-hidden="true">3</span><div><strong>Open it.</strong> ForgeDeck is signed with a Developer ID and notarized by Apple, so it opens like any other app.</div></li>
     <li><span class="sn" aria-hidden="true">4</span><div><strong>Add a product.</strong> A folder, a GitHub repository, an SSH host, or just a name. Or start with the demo products to look around.</div></li>
   </ol>
-  <p class="aside-note">Updates install themselves from the next release on, after ForgeDeck checks that the new copy is signed by the same developer.</p>
+  <p class="aside-note">Updates install themselves, after ForgeDeck checks that the new copy is signed by the same developer.</p>
 </section>
 
 <section class="revisions" aria-labelledby="rev-title">
@@ -226,20 +329,16 @@
   <table>
     <thead><tr><th scope="col">Rev</th><th scope="col">Description</th></tr></thead>
     <tbody>
-      <tr><td>0.11.1</td><td>Issues per product: a to-do list where Implement with your agent opens the item in a terminal, and the agent asks what it needs to know before it starts. Signed with a Developer ID and notarized, so it opens without a warning. Claude Code no longer asks to trust the context folder every session.</td></tr>
-      <tr><td>0.11</td><td>Skills per product: your agent looks at a product and suggests skills and Claude Code plugins that fit the work. Install the ones you want with one click, and the active ones are named in the agent's prompt whenever it starts there.</td></tr>
-      <tr><td>0.10</td><td>Set Up Leads: your agent finds what a product collects (forms, signups, orders, subscriptions, bookings), asks which ones to track, and only then sets up the check. ForgeDeck keeps the token in the Keychain and the agent gets only its hash. forgedeck leads confirms leads are arriving.</td></tr>
-      <tr><td>0.9</td><td>Set Up Run: from the Play menu, your agent works out how a product runs (npm, Docker, a Local site, tests), tries it, and proposes the commands in .forgedeck/run.json. forgedeck run check validates them, and you approve them in one review. A served WordPress readme.txt now names the running release, and new checks run as soon as proposed environments are added.</td></tr>
-      <tr><td>0.8</td><td>Repositories propose their environments, production included, in .forgedeck/environments.json. An agent writes it, forgedeck env check validates it, and you review and add it in one step. Nothing becomes production without your approval.</td></tr>
-      <tr><td>0.7.1</td><td>Fixes a crash when a background command exited while its output was being read. A forgedeck agent skill lets Claude Code find a product and read only the context a task needs; Forge Session now starts nearly empty.</td></tr>
-      <tr><td>0.7</td><td>Forge Remote: run Claude Code's Remote Control in the background and work on any product from the Claude app, one clean session per product. Agents that hit "no profile" get a one-click, reviewed profile for a product's variables.</td></tr>
-      <tr><td>0.6</td><td>See which version is out: Version URL checks for any site, a Releases card for plugins and packages (WordPress.org, npm, PyPI, GitHub), variable names for agents, and a visible agent context header.</td></tr>
-      <tr><td>0.5.1</td><td>Local confirmations are one click (Run, Remove); press and hold is kept for remote and production actions.</td></tr>
-      <tr><td>0.5</td><td>Agent skills in the Toolbox (from a repository or a pasted npx skills add command), repository tools on each product page, and MCP servers per product with how to use them.</td></tr>
-      <tr><td>0.4</td><td>Open a product with your AI agent and its linked context from the header, cards, menus, and ⌘⌥O.</td></tr>
-      <tr><td>0.3</td><td>Play, rename and regroup products, editor opens per project, automatic updates.</td></tr>
-      <tr><td>0.2</td><td>Built-in terminal, CI failure logs with fix prompts, AI usage panel, mobile recipes, Gemini and other agents.</td></tr>
-      <tr><td>0.1</td><td>Products, evidence chain, Keychain secrets, the forgedeck command.</td></tr>
+      <tr><td>0.11.2</td><td>Select several issues and implement, finish, or delete them together; the agent asks about all of them first. Skill suggestions appear the moment the agent writes them. Drop files, folders, or screenshots on a built-in terminal to type their paths.</td></tr>
+      <tr><td>0.11.1</td><td>Issues per product: a to-do list where Implement with your agent opens the item in a terminal, and the agent asks what it needs to know before it starts. Signed with a Developer ID and notarized. Claude Code no longer asks to trust the context folder every session.</td></tr>
+      <tr><td>0.11</td><td>Skills per product: your agent suggests skills and Claude Code plugins that fit the work. Install them with one click; active ones are named in the agent's prompt.</td></tr>
+      <tr><td>0.10</td><td>Set Up Leads: your agent finds what a product collects, asks which to track, and sets up the check. forgedeck leads confirms leads are arriving.</td></tr>
+      <tr><td>0.9</td><td>Set Up Run: your agent works out how a product runs, tries it, and proposes the commands for one review.</td></tr>
+      <tr><td>0.8</td><td>Repositories propose their environments, production included, for review. Nothing becomes production without your approval.</td></tr>
+      <tr><td>0.7</td><td>Forge Remote: work on any product from the Claude app. Agent context loads only what a task needs.</td></tr>
+      <tr><td>0.6</td><td>Version URLs and a Releases card for WordPress.org, npm, PyPI, and GitHub.</td></tr>
+      <tr><td>0.5</td><td>Agent skills in the Toolbox, repository tools, and MCP servers per product.</td></tr>
+      <tr><td>0.1–0.4</td><td>Products, the evidence chain, Keychain secrets, the forgedeck command, the built-in terminal, CI failure logs, AI usage, Play, and automatic updates.</td></tr>
     </tbody>
   </table>
 </section>
