@@ -24,6 +24,11 @@ enum Snapshot {
             for tab in ProductTab.allCases {
                 shots.append(Shot(name: "product-\(tab.rawValue.lowercased())") { $0.route = .product(product.id); $0.productTab = tab })
             }
+            shots.append(Shot(name: "product-issues-selected") { model in
+                model.route = .product(product.id)
+                model.productTab = .issues
+                model.selectedIssues = Set((product.issues ?? []).filter { !$0.isDone }.prefix(2).map(\.id))
+            })
         }
         if let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) {
             shots.append(Shot(name: "product-unknown-production") { $0.route = .product(orbit.id); $0.productTab = .development })
@@ -127,6 +132,8 @@ enum Snapshot {
                 }
                 if var shell = TerminalLaunch.command(["/bin/zsh", "-f"], kind: .shell, title: "Beacon", in: folder),
                    let beacon = model.products.first(where: { $0.slug == "beacon" }) {
+                    // A neutral prompt: the default one shows this Mac's name, which does not belong in published pictures.
+                    shell.environment.append("PS1=~/code/beacon %# ")
                     // The header an agent with linked context gets, so the snapshot shows it.
                     shell.banner = AgentContextBundle(contextFile: URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/ForgeDeck/context/beacon/CONTEXT.md"),
                                                       workingDirectory: folder, readableFolders: ["/code/lumen"], relatedNames: ["Lumen"], approxTokens: 2_400, contextFolders: ["/ctx"])
@@ -255,6 +262,13 @@ enum Snapshot {
                 model.sheet = nil
                 model.paletteOpen = false
                 for shot in shots(model) where only?.contains(shot.name) ?? true {
+                    // A shot opens its own overlay; one left from an earlier shot would cover it.
+                    if only != nil {
+                        model.sheet = nil
+                        model.paletteOpen = false
+                        model.usagePanelVisible = false
+                        model.toast = nil
+                    }
                     shot.prepare(model)
                     try? await Task.sleep(for: .seconds(shot.wait))
                     capture(to: "\(dir)/\(shot.name)-\(mode).png")

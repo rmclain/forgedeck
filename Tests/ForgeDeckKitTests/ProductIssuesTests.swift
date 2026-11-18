@@ -48,6 +48,18 @@ import Testing
         #expect(ProductIssues.prompt(for: ProductIssue(title: "x"), product: product()).contains("Notes: none."))
     }
 
+    /// Several selected items go to one session: questions for all of them first, then one item at a time.
+    @Test func severalItemsShareOneSessionAndOneRoundOfQuestions() {
+        let issues = (1...12).map { ProductIssue(title: "item \($0)", notes: $0 == 2 ? "only on mobile" : "") }
+        let prompt = ProductIssues.prompt(for: issues, product: product())
+        #expect(prompt.contains("10 items:"))
+        #expect(prompt.contains("1. \"item 1\"\nNotes: none.") && prompt.contains("2. \"item 2\"\nNotes:\nonly on mobile"))
+        #expect(prompt.contains("10. \"item 10\"") && !prompt.contains("item 11"))
+        #expect(prompt.contains("grouped under each item's number") && prompt.contains("all in one message"))
+        #expect(prompt.contains("one at a time") && prompt.contains("Do not push, deploy"))
+        #expect(ProductIssues.prompt(for: [issues[0]], product: product()) == ProductIssues.prompt(for: issues[0], product: product()))
+    }
+
     @Test func gitHubCopyUsesGhWithTheRepositoryAndReadsBackTheNumber() throws {
         let repo = try #require(ProductIssues.repository(product()))
         let args = ProductIssues.githubCreateArguments(ProductIssue(title: "export bug", notes: "last row"), repository: repo)

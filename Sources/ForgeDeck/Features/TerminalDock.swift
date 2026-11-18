@@ -24,7 +24,7 @@ final class TerminalSession: Identifiable {
     var foreground: String?
     var directory: String
 
-    @ObservationIgnored let view: LocalProcessTerminalView
+    @ObservationIgnored let view: DropTerminalView
     @ObservationIgnored private var poll: Timer?
     @ObservationIgnored private var delegateBox: Delegate?
     @ObservationIgnored var onExit: ((TerminalSession) -> Void)?
@@ -47,7 +47,7 @@ final class TerminalSession: Identifiable {
         self.checkoutID = checkoutID
         title = launch.title
         directory = launch.directory
-        view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 300))
+        view = DropTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 300))
         configureAppearance()
         let box = Delegate(session: self)
         delegateBox = box
@@ -189,6 +189,50 @@ final class TerminalHost {
 }
 
 // MARK: Views
+
+/// A terminal that takes drops: files and folders type their escaped paths, image data is saved to a temporary
+/// file and types that path, and text or a link types itself. All of it goes in as a paste, so a running
+/// program (Claude Code, a shell) gets it the way it gets ⌘V.
+final class DropTerminalView: LocalProcessTerminalView {
+    private static let imageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL, .URL, .string] + Self.imageTypes)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL, .URL, .string] + Self.imageTypes)
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        Self.text(from: sender.draggingPasteboard, saving: false) == nil || process?.running != true ? [] : .copy
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation { draggingEntered(sender) }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard process?.running == true, let text = Self.text(from: sender.draggingPasteboard, saving: true), !text.isEmpty else { return false }
+        window?.makeFirstResponder(self)
+        pasteText(text)
+        return true
+    }
+
+    /// What the drop types, or nil when there is nothing to type. `saving` writes dropped image data to a file.
+    static func text(from pasteboard: NSPasteboard, saving: Bool) -> String? {
+        let files = (pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        if !files.isEmpty { return TerminalDrop.text(forPaths: files.map(\.path)) }
+        if let type = pasteboard.availableType(from: imageTypes) {
+            guard saving else { return "" }
+            guard let data = pasteboard.data(forType: type), let png = type == .png ? data : NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:]),
+                  let path = try? TerminalDrop.saveImage(png) else { return nil }
+            return TerminalDrop.text(forPaths: [path])
+        }
+        if let link = (pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])?.first { return link.absoluteString }
+        return pasteboard.string(forType: .string).flatMap { $0.isEmpty ? nil : $0 }
+    }
+}
 
 /// Hosts a session's existing NSView. SwiftUI never creates a second terminal for the same session.
 struct TerminalViewHost: NSViewRepresentable {

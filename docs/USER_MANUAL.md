@@ -69,6 +69,8 @@ Choose the default terminal, editor, and AI agent in Settings > Launching. Termi
 
 If the terminal could not be opened, the toast says why and a safe `cd` command is on your clipboard.
 
+Drop a file, folder, or image on a built-in terminal to type its path, escaped the way Terminal.app escapes it. Claude Code attaches a dropped image. An image with no file behind it (from a browser or a screenshot preview) is saved to a temporary file first.
+
 ## Read what is deployed
 
 Open a product > Development. The "Source of truth" card shows four stages: Local, GitHub, Staging, Production.
@@ -407,7 +409,9 @@ A recipe that is not approved opens for review first. Saving approves it, and Pl
 
 The **Issues** tab is a to-do list for the product, kept on this Mac. Type a short note and press Return; the first line is the title and any further lines are notes. File › New Issue (⌘⇧I) jumps to the field.
 
-**Implement with Claude Code** opens your agent in the product's folder with the item. Items are usually quick notes, not prompts, so the agent first reads the code, says what it thinks the item asks for, and asks up to four questions. It starts only after you answer. It does not push, deploy, or touch GitHub issues. Mark the item done with its checkbox when you are happy.
+**Implement with Claude Code** opens your agent in the product's folder with the item. Items are usually quick notes, not prompts, so the agent first reads the code, says what it thinks the item asks for, and asks up to four questions. It starts only after you answer. It does not push, deploy, or touch GitHub issues.
+
+The checkbox on each item selects it. With items selected, the bar above the list offers **Implement with Claude Code** (one session for up to 10 items: the agent asks about all of them first, then does them one at a time), **Mark Done**, and **Delete**. In the Done list, **Reopen** moves items back.
 
 Double-click an item, or use its ••• menu, to edit the title and notes. Notes help, but they are optional.
 

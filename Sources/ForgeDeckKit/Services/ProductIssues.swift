@@ -59,16 +59,46 @@ public enum ProductIssues {
         product.repositories.first { $0.provider == "github" && !$0.owner.isEmpty && !$0.name.isEmpty }
     }
 
+    /// The most items one agent session takes at once.
+    public static let maxPerSession = 10
+
     /// The agent's first message. The item is usually a short note, so the agent looks at the code, says what
     /// it thinks the item means, and asks before it changes anything.
     public static func prompt(for issue: ProductIssue, product: Product) -> String {
+        prompt(for: [issue], product: product)
+    }
+
+    /// One session for several items: the agent asks about all of them in one message, then works through them in turn.
+    public static func prompt(for issues: [ProductIssue], product: Product) -> String {
+        let issues = Array(issues.prefix(maxPerSession))
+        guard issues.count > 1 else { return single(issues.first ?? ProductIssue(title: ""), product: product) }
+        var lines = ["From the Issues list \(Brand.name) keeps for \(product.name), \(issues.count) items:"]
+        for (index, issue) in issues.enumerated() { lines += ["", "\(index + 1). " + describe(issue, product: product)] }
+        lines += ["",
+                  "These are short notes the person wrote for themselves, not full requests. Before you change anything:",
+                  "1. Look at the code each item most likely touches.",
+                  "2. For each item, say in a sentence what you think it asks for.",
+                  "3. Ask what you need to know to do them well, grouped under each item's number: what done looks like, the scope, "
+                      + "anything ambiguous. At most three short questions per item, all in one message. Skip what the code already answers.",
+                  "4. Wait for the answers. Then do the items one at a time, in the order that makes sense. Run the tests after each, "
+                      + "and say which item is finished before you start the next.",
+                  "Do not push, deploy, or open, close, or comment on GitHub issues. The person marks items done in \(Brand.name)."]
+        return lines.joined(separator: "\n")
+    }
+
+    /// Title, notes, and the GitHub issue when there is one.
+    private static func describe(_ issue: ProductIssue, product: Product) -> String {
         let redactor = Redactor()
-        var lines = ["From the Issues list \(Brand.name) keeps for \(product.name): \"\(redactor.redact(issue.title))\""]
         let notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
-        lines.append(notes.isEmpty ? "Notes: none." : "Notes:\n\(notes)")
+        var text = "\"\(redactor.redact(issue.title))\"\n" + (notes.isEmpty ? "Notes: none." : "Notes:\n\(notes)")
         if let number = issue.githubNumber, let repo = repository(product) {
-            lines.append("It is GitHub issue #\(number) in \(repo.owner)/\(repo.name). Read the discussion with `gh issue view \(number) --repo \(repo.owner)/\(repo.name) --comments` if it helps.")
+            text += "\nIt is GitHub issue #\(number) in \(repo.owner)/\(repo.name). Read the discussion with `gh issue view \(number) --repo \(repo.owner)/\(repo.name) --comments` if it helps."
         }
+        return text
+    }
+
+    private static func single(_ issue: ProductIssue, product: Product) -> String {
+        var lines = ["From the Issues list \(Brand.name) keeps for \(product.name): " + describe(issue, product: product)]
         lines += ["",
                   "This is a short note the person wrote for themselves, not a full request. Before you change anything:",
                   "1. Look at the code it most likely touches, and recent commits if they help.",

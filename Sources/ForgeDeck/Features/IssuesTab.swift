@@ -43,15 +43,55 @@ extension AppModel {
     }
 
     /// Opens the agent in the product's folder with the item as its first message.
-    func implementIssue(_ issue: ProductIssue, in product: Product) {
-        guard let checkout = checkout(for: product) else { return }
-        let program = portfolio.settings.aiAgentProgram
-        let title = issue.title.count > 32 ? String(issue.title.prefix(31)) + "…" : issue.title
-        startSetupAgent(product, checkout: checkout, prompt: ProductIssues.prompt(for: issue, product: product), title: title, audit: "issue.implement")
-        updateIssue(issue.id, in: product) {
-            $0.startedAt = .now
-            $0.startedWith = program
+    func implementIssue(_ issue: ProductIssue, in product: Product) { implementIssues([issue], in: product) }
+
+    /// One agent session for the selected items: it asks about all of them first, then does them in turn.
+    func implementIssues(_ issues: [ProductIssue], in product: Product) {
+        guard !issues.isEmpty, let checkout = checkout(for: product) else { return }
+        guard issues.count <= ProductIssues.maxPerSession else {
+            return show("Select up to \(ProductIssues.maxPerSession) items for one session.", isError: true)
         }
+        let program = portfolio.settings.aiAgentProgram
+        let first = issues[0].title
+        let title = issues.count > 1 ? "\(issues.count) issues" : (first.count > 32 ? String(first.prefix(31)) + "…" : first)
+        startSetupAgent(product, checkout: checkout, prompt: ProductIssues.prompt(for: issues, product: product), title: title, audit: "issue.implement")
+        let ids = Set(issues.map(\.id))
+        update(product.id) { product in
+            for index in (product.issues ?? []).indices where ids.contains(product.issues![index].id) {
+                product.issues![index].startedAt = .now
+                product.issues![index].startedWith = program
+            }
+        }
+    }
+
+    func setIssuesDone(_ ids: Set<UUID>, _ done: Bool, in product: Product) {
+        update(product.id) { product in
+            for index in (product.issues ?? []).indices where ids.contains(product.issues![index].id) {
+                product.issues![index].isDone = done
+                product.issues![index].doneAt = done ? .now : nil
+            }
+        }
+        record(done ? "issue.done" : "issue.reopen", product: product, detail: "count=\(ids.count)")
+    }
+
+    /// Asks once, naming how many, then removes them from this Mac. GitHub issues made from them stay on GitHub.
+    func deleteIssues(_ issues: [ProductIssue], from product: Product, then done: @escaping @MainActor () -> Void = {}) {
+        guard !issues.isEmpty else { return }
+        if issues.count == 1 { deleteIssue(issues[0], from: product); return done() }
+        let onGitHub = issues.filter { $0.githubNumber != nil }.count
+        sheet = .confirm(ConfirmRequest(
+            title: "Delete \(issues.count) issues?",
+            message: "Removes them from \(product.name)'s list on this Mac."
+                + (onGitHub > 0 ? " \(onGitHub) of them are on GitHub too; those GitHub issues stay open." : ""),
+            confirmLabel: "Delete", icon: .trash,
+            action: { [weak self] in
+                guard let self else { return }
+                let ids = Set(issues.map(\.id))
+                self.update(product.id) { $0.issues?.removeAll { ids.contains($0.id) } }
+                self.record("issue.delete", product: product, detail: "count=\(ids.count)")
+                self.show("Deleted \(ids.count) issues.")
+                done()
+            }))
     }
 
     func setIssuesToGitHub(_ on: Bool, for product: Product) {
@@ -137,6 +177,7 @@ struct IssuesTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Space.lg).padding(.vertical, Space.md).hairlineAbove()
                 }
+                if !shown.isEmpty { bulkBar(shown, agent: agent) }
                 ForEach(shown) { issue in
                     if editingID == issue.id { editor(issue) } else { row(issue, agent: agent) }
                 }
@@ -144,6 +185,7 @@ struct IssuesTab: View {
             .card()
             githubCard
         }
+        .onChange(of: showDone) { model.selectedIssues = [] }
         .onChange(of: model.focusIssueField) { _, wanted in
             if wanted { addFocused = true; model.focusIssueField = false }
         }
@@ -158,10 +200,11 @@ struct IssuesTab: View {
 
     private func row(_ issue: ProductIssue, agent: String) -> some View {
         HStack(alignment: .top, spacing: Space.md) {
-            Toggle(isOn: Binding(get: { issue.isDone }, set: { model.setIssueDone(issue, $0, in: product) })) { EmptyView() }
+            Toggle(isOn: Binding(get: { model.selectedIssues.contains(issue.id) },
+                                 set: { on in if on { model.selectedIssues.insert(issue.id) } else { model.selectedIssues.remove(issue.id) } })) { EmptyView() }
                 .toggleStyle(.checkbox).labelsHidden().disabled(product.isDemo)
-                .accessibilityLabel(issue.isDone ? "Mark \(issue.title) open" : "Mark \(issue.title) done")
-                .help(issue.isDone ? "Mark open" : "Mark done")
+                .accessibilityLabel("Select \(issue.title)")
+                .help("Select, for the actions above the list")
             VStack(alignment: .leading, spacing: 2) {
                 Text(issue.title).kitType(.labelMedium, issue.isDone ? Ink.text3 : Ink.text).strikethrough(issue.isDone, color: Ink.text3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -195,6 +238,41 @@ struct IssuesTab: View {
                 .help("More for this item").accessibilityLabel("More for \(issue.title)")
         }
         .padding(.horizontal, Space.lg).padding(.vertical, Space.md)
+        .hairlineAbove()
+    }
+
+    /// Select all, and what to do with the selection. The actions show only once something is selected.
+    private func bulkBar(_ shown: [ProductIssue], agent: String) -> some View {
+        let picked = shown.filter { model.selectedIssues.contains($0.id) }
+        let all = !picked.isEmpty && picked.count == shown.count
+        return HStack(spacing: Space.md) {
+            Toggle(isOn: Binding(get: { all }, set: { on in model.selectedIssues = on ? Set(shown.map(\.id)) : [] })) {
+                Text(picked.isEmpty ? "Select all" : "\(picked.count) selected").kitType(.label, picked.isEmpty ? Ink.text3 : Ink.text)
+            }
+            .toggleStyle(.checkbox).disabled(product.isDemo)
+            .help(all ? "Clear the selection" : "Select every item in this list")
+            Spacer(minLength: Space.sm)
+            if !picked.isEmpty {
+                if !showDone {
+                    Button("Implement with \(agent)") { model.implementIssues(picked, in: product); model.selectedIssues = [] }
+                        .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                        .disabled(!product.hasLocal || picked.count > ProductIssues.maxPerSession)
+                        .help(picked.count > ProductIssues.maxPerSession ? "Select up to \(ProductIssues.maxPerSession) items for one session"
+                              : "One \(agent) session for the selected items. It asks about all of them first, then does them one at a time.")
+                }
+                Button(showDone ? "Reopen" : "Mark Done") {
+                    model.setIssuesDone(Set(picked.map(\.id)), !showDone, in: product)
+                    model.selectedIssues = []
+                }
+                .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                .help(showDone ? "Move the selected items back to Open" : "Move the selected items to Done")
+                Button(picked.count == 1 ? "Delete" : "Delete…") { model.deleteIssues(picked, from: product) { model.selectedIssues = [] } }
+                    .buttonStyle(.kit(.ghost, compact: true)).fixedSize()
+                    .help("Remove the selected items from this Mac. Issues on GitHub stay there.")
+            }
+        }
+        .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
+        .frame(minHeight: 40)
         .hairlineAbove()
     }
 

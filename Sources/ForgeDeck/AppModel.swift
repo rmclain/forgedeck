@@ -241,12 +241,16 @@ final class AppModel {
     var runFiles: [UUID: [RunProposalFile]] = [:]
     /// `.forgedeck/skills.json` in each product's checkouts, read on refresh.
     var skillFiles: [UUID: SkillFile] = [:]
+    /// Watches on the files setup agents write, by product.
+    @ObservationIgnored var agentFileWatches: [UUID: Task<Void, Never>] = [:]
     /// Claude Code plugins installed on this Mac, by name. nil until read.
     var installedPlugins: Set<String>?
     /// Plugins being installed right now.
     var installingSkills: Set<String> = []
     /// Set to move the cursor to the Issues tab's add field.
     var focusIssueField = false
+    /// Items checked in the Issues tab, for its bulk actions.
+    var selectedIssues: Set<UUID> = []
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
@@ -493,12 +497,7 @@ final class AppModel {
             let found = await Task.detached { LocalRelease.detect(in: path) }.value
             if localReleases[product.id] != found { localReleases[product.id] = found }
         }
-        let proposals = await Task.detached { EnvironmentProposals.read(product) }.value
-        if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
-        let runs = await Task.detached { RunSetup.read(product) }.value
-        if runFiles[product.id] != runs { runFiles[product.id] = runs }
-        let skillFile = await Task.detached { SkillSuggestions.read(product) }.value
-        if skillFiles[product.id] != skillFile { skillFiles[product.id] = skillFile }
+        await reloadAgentFiles(product)
         if isOnline {
             async let remote = engine.refreshRemote(product, portfolio: portfolio)
             async let probes = engine.refreshProbes(product, portfolio: portfolio)
@@ -510,6 +509,50 @@ final class AppModel {
             apply(await engine.refreshComparisons(current, cache: cache))
         }
         if announce { show(isOnline ? "Refreshed \(product.name)" : "Offline: refreshed local state for \(product.name)") }
+    }
+
+    /// Reads the files a setup agent writes (environments, run, skills) and nothing else: no Git, no network.
+    func reloadAgentFiles(_ product: Product) async {
+        guard !product.isDemo else { return }
+        let (proposals, runs, skillFile) = await Task.detached {
+            (EnvironmentProposals.read(product), RunSetup.read(product), SkillSuggestions.read(product))
+        }.value
+        if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
+        if runFiles[product.id] != runs { runFiles[product.id] = runs }
+        if skillFiles[product.id] != skillFile { skillFiles[product.id] = skillFile }
+    }
+
+    /// While a setup agent runs, picks up what it writes within a second. One watch per product; it ends when
+    /// `isActive` turns false (then reads once more) or after 45 minutes without a change.
+    func watchAgentFiles(_ product: Product, while isActive: @escaping @MainActor () -> Bool) {
+        guard !product.isDemo else { return }
+        agentFileWatches[product.id]?.cancel()
+        agentFileWatches[product.id] = Task { [weak self] in
+            var stamps = await Task.detached { AgentFiles.stamps(product) }.value
+            var lastChange = Date.now
+            while !Task.isCancelled, isActive(), Date.now.timeIntervalSince(lastChange) < 45 * 60 {
+                try? await Task.sleep(for: .seconds(1))
+                let current = await Task.detached { AgentFiles.stamps(product) }.value
+                let changed = AgentFiles.changed(from: stamps, to: current)
+                guard !changed.isEmpty, let self else { continue }
+                stamps = current
+                lastChange = .now
+                await self.agentFilesChanged(product, changed)
+            }
+            guard !Task.isCancelled, let self else { return }
+            await self.reloadAgentFiles(product)
+            self.agentFileWatches[product.id] = nil
+        }
+    }
+
+    private func agentFilesChanged(_ product: Product, _ changed: Set<String>) async {
+        let before = skillSuggestions(product).filter(\.isValid).count
+        await reloadAgentFiles(product)
+        guard changed.contains(SkillSuggestions.relativePath) else { return }
+        let after = skillSuggestions(product).filter(\.isValid).count
+        if after > before {
+            show("\(after) skill suggestion\(after == 1 ? "" : "s") for \(product.name), in Development › Skills")
+        }
     }
 
     func refreshAll(announce: Bool = true) async {

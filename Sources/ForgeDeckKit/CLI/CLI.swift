@@ -45,7 +45,7 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.11.1"
+    public static let version = "0.11.2"
     public static let commands = ["list", "status", "open", "doctor", "env", "run", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore

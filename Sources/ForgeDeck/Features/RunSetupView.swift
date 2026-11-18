@@ -49,6 +49,7 @@ extension AppModel {
                 guard let self else { return }
                 Task { await self.refresh(product, announce: false) }
             }
+            watchAgentFiles(product) { [weak session] in session?.isRunning == true }
             self.session(program, product: product, checkout: checkout, command: audit)
             record(audit, product: product, detail: "agent=\(program) checkout=\(checkout.name)")
             return
@@ -57,9 +58,10 @@ extension AppModel {
             let outcome = await launcher.run(command: argv, in: checkout.path, terminalBundleID: terminalForCommands)
             if outcome.didOpen {
                 session(program, product: product, checkout: checkout, command: audit)
+                watchAgentFiles(product) { true }
                 record(audit, product: product, detail: "agent=\(program) checkout=\(checkout.name) app=terminal")
             }
-            report(outcome, success: "Started \(AgentCatalog.name(program)) for \(title.lowercased()) in \(product.name). Refresh when it is done.")
+            report(outcome, success: "Started \(AgentCatalog.name(program)) for \(title.lowercased()) in \(product.name).")
         }
     }
 

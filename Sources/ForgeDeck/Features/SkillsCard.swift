@@ -25,7 +25,7 @@ extension AppModel {
         return plugin ? installedPlugins?.contains(name) == true : SkillSuggestions.installedSkills(home: agentHomeURL).contains(name)
     }
 
-    /// Starts the agent with the suggestion prompt. What it writes shows up in the Skills card when it ends.
+    /// Starts the agent with the suggestion prompt. What it writes shows up in the Skills card within a second.
     func suggestSkills(_ product: Product) {
         guard !product.isDemo else { return show("\(product.name) is a demo product. Its suggestions are a fixture.", isError: true) }
         guard let checkout = checkout(for: product) else { return }
@@ -160,7 +160,10 @@ struct SkillsCard: View {
             }
         }
         .card()
-        .task { if model.installedPlugins == nil { await model.loadInstalledPlugins() } }
+        .task(id: product.id) {
+            await model.reloadAgentFiles(product)
+            if model.installedPlugins == nil { await model.loadInstalledPlugins() }
+        }
     }
 
     private func installedChoices(excluding chosen: Set<String>) -> [ProposedSkill] {

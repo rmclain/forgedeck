@@ -269,6 +269,18 @@ enum SelfTest {
         second.send("pwd\r")
         check("a shell opens in a folder whose name has an apostrophe", await wait(5) { second.text.contains("it's a repo dir") }, second.text)
         check("an idle shell shows no foreground program", second.foreground == nil && !second.isBusy)
+
+        // A file dropped on the terminal types its escaped path; the shell reads it as one word.
+        let board = NSPasteboard(name: NSPasteboard.Name("ForgeDeck.selftest.drop"))
+        board.clearContents()
+        board.writeObjects([URL(fileURLWithPath: folder) as NSURL])
+        let dropped = DropTerminalView.text(from: board, saving: true) ?? ""
+        board.releaseGlobally()
+        second.send("ls -d ")
+        second.view.pasteText(dropped)
+        _ = await wait(5) { second.text.contains("repo\\ dir") }
+        second.send("&& echo drop-$((40+2))-ok\r")
+        check("a dropped folder types a path the shell reads", await wait(5) { second.text.contains("drop-42-ok") }, dropped + "\n" + second.text)
         second.send("sleep 20\r")
         check("the indicator names the running program", await wait(5) { second.refreshForeground(); return second.foreground == "sleep" }, second.foreground ?? "nil")
         check("a busy session counts as running", second.isBusy && model.terminals.running.contains { $0.id == second.id })

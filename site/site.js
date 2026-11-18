@@ -1,4 +1,4 @@
-// Draws the callout leaders once, strikes the first Play mode forward, and points Download at the newest zip.
+// Draws the callout leaders once, strikes the first mode of each list forward, and points Download at the newest zip.
 (() => {
   const root = document.documentElement;
   root.classList.add("js");
@@ -14,8 +14,7 @@
     setTimeout(() => root.classList.add("drawn"), 2500);
   }
 
-  const first = document.querySelector(".mode");
-  if (first) first.classList.add("on");
+  document.querySelectorAll(".modes").forEach((list) => list.querySelector(".mode")?.classList.add("on"));
 
   // The newest release's zip and version. The links already work without this.
   fetch("https://api.github.com/repos/rmclain/forgedeck/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
