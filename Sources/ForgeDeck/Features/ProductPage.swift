@@ -205,6 +205,7 @@ struct ProductOverviewTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
+            if let genesis = product.genesis, genesis.phase != .finished { ProjectSetupCard(product: product) }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: Space.lg, alignment: .top)], spacing: Space.lg) {
                 LocalCard(product: product)
                 EnvironmentCard(product: product, tier: .staging)

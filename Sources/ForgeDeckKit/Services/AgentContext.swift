@@ -364,6 +364,7 @@ public enum RepoBrief {
         var lines = ["## \(product.name)\(isPrimary ? " (this product)" : "")", ""]
         var mapText: String?
         if !product.tagline.isEmpty { lines += [product.tagline, ""] }
+        if let genesis = product.genesis, isPrimary { lines += GenesisPrompt.contextLines(genesis) + [""] }
         var facts: [String] = []
         if !product.stack.isEmpty { facts.append("Stack: \(product.stack.joined(separator: ", "))") }
         facts.append("Lifecycle: \(product.lifecycle.title)")

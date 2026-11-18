@@ -78,3 +78,43 @@ extension DemoFixtures {
         return [ProductIssue(title: "onboarding email feels long", createdAt: now.addingTimeInterval(-3_600)), exportBug, started, done]
     }
 }
+
+extension DemoFixtures {
+    /// A demo project setup record: an idea, planned by the agent, waiting for review. Callers label it Demo.
+    public static func genesis(now: Date = .now) -> GenesisRecord {
+        GenesisRecord(idea: "A SaaS app for managing customer subscriptions, with a web dashboard, PostgreSQL, Stripe billing, and a production deployment.",
+                      usesAgent: true, phase: .planning, createdAt: now.addingTimeInterval(-600))
+    }
+
+    /// The demo blueprint for a demo product with a setup record. Made-up plan; nothing is built.
+    public static func blueprint(for product: Product) -> BlueprintFile? {
+        guard product.isDemo, product.genesis != nil else { return nil }
+        let approved = product.genesis?.approvedStack != nil
+        let blueprint = Blueprint(
+            summary: "A multi-tenant web app where small businesses manage customer subscriptions: plans, invoices, and churn. A Next.js dashboard and API on one deployment, PostgreSQL for data, and Stripe for billing and webhooks.",
+            stack: .init(name: "Next.js + PostgreSQL + Stripe",
+                         why: "One TypeScript codebase for the dashboard and the API routes Stripe webhooks need. Postgres fits relational billing data. Node 22 and Docker are already on this Mac.",
+                         parts: ["Next.js", "TypeScript", "PostgreSQL", "Prisma", "Stripe", "Auth.js"]),
+            alternatives: [.init(name: "Remix + PostgreSQL", why: "Similar shape with simpler data loading; a smaller ecosystem for billing examples.", parts: ["Remix", "PostgreSQL"]),
+                           .init(name: "Django + HTMX", why: "Choose it if the team prefers Python and server-rendered pages.", parts: ["Django", "HTMX", "PostgreSQL"])],
+            structure: [.init(path: "app/", purpose: "dashboard pages and API routes"), .init(path: "app/api/stripe/", purpose: "webhook handler"),
+                        .init(path: "prisma/", purpose: "schema and migrations"), .init(path: "tests/", purpose: "Vitest and Playwright")],
+            tools: [.init(name: "node", why: "runs Next.js", installed: true), .init(name: "docker", why: "local Postgres", installed: true),
+                    .init(name: "stripe", why: "forwards webhooks locally", installed: false)],
+            steps: [.init(title: "Generate the app with create-next-app", status: approved ? "done" : "pending", detail: approved ? "Next.js 15, TypeScript, App Router" : nil),
+                    .init(title: "Add Prisma and a Postgres compose service", status: approved ? "done" : "pending"),
+                    .init(title: "Add Auth.js sign-in", status: approved ? "running" : "pending"),
+                    .init(title: "Add Stripe checkout and the webhook route", status: "pending"),
+                    .init(title: "Add /api/version and /api/health", status: "pending"),
+                    .init(title: "Run the build and tests", status: "pending")],
+            production: .init(host: "Vercel", domain: "app.subscriptiondesk.example", staging: true, versionPath: "/api/version", healthPath: "/api/health",
+                              companion: "node", note: "Vercel builds Next.js without configuration; Neon for Postgres."),
+            variables: [.init(name: "DATABASE_URL", why: "Postgres connection", secret: true, environments: ["development", "staging", "production"]),
+                        .init(name: "STRIPE_SECRET_KEY", why: "server-side Stripe calls", secret: true, environments: ["development", "production"]),
+                        .init(name: "STRIPE_WEBHOOK_SECRET", why: "verifies webhook signatures", secret: true, environments: ["production"]),
+                        .init(name: "AUTH_SECRET", why: "signs sessions", secret: true)],
+            questions: ["Do customers sign in themselves, or only your staff?"])
+        let (problems, warnings) = BlueprintCheck.check(blueprint)
+        return BlueprintFile(blueprint: blueprint, problems: problems, warnings: warnings)
+    }
+}

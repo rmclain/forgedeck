@@ -5,7 +5,7 @@ import Foundation
 // session to end or for the next full refresh.
 
 public enum AgentFiles {
-    public static let relativePaths = [EnvironmentProposals.relativePath, RunSetup.relativePath, SkillSuggestions.relativePath]
+    public static let relativePaths = [EnvironmentProposals.relativePath, RunSetup.relativePath, SkillSuggestions.relativePath, BlueprintCheck.relativePath]
 
     public struct Stamp: Hashable, Sendable {
         public var size: Int

@@ -146,7 +146,7 @@ struct LeadsContent: View {
                     Text("Last event received \(RelativeTime.short(newest, now: model.now))").kitType(.label, Ink.text3)
                 }
             }
-            if leads.isEmpty && sources.isEmpty {
+            if leads.isEmpty && sources.isEmpty && product != nil {
                 EmptyState(icon: .leads, title: "No lead source connected",
                            message: "Add a metrics source to a product's environment. It reads a small versioned endpoint your own app serves: counts by default, no contact details. Or choose Set Up Leads on a product and your agent sets it up.",
                            cta: product == nil ? nil : product?.hasLocal == true && product?.isDemo == false ? "Set Up Leads…" : "Add Metrics Source") {
@@ -159,6 +159,8 @@ struct LeadsContent: View {
                     }
                 }
                 .card()
+            } else if leads.isEmpty && sources.isEmpty {
+                LeadSourcesCard(product: nil)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: Space.md)], spacing: Space.md) {
                     tile("Leads", [.lead], leads, seconds)
@@ -166,7 +168,9 @@ struct LeadsContent: View {
                     tile("Paid", [.paidConversion], leads, seconds)
                     tile("Cancellations", [.cancellation], leads, seconds)
                 }
+                if product != nil { LeadSourcesCard(product: product) }
                 funnel(leads, seconds: seconds)
+                if product == nil { LeadSourcesCard(product: nil) }
                 reported(sources: sources)
                 inboxCard(leads)
             }
@@ -265,6 +269,73 @@ struct LeadsContent: View {
             }
         }
         .card()
+    }
+}
+
+/// Where each product's numbers come from, with a way to set up or add a source for every product.
+/// On the Leads page it lists every active product; on a product's Leads tab, only that product.
+struct LeadSourcesCard: View {
+    @Environment(AppModel.self) private var model
+    let product: Product?
+
+    var body: some View {
+        let products = product.map { [$0] } ?? model.activeProducts
+        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        VStack(alignment: .leading, spacing: 0) {
+            if let product {
+                CardHeader(title: "Sources", subtitle: "Where \(product.name)'s numbers come from") { buttons(product, agent: agent) }
+                    .padding(Space.lg)
+                rows(product)
+            } else {
+                CardHeader(title: "Sources by product",
+                           subtitle: "Each product reports through its own endpoint. \(agent) can find what a product collects and set up the check.")
+                    .padding(Space.lg)
+                if products.isEmpty {
+                    Text("Add a product first.").kitType(.label, Ink.text2).padding(.horizontal, Space.lg).padding(.bottom, Space.lg)
+                }
+                ForEach(products) { product in
+                    let count = product.environments.reduce(0) { $0 + $1.metricSources.count }
+                    ActionRow(icon: .leads, tone: count > 0 ? .accent : .muted, title: product.name,
+                              subtitle: count == 0 ? (product.isDemo ? "Demo numbers from a fixture" : "No source yet") : "\(count) source\(count == 1 ? "" : "s")") {
+                        if product.isDemo { DemoBadge() }
+                        buttons(product, agent: agent)
+                    }
+                    .padding(.horizontal, Space.lg).padding(.vertical, Space.xs).hairlineAbove()
+                    rows(product)
+                }
+            }
+        }
+        .card()
+    }
+
+    @ViewBuilder private func buttons(_ product: Product, agent: String) -> some View {
+        if product.hasLocal {
+            Button("Set Up with \(agent)…") { model.setUpLeads(product) }
+                .buttonStyle(.kit(.secondary, compact: true)).disabled(product.isDemo)
+                .help("\(agent) finds what \(product.name) collects (leads, signups, purchases) and sets up the check after you agree")
+        }
+        Button("Add Source…") { model.addMetricSource(product) }
+            .buttonStyle(.kit(.ghost, compact: true)).disabled(product.isDemo)
+            .help("Point \(Brand.name) at a metrics endpoint \(product.name) already serves")
+    }
+
+    @ViewBuilder private func rows(_ product: Product) -> some View {
+        let sources = product.environments.flatMap { environment in environment.metricSources.map { (environment, $0) } }
+        if self.product != nil && sources.isEmpty {
+            Text(product.isDemo ? "\(product.name) is a demo product. Its numbers come from a fixture, not a source."
+                 : "No source yet. Nothing is counted until a source reports it.").kitType(.label, Ink.text2)
+                .padding(.horizontal, Space.lg).padding(.bottom, Space.lg)
+        }
+        ForEach(sources, id: \.1.id) { environment, source in
+            let state = model.cache.sync["metrics:\(source.id.uuidString)"]
+            ActionRow(icon: .chart, tone: state?.lastProblem != nil ? .warn : state?.lastSuccess != nil ? .ok : .muted, title: source.name,
+                      subtitle: "\(environment.name) · \(source.leadsEnabled ? "Metrics and leads" : "Metrics") · \(source.baseURL)") {
+                ConnectionState(kind: state == nil ? .notConfigured : state?.lastProblem == nil ? .connected : state?.lastSuccess != nil ? .stale : ConnectionState.kind(for: state?.lastProblem),
+                                detail: state.map { $0.lastProblem == nil ? "Reported \(RelativeTime.short($0.lastSuccess ?? .now, now: model.now))"
+                                    : "\($0.lastProblem!.title) · last good \($0.lastSuccess.map { RelativeTime.short($0, now: model.now) } ?? "never")" } ?? "Not checked")
+            }
+            .padding(.leading, self.product == nil ? Space.xxl : Space.lg).padding(.trailing, Space.lg).padding(.vertical, Space.xs).hairlineAbove()
+        }
     }
 }
 

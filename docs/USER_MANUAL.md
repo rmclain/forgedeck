@@ -53,6 +53,26 @@ Notes:
 - To clone a GitHub-only product: Development tab > Repositories > "Clone…", then choose the parent folder. An existing folder is never overwritten.
 - To attach more folders to a product: Development tab > "Link Folder…".
 
+## Start a new project
+
+Choose **File › New Project…** (⌘⇧N), or **Create a project from an idea** at the top of Add Product.
+
+1. **What are we building?** Give it a name and describe the idea in your own words.
+2. **Where should it live?** Pick the folder that holds it. ForgeDeck shows the full path and refuses a name that's taken, a link, a file, or a folder another product already uses. To set up in a folder that already has files, tick the box: nothing in it is changed or overwritten.
+3. **How should it be set up?**
+   - **Your agent recommends.** ForgeDeck makes the folder, a Git repository, and the product, then starts your agent to plan. The agent researches the stack and writes `.forgedeck/blueprint.json`, which holds the recommended stack and why, alternatives, structure, tools, build steps, a production plan, and the variables it will need (names only). It builds nothing yet.
+   - **I'll pick a starter.** Next.js, Vite + React, FastAPI, Python, Swift Package, Node.js, Go, Rust, WordPress Plugin, or an empty folder. The generator runs in a terminal you can see, from a fixed command. Its run, test, and build commands are proposed for Play.
+
+The new product opens with a **Project setup** checklist on its Overview. The checklist covers the folder and Git, the plan, the build, run and test commands, environments, skills, and GitHub. It's worked out from what is on disk, so after a restart or an interrupted agent it shows where things stopped and offers **Continue** or **Run Generator Again**.
+
+**Review Blueprint…** shows the plan. Pick the recommended stack, an alternative, or something else, and add a note if you like. You can also choose to:
+- add Production (and Staging) environments with no checks yet. They show Unknown until a check answers, so a planned host is never shown as live.
+- add the variable names to Secrets without values.
+
+**Approve and Build** tells the agent to build: in its own terminal if it's still running, otherwise in a new session. The agent reports each build step in the blueprint, and the checklist shows them as "Reported by the agent". It then proposes run commands, environments that already exist, and skills, which you review as usual. It never creates a GitHub repository, pushes, or deploys. **Create Private Repository…** is a separate press-and-hold step that runs `gh repo create --private` and pushes nothing.
+
+`forgedeck blueprint check <product>` checks the blueprint and changes nothing. The project's idea and the chosen stack stay in the agent's context for later sessions.
+
 ## Open a project
 
 | To | Do |

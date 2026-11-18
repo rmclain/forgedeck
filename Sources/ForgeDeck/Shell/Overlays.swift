@@ -117,6 +117,7 @@ extension AppModel {
             commands.append(PaletteCommand(id: "go-\(route.key)", label: "Go to \(route.title)", group: "Navigate", icon: route.icon) { self.go(route) })
         }
         commands.append(PaletteCommand(id: "add", label: "Add Product", group: Brand.name, icon: .plus, kbd: "⌘N") { self.paletteOpen = false; self.sheet = .addProduct })
+        commands.append(PaletteCommand(id: "new-project", label: "New Project…", group: Brand.name, icon: .sparkle, kbd: "⌘⇧N") { self.paletteOpen = false; self.sheet = .newProject })
         commands.append(PaletteCommand(id: "add-variable", label: "Add Variable or Secret", group: Brand.name, icon: .key) { self.paletteOpen = false; self.sheet = .variable(VariableDraft()) })
         for repository in AgentSkills.catalog {
             commands.append(PaletteCommand(id: "skills-\(repository.id)", label: "Add Skills from \(repository.name)…", group: "Agent Skills", icon: .sparkle) {
@@ -326,6 +327,8 @@ struct SheetHost: View {
                     case .environmentProposals(let product): EnvironmentProposalsSheet(productID: product)
                     case .runSetup(let product): RunSetupSheet(productID: product)
                     case .leadsSetup(let product): LeadsSetupSheet(productID: product)
+                    case .newProject: NewProjectSheet().id(String(describing: NewProjectSheet.preset))
+                    case .blueprint(let product): BlueprintSheet(productID: product)
                     }
                 }
                 .id(sheet.id)

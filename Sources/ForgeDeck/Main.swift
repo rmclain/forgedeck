@@ -126,6 +126,7 @@ struct AppCommands: Commands {
         }
         CommandGroup(replacing: .newItem) {
             Button("Add Product…") { model.sheet = .addProduct }.keyboardShortcut("n")
+            Button("New Project…") { model.sheet = .newProject }.keyboardShortcut("n", modifiers: [.command, .shift])
             Divider()
             Button("Open in Terminal") { if let product = model.currentProduct { model.openTerminal(product) } }
                 .keyboardShortcut("o").disabled(model.currentProduct == nil)

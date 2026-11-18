@@ -96,6 +96,7 @@ enum SelfTest {
             check("the palette never lists a secret", !model.paletteCommands {}.contains { $0.label.contains("selftest-value") })
             model.removeDemo()
             check("removing the demo leaves real products", !model.hasDemo && model.products.count == 3)
+            await genesisChecks(model: model)
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
             finish(code: failures == 0 ? 0 : 1)
@@ -244,13 +245,6 @@ enum SelfTest {
     }
 
     private static func terminalChecks(model: AppModel) async {
-        func wait(_ seconds: Double, until condition: () -> Bool) async -> Bool {
-            for _ in 0..<Int(seconds * 10) {
-                if condition() { return true }
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-            return condition()
-        }
         let folder = model.store.location.directory.appending(path: "it's a repo dir").path
         guard let echo = TerminalLaunch.command(["/bin/echo", "forgedeck-pty-ok"], kind: .command, title: "echo", in: folder) else {
             return check("a command runs in the in-app terminal", false, "launch could not be built")
@@ -309,6 +303,90 @@ enum SelfTest {
 
         model.terminals.close(first)
         check("closing the last session hides the dock", !model.terminals.isVisible && model.terminals.sessions.isEmpty)
+    }
+
+    /// New Project in a temporary folder: the folder, Git, and product; refusals; a real generator in a terminal;
+    /// and a blueprint approved without starting an agent.
+    private static func genesisChecks(model: AppModel) async {
+        let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-genesis-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let before = model.products.count
+
+        var request = GenesisRequest(name: "Selftest Notes", idea: "A note app for the self-test.\nSecond line.", parent: root.path,
+                                     folder: "selftest-notes", starter: GenesisStarter.find("empty"))
+        let error = await model.createProject(request)
+        let folder = root.appending(path: "selftest-notes")
+        let product = model.products.first { $0.checkouts.first?.path == folder.path }
+        check("New Project makes the folder, README, .gitignore, and Git", error == nil
+              && ["README.md", ".gitignore", ".git"].allSatisfy { FileManager.default.fileExists(atPath: folder.appending(path: $0).path) }, error ?? "")
+        check("the new project is a product with its brief", product?.genesis?.idea.hasPrefix("A note app") == true && product?.tagline == "A note app for the self-test."
+              && product?.primaryCheckout?.isGitRepository == true && product?.environment(tier: .development) != nil)
+        let again = await model.createProject(request)
+        check("creating into the same folder again is refused", again != nil && model.products.count == before + 1, again ?? "nil")
+        request.folder = "a/b"
+        check("a folder name with a slash is refused", await model.createProject(request) != nil)
+        let busy = root.appending(path: "busy")
+        try? FileManager.default.createDirectory(at: busy, withIntermediateDirectories: true)
+        try? Data("keep".utf8).write(to: busy.appending(path: "notes.txt"))
+        request.folder = "busy"
+        check("a folder with files is refused unless chosen", await model.createProject(request) != nil && model.products.count == before + 1)
+        request.useExistingFolder = true
+        request.name = "Selftest Busy"
+        check("setting up in an existing folder keeps its files", await model.createProject(request) == nil
+              && (try? String(contentsOf: busy.appending(path: "notes.txt"), encoding: .utf8)) == "keep")
+
+        // A real generator, from a fixed argument list, in a built-in terminal.
+        if ExecutableLocator.find("swift") != nil {
+            let swiftRequest = GenesisRequest(name: "Selftest Tool", idea: "", parent: root.path, folder: "selftest-tool", starter: GenesisStarter.find("swift"))
+            let made = await model.createProject(swiftRequest)
+            let tool = model.products.first { $0.checkouts.first?.path == root.appending(path: "selftest-tool").path }
+            let finished = await wait(90) { tool.flatMap { model.product($0.id)?.genesis?.scaffoldExit } != nil }
+            check("a starter's generator runs in a terminal and its commands are proposed", made == nil && finished
+                  && model.product(tool!.id)?.genesis?.scaffoldExit == 0
+                  && FileManager.default.fileExists(atPath: root.appending(path: "selftest-tool/Package.swift").path)
+                  && FileManager.default.fileExists(atPath: root.appending(path: "selftest-tool/\(RunSetup.relativePath)").path),
+                  "\(made ?? "") exit=\(tool.flatMap { model.product($0.id)?.genesis?.scaffoldExit }.map(String.init) ?? "nil")")
+            for session in model.terminals.sessions where session.productID == tool?.id { model.terminals.close(session) }
+        }
+
+        // The agent's plan, approved here, without starting an agent.
+        if var planned = product {
+            model.update(planned.id) { $0.genesis?.usesAgent = true; $0.genesis?.starter = nil; $0.genesis?.phase = .planning }
+            planned = model.product(planned.id)!
+            let blueprint = Blueprint(summary: "Notes app.", stack: .init(name: "SwiftUI", why: "Native", parts: ["Swift", "SwiftUI"]),
+                                      steps: [.init(title: "Generate", status: "pending")],
+                                      production: .init(host: "App Store"),
+                                      variables: [.init(name: "SYNC_TOKEN", why: "sync server", secret: true, environments: ["production"])])
+            let encoder = JSONEncoder()
+            try? FileManager.default.createDirectory(at: folder.appending(path: ".forgedeck"), withIntermediateDirectories: true)
+            try? encoder.encode(blueprint).write(to: folder.appending(path: BlueprintCheck.relativePath))
+            await model.reloadAgentFiles(planned)
+            check("a written blueprint waits for review", model.genesisChecklist(planned).rows.first { $0.item == .plan }?.state == .needsYou)
+            model.approveBlueprint(planned, stack: blueprint.stack, note: nil, addProduction: true, addVariables: true, startAgent: false)
+            let approved = model.product(planned.id)!
+            let variable = model.portfolio.variables.first { $0.key == "SYNC_TOKEN" && $0.scope.productID == planned.id }
+            check("approving keeps the choice and adds Production with no checks",
+                  approved.genesis?.approvedStack == "SwiftUI" && approved.environment(tier: .production)?.probes.isEmpty == true
+                  && model.genesisChecklist(approved).rows.first { $0.item == .plan }?.state == .done)
+            check("planned variables are names without values", variable != nil && variable?.credential == nil && variable?.plainValue == nil
+                  && variable?.allowedTiers == [.production])
+            let brief = RepoBrief.make(approved, cache: model.cache, packs: nil, includePack: false, isPrimary: true)
+            check("the agent's context carries the project brief", brief.contains("A note app for the self-test.") && brief.contains("Stack chosen: SwiftUI"))
+            model.finishGenesis(approved)
+            check("closing the checklist keeps the brief", model.product(planned.id)?.genesis?.phase == .finished)
+        }
+
+        for product in model.products where product.checkouts.contains(where: { $0.path.hasPrefix(root.path) }) { model.remove(product) }
+        check("the self-test projects are removed", model.products.count == before)
+    }
+
+    private static func wait(_ seconds: Double, until condition: () -> Bool) async -> Bool {
+        for _ in 0..<Int(seconds * 10) {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return condition()
     }
 
     private static func check(_ name: String, _ ok: Bool, _ detail: String = "") {

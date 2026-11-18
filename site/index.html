@@ -93,13 +93,13 @@
 
   <aside class="titleblock" aria-label="Release">
     <div class="tb-name"><span class="tb-k">Title</span><strong>ForgeDeck</strong></div>
-    <div><span class="tb-k">Rev</span><strong data-version>0.11.2</strong></div>
+    <div><span class="tb-k">Rev</span><strong data-version>0.12.0</strong></div>
     <div><span class="tb-k">Fits</span>macOS 26+</div>
     <div><span class="tb-k">Arch</span>Apple silicon · Intel</div>
     <div><span class="tb-k">Price</span>Free</div>
     <a class="stamp" data-download href="https://github.com/rmclain/forgedeck/releases/latest">
       <span class="seal" aria-hidden="true"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17"/><circle cx="20" cy="20" r="13"/><path d="M13.5 20.5l4.5 4.5 8.5-9"/></svg></span>
-      <span class="stamp-text"><span class="stamp-k">Notarized · Rev <span data-version>0.11.2</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
+      <span class="stamp-text"><span class="stamp-k">Notarized · Rev <span data-version>0.12.0</span></span><span class="stamp-a">Download <span data-version-label>ForgeDeck</span></span></span>
     </a>
     <a class="tb-link" href="https://github.com/rmclain/forgedeck">Source on GitHub</a>
   </aside>
@@ -115,6 +115,7 @@
       <tr><td>Which version is live in production, and how do I know?</td><td>Local, GitHub, Staging, and Production side by side, each with where the fact came from and how old it is. Never guessed from a green build.</td><td><a href="#view-deploy">2</a></td></tr>
       <tr><td>How do I run this project again?</td><td>The Play button works out how it runs (dev server, simulator, Mac app, Docker, a local WordPress site) and starts it.</td><td><a href="#view-work">3</a></td></tr>
       <tr><td>Can an AI agent just fix this?</td><td>Keep a to-do list per product and send items to Claude Code, Codex, Gemini, or OpenCode, started in the right folder with a map of the code.</td><td><a href="#agents">4</a></td></tr>
+      <tr><td>How do I start something new?</td><td>Describe the idea. Your agent recommends a stack in a blueprint you approve, then builds it. The project arrives in ForgeDeck with Play, an agent, and its environments ready.</td><td><a href="#view-setup">5</a></td></tr>
       <tr><td>Which CI run failed, and why?</td><td>Every checkout's branch, uncommitted work, and CI status in one table. A failed run opens its log trimmed to the error, with a fix prompt.</td><td><a href="#view-git">6</a></td></tr>
       <tr><td>Did anyone sign up or pay today?</td><td>Leads, signups, and payments from each product, read from sources you connect, each labelled with where it came from.</td><td><a href="#view-leads">7</a></td></tr>
       <tr><td>Where's the staging API key?</td><td>A Keychain vault scoped by product and environment. Commands get only the variables you allow; production asks for Touch ID.</td><td><a href="#view-secrets">8</a></td></tr>
@@ -223,19 +224,20 @@
 
 <section class="view" id="view-setup" aria-labelledby="v5-title">
   <figure class="shot">
-    <a href="img/sheet-run-setup-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/sheet-run-setup-light.webp" alt="The Review Run Setup sheet: commands an agent proposed for a demo product (start the dev server, start with Docker, run tests), each with why it was chosen, ready to approve. A deploy command is held back." width="1800" height="1125" loading="lazy"></a>
-    <figcaption>Sheet 5 · Reviewing what an agent proposed · demo data</figcaption>
+    <a href="img/sheet-blueprint-light.webp" class="zoom" aria-label="Open the full-size screenshot"><img src="img/sheet-blueprint-light.webp" alt="The blueprint review for a new demo project: the agent recommends Next.js with PostgreSQL and Stripe and says why, with two alternatives, the planned structure, and which tools are installed. Nothing is built until it is approved." width="1800" height="1125" loading="lazy"></a>
+    <figcaption>Sheet 5 · Reviewing a new project's blueprint · demo data</figcaption>
   </figure>
   <div class="v-text">
-    <header class="dh"><span class="dletter" aria-hidden="true">5</span><h2 id="v5-title">Let the agent do the setup</h2></header>
-    <p class="lede">Adding a product shouldn't mean filling in forms. Ask once: your agent reads the repository, works out the setup, and writes it to a file. ForgeDeck checks it, and you approve it before anything changes.</p>
+    <header class="dh"><span class="dletter" aria-hidden="true">5</span><h2 id="v5-title">Start new, or let the agent set up</h2></header>
+    <p class="lede">New Project turns an idea into a working project. ForgeDeck makes the folder, the Git repository, and the product; your agent recommends a stack in a blueprint. You approve it, and the agent builds it. For an existing repository, ask once and the agent works out the setup. Either way it writes to a file, ForgeDeck checks it, and you approve before anything changes.</p>
     <ul class="modes compact" role="list">
+      <li class="mode" tabindex="0"><span class="m-k">New project</span><span class="m-t">Stack, structure, build steps, production plan, variable names</span><code>.forgedeck/blueprint.json</code></li>
       <li class="mode" tabindex="0"><span class="m-k">Environments</span><span class="m-t">Where it's deployed and how to read the live version</span><code>.forgedeck/environments.json</code></li>
       <li class="mode" tabindex="0"><span class="m-k">Run</span><span class="m-t">How it runs, tried first, filled into the Play button</span><code>.forgedeck/run.json</code></li>
       <li class="mode" tabindex="0"><span class="m-k">Leads</span><span class="m-t">What it collects, and which of those to track</span><code>forgedeck leads</code></li>
       <li class="mode" tabindex="0"><span class="m-k">Skills</span><span class="m-t">Agent skills and plugins that fit the product</span><code>.forgedeck/skills.json</code></li>
     </ul>
-    <p class="aside-note">The agent only proposes. It never deploys, never sees a token, and installs nothing. Suggestions appear in ForgeDeck the moment the agent writes them.</p>
+    <p class="aside-note">The agent only proposes and builds locally. It never deploys, pushes, or sees a token, and installs no skills itself. A planned production host stays Planned until a check answers.</p>
   </div>
 </section>
 
@@ -329,6 +331,7 @@
   <table>
     <thead><tr><th scope="col">Rev</th><th scope="col">Description</th></tr></thead>
     <tbody>
+      <tr><td>0.12.0</td><td>New Project: describe an idea and your agent plans the stack in a blueprint you review and approve, then builds it. Or pick a starter (Next.js, FastAPI, Swift, Go, Rust, WordPress, and more). A setup checklist tracks every step and picks up where it stopped. Set up leads for any product from the Leads page.</td></tr>
       <tr><td>0.11.2</td><td>Select several issues and implement, finish, or delete them together; the agent asks about all of them first. Skill suggestions appear the moment the agent writes them. Drop files, folders, or screenshots on a built-in terminal to type their paths.</td></tr>
       <tr><td>0.11.1</td><td>Issues per product: a to-do list where Implement with your agent opens the item in a terminal, and the agent asks what it needs to know before it starts. Signed with a Developer ID and notarized. Claude Code no longer asks to trust the context folder every session.</td></tr>
       <tr><td>0.11</td><td>Skills per product: your agent suggests skills and Claude Code plugins that fit the work. Install them with one click; active ones are named in the agent's prompt.</td></tr>

@@ -51,7 +51,7 @@ enum Route: Hashable {
 }
 
 enum ProductTab: String, CaseIterable, Identifiable {
-    case overview = "Overview", issues = "Issues", development = "Development", environments = "Environments", metrics = "Metrics"
+    case overview = "Overview", issues = "Issues", development = "Development", environments = "Environments", metrics = "Leads"
     case connections = "Connections", secrets = "Secrets", actions = "Actions", activity = "Activity", settings = "Settings"
     var id: String { rawValue }
 }
@@ -127,6 +127,8 @@ enum SheetKind: Identifiable {
     case environmentProposals(UUID)
     case runSetup(UUID)
     case leadsSetup(UUID)
+    case newProject
+    case blueprint(UUID)
 
     var id: String {
         switch self {
@@ -151,6 +153,8 @@ enum SheetKind: Identifiable {
         case .environmentProposals(let product): "env-proposals-\(product)"
         case .runSetup(let product): "run-setup-\(product)"
         case .leadsSetup(let product): "leads-setup-\(product)"
+        case .newProject: "new-project"
+        case .blueprint(let product): "blueprint-\(product)"
         }
     }
 }
@@ -241,6 +245,10 @@ final class AppModel {
     var runFiles: [UUID: [RunProposalFile]] = [:]
     /// `.forgedeck/skills.json` in each product's checkouts, read on refresh.
     var skillFiles: [UUID: SkillFile] = [:]
+    /// `.forgedeck/blueprint.json` of a product started with New Project.
+    var blueprintFiles: [UUID: BlueprintFile] = [:]
+    /// A starter's generator running in a built-in terminal, per product.
+    var genesisScaffolds: [UUID: TerminalSession] = [:]
     /// Watches on the files setup agents write, by product.
     @ObservationIgnored var agentFileWatches: [UUID: Task<Void, Never>] = [:]
     /// Claude Code plugins installed on this Mac, by name. nil until read.
@@ -514,9 +522,11 @@ final class AppModel {
     /// Reads the files a setup agent writes (environments, run, skills) and nothing else: no Git, no network.
     func reloadAgentFiles(_ product: Product) async {
         guard !product.isDemo else { return }
-        let (proposals, runs, skillFile) = await Task.detached {
-            (EnvironmentProposals.read(product), RunSetup.read(product), SkillSuggestions.read(product))
+        let (proposals, runs, skillFile, blueprint) = await Task.detached {
+            (EnvironmentProposals.read(product), RunSetup.read(product), SkillSuggestions.read(product),
+             product.genesis == nil ? nil : BlueprintCheck.read(product))
         }.value
+        if blueprintFiles[product.id] != blueprint { blueprintFiles[product.id] = blueprint }
         if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
         if runFiles[product.id] != runs { runFiles[product.id] = runs }
         if skillFiles[product.id] != skillFile { skillFiles[product.id] = skillFile }
@@ -547,7 +557,12 @@ final class AppModel {
 
     private func agentFilesChanged(_ product: Product, _ changed: Set<String>) async {
         let before = skillSuggestions(product).filter(\.isValid).count
+        let hadBlueprint = blueprintFiles[product.id]?.isApprovable == true
         await reloadAgentFiles(product)
+        if changed.contains(BlueprintCheck.relativePath), !hadBlueprint, let current = self.product(product.id), current.genesis?.approvedStack == nil,
+           let blueprint = blueprintFiles[product.id]?.blueprint, blueprintFiles[product.id]?.isApprovable == true {
+            show("The blueprint for \(product.name) is ready: \(blueprint.stack.name). Review it on the Overview.")
+        }
         guard changed.contains(SkillSuggestions.relativePath) else { return }
         let after = skillSuggestions(product).filter(\.isValid).count
         if after > before {

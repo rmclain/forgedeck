@@ -321,6 +321,9 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     public var issues: [ProductIssue]?
     /// Lets items be copied to GitHub as issues. Off (nil) by default.
     public var issuesToGitHub: Bool?
+    /// Set when ForgeDeck started this product with New Project: the idea, the plan's approval, and setup progress.
+    /// Optional, so products saved before it load unchanged.
+    public var genesis: GenesisRecord?
 
     public init() {}
 

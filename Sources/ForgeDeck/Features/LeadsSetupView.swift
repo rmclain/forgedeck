@@ -22,6 +22,17 @@ extension AppModel {
         sheet = .leadsSetup(product.id)
     }
 
+    /// Opens the metrics source sheet on the environment leads usually come from, or asks for an environment first.
+    func addMetricSource(_ product: Product) {
+        guard !product.isDemo else { return show("\(product.name) is a demo product. Its leads come from a fixture.", isError: true) }
+        if let environment = LeadsSetup.target(in: product) {
+            sheet = .metricSource(productID: product.id, environmentID: environment.id)
+        } else {
+            sheet = .environment(productID: product.id)
+            show("Add the environment leads come from first, usually Production.")
+        }
+    }
+
     /// Makes the token when needed, then starts the agent.
     func startLeadsSetup(_ product: Product, environmentID: UUID, newToken: Bool) {
         guard let product = self.product(product.id), let environment = product.environment(id: environmentID),

@@ -45,8 +45,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.11.2"
-    public static let commands = ["list", "status", "open", "doctor", "env", "run", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.12.0"
+    public static let commands = ["list", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -86,6 +86,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) env list <product> --environment <name> [--profile <name>] [--json]
       \(Brand.cliName) env check <product>        (checks .forgedeck/environments.json, changes nothing)
       \(Brand.cliName) run check <product>        (checks .forgedeck/run.json, changes nothing)
+      \(Brand.cliName) blueprint check <product>  (checks .forgedeck/blueprint.json, changes nothing)
       \(Brand.cliName) skills <product> | skills check <product>  (skills chosen for the product; checks .forgedeck/skills.json)
       \(Brand.cliName) leads <product> [--json]   (what each metrics source last delivered: counts, newest lead, problems)
       \(Brand.cliName) actions list <product> [--json]
@@ -123,6 +124,16 @@ public struct CLI: Sendable {
           "url": "http://localhost:5173"}, {"label": "Run Tests", "steps": [["npm", "test"]]}]}
       kind web, desktop, mobile, or site puts it on Play. `run check` shows what \(Brand.name) would save.
       Nothing is saved or run until you review it in the app.
+
+    PLANNING A NEW PROJECT
+      For a project started with New Project, the agent plans it in .forgedeck/blueprint.json:
+        {"summary": "what it is", "stack": {"name": "Next.js + PostgreSQL", "why": "…", "parts": ["Next.js", "PostgreSQL"]},
+         "alternatives": [{"name": "…", "why": "…"}], "structure": [{"path": "app/", "purpose": "…"}],
+         "tools": [{"name": "node", "why": "…", "installed": true}], "steps": [{"title": "…", "status": "pending"}],
+         "production": {"host": "Vercel", "domain": "app.example.com", "healthPath": "/api/health"},
+         "variables": [{"name": "DATABASE_URL", "why": "…", "secret": true, "environments": ["production"]}]}
+      Step status is pending, running, done, failed, or skipped. Names only: never a secret value.
+      `blueprint check` checks it. Nothing is built until you approve it in the app.
 
     SUGGESTING SKILLS
       An agent can suggest skills for a product in .forgedeck/skills.json:
@@ -222,6 +233,7 @@ public struct CLI: Sendable {
         case "doctor": return await runDoctor(args)
         case "env": return env(args)
         case "run": return runCheck(args)
+        case "blueprint": return blueprintCheck(args)
         case "leads": return leads(args)
         case "skills": return skills(args)
         case "actions": return actions(args)
@@ -540,6 +552,29 @@ public struct CLI: Sendable {
         }
         io.out(failed ? "Fix the problems above, then run this again." : "Install them in \(Brand.name): \(product.name) › Development › Skills.")
         return failed ? CLIExit.failure : CLIExit.ok
+    }
+
+    private func blueprintCheck(_ args: Arguments) -> Int32 {
+        guard args.positional.first == "check" else {
+            io.err("usage: \(Brand.cliName) blueprint check <product>")
+            return CLIExit.usage
+        }
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.dropFirst().first, in: portfolio) else { return CLIExit.failure }
+        guard let file = BlueprintCheck.read(product) else {
+            io.out("No \(BlueprintCheck.relativePath) in \(product.name)'s folder. Write one there; see `\(Brand.cliName) help`.")
+            return CLIExit.ok
+        }
+        if let blueprint = file.blueprint {
+            io.out("Recommends \(blueprint.stack.name)\((blueprint.alternatives ?? []).isEmpty ? "" : ", with \(blueprint.alternatives!.count) alternative\(blueprint.alternatives!.count == 1 ? "" : "s")")")
+            let counts = blueprint.stepCounts
+            io.out("\(counts.total) step\(counts.total == 1 ? "" : "s"): \(counts.done) done, \(counts.failed) failed")
+            if let production = blueprint.productionLine { io.out("Production plan: \(production) (planned)") }
+            if let variables = blueprint.variables, !variables.isEmpty { io.out("Variables: " + variables.map(\.name).joined(separator: ", ")) }
+        }
+        for problem in file.problems { io.out("problem: \(problem)") }
+        for warning in file.warnings { io.out("note: \(warning)") }
+        io.out(file.problems.isEmpty ? "Review it in \(Brand.name): \(product.name) › Overview › Project setup." : "Fix the problems above, then run this again.")
+        return file.problems.isEmpty ? CLIExit.ok : CLIExit.failure
     }
 
     private func runCheck(_ args: Arguments) -> Int32 {

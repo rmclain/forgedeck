@@ -81,6 +81,18 @@ struct AddProductSheet: View {
         SheetPanel(width: 640) {
             SheetHeader(icon: .plus, title: "Add Product", message: "Everything is read-only until you approve it. Nothing is saved before you press Add.")
             VStack(alignment: .leading, spacing: Space.md) {
+                Button { model.sheet = .newProject } label: {
+                    HStack(spacing: Space.sm) {
+                        Icon(.sparkle, size: 12).foregroundStyle(Ink.accent)
+                        Text("Starting something new?").kitType(.label, Ink.text2)
+                        Text("Create a project from an idea").kitType(.labelMedium, Ink.accent)
+                        Spacer(minLength: 0)
+                        Text("⌘⇧N").kitType(.meta, Ink.text3)
+                    }
+                    .padding(.horizontal, Space.md).padding(.vertical, Space.sm).contentShape(Rectangle())
+                    .background(Ink.accent.soft(0.06), in: RoundedRectangle(cornerRadius: Metric.tileRadius, style: .continuous))
+                }
+                .buttonStyle(.plain).accessibilityLabel("New Project")
                 SegmentedPill(options: Mode.allCases.map { ($0, $0.rawValue) }, selection: $mode, stretch: true)
                 Group {
                     switch mode {

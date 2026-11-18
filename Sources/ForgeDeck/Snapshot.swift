@@ -86,6 +86,31 @@ enum Snapshot {
             Shot(name: "production-context") { $0.route = .overview; $0.context = .production },
             Shot(name: "palette") { $0.context = .staging; $0.route = .overview; $0.paletteOpen = true },
             Shot(name: "sheet-add-product") { $0.paletteOpen = false; $0.sheet = .addProduct },
+            Shot(name: "sheet-new-project") { $0.paletteOpen = false; NewProjectSheet.preset = nil; $0.sheet = .newProject },
+            Shot(name: "sheet-new-project-filled") { NewProjectSheet.preset = .agent; $0.sheet = .newProject },
+            Shot(name: "sheet-new-project-starter") { NewProjectSheet.preset = .starter; $0.sheet = .newProject },
+            Shot(name: "product-setup") { model in
+                guard let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) else { return }
+                model.update(orbit.id) { $0.genesis = DemoFixtures.genesis() }
+                model.route = .product(orbit.id)
+                model.productTab = .overview
+            },
+            Shot(name: "sheet-blueprint") { model in
+                guard let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) else { return }
+                model.update(orbit.id) { $0.genesis = DemoFixtures.genesis() }
+                model.route = .product(orbit.id)
+                model.sheet = .blueprint(orbit.id)
+            },
+            Shot(name: "product-setup-building") { model in
+                guard let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) else { return }
+                var genesis = DemoFixtures.genesis()
+                genesis.approvedStack = "Next.js + PostgreSQL + Stripe"
+                genesis.phase = .building
+                genesis.plannedProduction = "Vercel, app.subscriptiondesk.example, with staging"
+                model.update(orbit.id) { $0.genesis = genesis }
+                model.route = .product(orbit.id)
+                model.productTab = .overview
+            },
             Shot(name: "sheet-variable") { $0.sheet = .variable(VariableDraft()) },
             Shot(name: "sheet-confirm") {
                 $0.sheet = .confirm(ConfirmRequest(title: "Run \"Migrate database\"", message: "Production critical action for Lumen in Production.",
