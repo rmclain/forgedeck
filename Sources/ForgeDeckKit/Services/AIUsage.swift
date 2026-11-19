@@ -172,12 +172,113 @@ public enum AIUsageReader {
         return out
     }
 
+    // MARK: Claude Code limits
+
+    /// The plan limits Claude Code saved the last time it checked the account (on start, and for /usage), in
+    /// `~/.claude.json` under `cachedUsageUtilization`. Only percentages, reset times, and the plan tier are read;
+    /// the account's name, email, and IDs stay in the file. A copy saved for another account than the one signed
+    /// in now is ignored. Nothing is sent anywhere.
+    public static func claudeLimits(profile: URL = URL(fileURLWithPath: NSHomeDirectory()).appending(path: ".claude.json"))
+        -> (plan: String?, windows: [UsageWindow])? {
+        guard let size = try? profile.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 16 << 20,
+              let data = try? Data(contentsOf: profile),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        let account = json["oauthAccount"] as? [String: Any]
+        let plan = claudePlan(type: account?["organizationType"] as? String,
+                              tier: account?["organizationRateLimitTier"] as? String ?? account?["userRateLimitTier"] as? String)
+        guard let cache = json["cachedUsageUtilization"] as? [String: Any],
+              let usage = cache["utilization"] as? [String: Any],
+              let fetched = number(cache["fetchedAtMs"]), fetched > 0 else { return plan.map { ($0, []) } }
+        if let saved = cache["accountUuid"] as? String, let current = account?["accountUuid"] as? String, saved != current {
+            return plan.map { ($0, []) }
+        }
+        let observed = Date(timeIntervalSince1970: fetched / 1_000)
+        return (plan, claudeWindows(usage, observed: observed))
+    }
+
+    static func claudeWindows(_ usage: [String: Any], observed: Date) -> [UsageWindow] {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        func date(_ value: Any?) -> Date? {
+            guard let text = value as? String else { return nil }
+            // Python writes six fractional digits; Foundation reads three.
+            let trimmed = text.replacingOccurrences(of: #"(\.\d{3})\d+"#, with: "$1", options: .regularExpression)
+            return iso.date(from: trimmed) ?? ISO8601DateFormatter().date(from: text)
+        }
+        var windows: [UsageWindow] = []
+        // The newer list names each limit, including weekly limits for one model.
+        if let limits = usage["limits"] as? [[String: Any]] {
+            for limit in limits {
+                guard let percent = number(limit["percent"]), let resets = date(limit["resets_at"]) else { continue }
+                let model = ((limit["scope"] as? [String: Any])?["model"] as? [String: Any])?["display_name"] as? String
+                switch limit["kind"] as? String {
+                case "session": windows.append(UsageWindow(name: "5-hour window", usedPercent: percent, windowMinutes: 300, resetsAt: resets, observedAt: observed))
+                case "weekly_all": windows.append(UsageWindow(name: "Weekly window", usedPercent: percent, windowMinutes: 10_080, resetsAt: resets, observedAt: observed))
+                case "weekly_scoped" where model != nil:
+                    windows.append(UsageWindow(name: "Weekly · \(model!)", usedPercent: percent, windowMinutes: 10_080, resetsAt: resets, observedAt: observed))
+                default: continue
+                }
+            }
+        }
+        if windows.isEmpty {
+            for (key, name, minutes) in [("five_hour", "5-hour window", 300), ("seven_day", "Weekly window", 10_080),
+                                         ("seven_day_opus", "Weekly · Opus", 10_080), ("seven_day_sonnet", "Weekly · Sonnet", 10_080)] {
+                guard let window = usage[key] as? [String: Any], let percent = number(window["utilization"]),
+                      let resets = date(window["resets_at"]) else { continue }
+                windows.append(UsageWindow(name: name, usedPercent: percent, windowMinutes: minutes, resetsAt: resets, observedAt: observed))
+            }
+        }
+        var seen = Set<String>()
+        return windows.filter { seen.insert($0.name).inserted }.map { window in
+            var window = window
+            window.usedPercent = min(100, max(0, window.usedPercent))
+            return window
+        }
+    }
+
+    /// "Max 5x", "Pro", and so on, from the tier names Claude Code keeps.
+    static func claudePlan(type: String?, tier: String?) -> String? {
+        if let tier, let range = tier.range(of: #"max_(\d+)x"#, options: .regularExpression) {
+            return "Max " + tier[range].dropFirst(4)
+        }
+        switch type {
+        case "claude_max": return "Max"
+        case "claude_pro": return "Pro"
+        case "claude_team": return "Team"
+        case "claude_enterprise": return "Enterprise"
+        default: return nil
+        }
+    }
+
+    private static func number(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite else { return nil }
+        return number.doubleValue
+    }
+
     // MARK: Claude Code
 
     /// Counts tokens from Claude Code's session logs (~/.claude/projects/*/*.jsonl) modified in the last
     /// eight days. Each response is counted once, by message id and request id.
     public static func claudeCode(projects: URL = URL(fileURLWithPath: NSHomeDirectory()).appending(path: ".claude/projects"),
-                                  now: Date = .now, calendar: Calendar = .current) -> ToolUsage? {
+                                  profile: URL = URL(fileURLWithPath: NSHomeDirectory()).appending(path: ".claude.json"),
+                                  checked: [UsageWindow]? = nil, now: Date = .now, calendar: Calendar = .current) -> ToolUsage? {
+        guard var usage = claudeCodeLogs(projects: projects, now: now, calendar: calendar) else { return nil }
+        if let limits = claudeLimits(profile: profile) {
+            usage.plan = limits.plan
+            // A check that just ran is newer than the copy Claude Code saved, unless the saved one is newer still.
+            let saved = limits.windows.first?.observedAt ?? .distantPast
+            let windows = checked.flatMap { fresh in (fresh.first?.observedAt ?? .distantPast) >= saved ? fresh : nil } ?? limits.windows
+            if !windows.isEmpty {
+                usage.windows = windows
+                usage.source = .reportedByTool
+                usage.note = "Limits are what Claude Code saved when it last checked your account (when it starts, and for /usage). "
+                    + "A window whose reset time has passed starts again at zero. Tokens are counted from its logs."
+            }
+        }
+        return usage
+    }
+
+    static func claudeCodeLogs(projects: URL, now: Date, calendar: Calendar) -> ToolUsage? {
         let fm = FileManager.default
         guard let folders = try? fm.contentsOfDirectory(at: projects, includingPropertiesForKeys: nil) else { return nil }
         let cutoff = now.addingTimeInterval(-8 * 86_400)
@@ -229,7 +330,7 @@ public enum AIUsageReader {
                          daily: dailySeries(perDay, now: now, calendar: calendar),
                          byModel: models.map { ModelTokens(model: $0.key, tokens: $0.value, cost: nil) }.sorted { $0.tokens.total > $1.tokens.total },
                          lastActivity: events.map(\.0).max(),
-                         note: "Claude Code does not record its plan limits on this Mac, so what is left cannot be shown. Tokens are counted from its logs; cache reads are cheap and shown apart.")
+                         note: "Claude Code has not saved its plan limits on this Mac yet; run /usage in Claude Code once. Tokens are counted from its logs; cache reads are cheap and shown apart.")
     }
 
     // MARK: Codex
@@ -357,13 +458,17 @@ public enum AIUsageReader {
     public static func sample(now: Date = .now) -> [ToolUsage] {
         let hour = Calendar(identifier: .gregorian).dateInterval(of: .hour, for: now.addingTimeInterval(-7_200))?.start ?? now
         return [
-            ToolUsage(tool: "Claude Code", source: .countedFromLogs, today: TokenCounts(input: 210_000, output: 380_000, cacheWrite: 1_800_000, cacheRead: 96_000_000),
+            ToolUsage(tool: "Claude Code", source: .reportedByTool, plan: "Max 5x",
+                      windows: [UsageWindow(name: "5-hour window", usedPercent: 38, windowMinutes: 300, resetsAt: hour.addingTimeInterval(5 * 3_600), observedAt: now.addingTimeInterval(-300)),
+                                UsageWindow(name: "Weekly window", usedPercent: 54, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(2 * 86_400), observedAt: now.addingTimeInterval(-300)),
+                                UsageWindow(name: "Weekly · Fable", usedPercent: 41, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(2 * 86_400), observedAt: now.addingTimeInterval(-300))],
+                      today: TokenCounts(input: 210_000, output: 380_000, cacheWrite: 1_800_000, cacheRead: 96_000_000),
                       block: TokenCounts(input: 90_000, output: 160_000, cacheWrite: 820_000, cacheRead: 41_000_000), blockStart: hour,
                       blockEnd: hour.addingTimeInterval(5 * 3_600), largestBlock: 1_900_000, daily: [1_700_000, 3_400_000, nil, 2_500_000, 1_900_000, 1_500_000, 2_400_000],
                       byModel: [ModelTokens(model: "claude-opus-5-5", tokens: TokenCounts(input: 120_000, output: 220_000, cacheWrite: 1_000_000), cost: nil),
                                 ModelTokens(model: "claude-sonnet-5-5", tokens: TokenCounts(input: 90_000, output: 160_000, cacheWrite: 800_000), cost: nil)],
                       lastActivity: now.addingTimeInterval(-120),
-                      note: "Claude Code does not record its plan limits on this Mac, so what is left cannot be shown."),
+                      note: "Limits are what Claude Code saved when it last checked your account."),
             ToolUsage(tool: "Codex", source: .reportedByTool, plan: "Plus",
                       windows: [UsageWindow(name: "5-hour window", usedPercent: 62, windowMinutes: 300, resetsAt: now.addingTimeInterval(5_400), observedAt: now.addingTimeInterval(-900)),
                                 UsageWindow(name: "Weekly window", usedPercent: 25, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3 * 86_400), observedAt: now.addingTimeInterval(-900))],
@@ -373,8 +478,9 @@ public enum AIUsageReader {
     }
 
     /// Every tool found on this Mac.
-    public static func all(now: Date = .now) -> [ToolUsage] {
-        [claudeCode(now: now), codex(now: now), openCode(now: now)].compactMap { $0 }
+    /// `claudeChecked`: windows from a `ClaudeLimitCheck` that just ran, used when newer than Claude Code's saved copy.
+    public static func all(now: Date = .now, claudeChecked: [UsageWindow]? = nil) -> [ToolUsage] {
+        [claudeCode(checked: claudeChecked, now: now), codex(now: now), openCode(now: now)].compactMap { $0 }
     }
 }
 
@@ -387,5 +493,51 @@ public enum TokenFormat {
         case 1_000...: String(format: "%.1fk", Double(value) / 1_000)
         default: "\(value)"
         }
+    }
+}
+
+/// Asks Claude Code for the plan limits /usage shows, through its control protocol: one short `claude --print`
+/// that answers `get_usage` and exits. Claude Code signs in and talks to Anthropic itself; ForgeDeck sees only the
+/// answer. No prompt reaches a model, and no tool, MCP server, hook, setting file, or saved session is used.
+public enum ClaudeLimitCheck {
+    /// The panel checks at most this often.
+    public static let interval: TimeInterval = 5 * 60
+
+    public static let arguments = ["--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+                                   "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config", #"{"mcpServers":{}}"#,
+                                   "--setting-sources", "", "--settings", #"{"disableAllHooks":true}"#]
+
+    public static let input = Data((#"{"type":"control_request","request_id":"initialize","request":{"subtype":"initialize"}}"# + "\n"
+        + #"{"type":"control_request","request_id":"usage","request":{"subtype":"get_usage","skip_behaviors":true}}"# + "\n").utf8)
+
+    /// The app's environment without what marks it as running inside another Claude Code, and with no self-update.
+    public static func environment(_ base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        var environment = base.filter { !["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT"].contains($0.key) }
+        environment["DISABLE_AUTOUPDATER"] = "1"
+        return environment
+    }
+
+    public static func request(claude: URL, base: [String: String] = ProcessInfo.processInfo.environment) -> ProcessRequest {
+        ProcessRequest(executable: claude, arguments: arguments, workingDirectory: FileManager.default.temporaryDirectory,
+                       environment: environment(base), timeout: 25, stdin: input, maxOutputBytes: 2_000_000)
+    }
+
+    /// The windows in Claude Code's answer; nil when it did not answer, or has no limits to give (signed out, or an API key).
+    public static func parse(_ stdout: String, observed: Date) -> [UsageWindow]? {
+        for line in stdout.split(separator: "\n") where line.contains("\"control_response\"") {
+            guard let json = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
+                  let response = json["response"] as? [String: Any], response["request_id"] as? String == "usage",
+                  response["subtype"] as? String == "success", let result = response["response"] as? [String: Any] else { continue }
+            guard result["rate_limits_available"] as? Bool == true, let limits = result["rate_limits"] as? [String: Any] else { return nil }
+            let windows = AIUsageReader.claudeWindows(limits, observed: observed)
+            return windows.isEmpty ? nil : windows
+        }
+        return nil
+    }
+
+    public static func check(runner: any ProcessRunning = SystemProcessRunner(), now: Date = .now) async -> [UsageWindow]? {
+        guard let claude = ExecutableLocator.find("claude"),
+              let result = try? await runner.run(request(claude: claude)), result.ok else { return nil }
+        return parse(result.stdout, observed: now)
     }
 }

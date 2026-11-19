@@ -318,6 +318,9 @@ final class AppModel {
     var usage: [ToolUsage] = []
     var usageUpdatedAt: Date?
     var usageLoading = false
+    /// The last answer from Claude Code's own limit check, and when it was asked.
+    @ObservationIgnored var claudeLimits: [UsageWindow]?
+    @ObservationIgnored var claudeLimitsCheckedAt: Date?
     /// Open until the person closes it; then it stays closed.
     var usagePanelVisible = !Runtime.isAutomated && (UserDefaults.standard.object(forKey: "usage.panel") as? Bool ?? true)
     var isRefreshingAll = false

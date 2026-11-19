@@ -23,7 +23,7 @@ import Testing
             #"{"type":"user","message":{"role":"user","content":"\"usage\":{\"input_tokens\":999999}"},"timestamp":"2026-11-15T13:00:00.000Z"}"#,
         ]
         try write(lines.joined(separator: "\n") + "\n", to: project.appending(path: "session.jsonl"))
-        let usage = try #require(AIUsageReader.claudeCode(projects: root, now: now, calendar: utc))
+        let usage = try #require(AIUsageReader.claudeCode(projects: root, profile: root.appending(path: "none.json"), now: now, calendar: utc))
         #expect(usage.today == TokenCounts(input: 300, output: 150, cacheWrite: 0, cacheRead: 1_000))
         #expect(usage.windows.isEmpty)
         #expect(usage.block?.fresh == 450)
@@ -42,9 +42,84 @@ import Testing
         let project = root.appending(path: "p")
         try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
         try write(claudeLine("2026-11-15T05:00:00.000Z", id: "m", request: "r", input: 10, output: 10), to: project.appending(path: "s.jsonl"))
-        let usage = try #require(AIUsageReader.claudeCode(projects: root, now: now, calendar: utc))
+        let usage = try #require(AIUsageReader.claudeCode(projects: root, profile: root.appending(path: "none.json"), now: now, calendar: utc))
         #expect(usage.block == nil)
         #expect(usage.today.fresh == 20)
+    }
+
+    @Test func claudeLimitsComeFromWhatClaudeCodeSavedAndNothingPersonalIsKept() throws {
+        let root = try makeTempDir("claude profile")
+        defer { removeTemp(root) }
+        let project = root.appending(path: "projects/p")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try write(claudeLine("2026-11-15T14:00:00.000Z", id: "m", request: "r", input: 10, output: 10), to: project.appending(path: "s.jsonl"))
+        let profile = root.appending(path: ".claude.json")
+        let saved = #"""
+        {"oauthAccount":{"accountUuid":"acct-1","emailAddress":"PERSONAL-EMAIL-MARKER","organizationType":"claude_max","organizationRateLimitTier":"default_claude_max_5x"},
+         "cachedUsageUtilization":{"accountUuid":"acct-1","fetchedAtMs":1763215200000,"utilization":{
+           "five_hour":{"utilization":100,"resets_at":"2026-11-15T17:39:59.592917+00:00"},
+           "seven_day":{"utilization":69,"resets_at":"2026-11-19T08:59:59.592937+00:00"},
+           "limits":[{"kind":"session","percent":100,"resets_at":"2026-11-15T17:39:59.592917+00:00","scope":null},
+                     {"kind":"weekly_all","percent":69,"resets_at":"2026-11-19T08:59:59.592937+00:00","scope":null},
+                     {"kind":"weekly_scoped","percent":52,"resets_at":"2026-11-19T08:59:59.593109+00:00","scope":{"model":{"id":null,"display_name":"Fable"}}}]}}}
+        """#
+        try write(saved, to: profile)
+        let usage = try #require(AIUsageReader.claudeCode(projects: root.appending(path: "projects"), profile: profile, now: now, calendar: utc))
+        #expect(usage.plan == "Max 5x")
+        #expect(usage.source == .reportedByTool)
+        #expect(usage.windows.map(\.name) == ["5-hour window", "Weekly window", "Weekly · Fable"])
+        #expect(usage.windows.map(\.usedPercent) == [100, 69, 52])
+        #expect(usage.windows.first?.resetsAt == ISO8601DateFormatter().date(from: "2026-11-15T17:39:59Z")!.addingTimeInterval(0.592))
+        #expect(usage.windows.first?.observedAt == Date(timeIntervalSince1970: 1_763_215_200))
+        #expect(usage.windows.first?.remainingPercent(now: now) == 0)
+        #expect(!String(describing: usage).contains("PERSONAL-EMAIL-MARKER") && !String(describing: usage).contains("acct-1"))
+
+        // Saved for another account than the one signed in now: no limits, only the plan.
+        try write(saved.replacingOccurrences(of: #""accountUuid":"acct-1","fetchedAtMs""#, with: #""accountUuid":"acct-2","fetchedAtMs""#), to: profile)
+        let other = try #require(AIUsageReader.claudeLimits(profile: profile))
+        #expect(other.plan == "Max 5x" && other.windows.isEmpty)
+
+        // An older Claude Code without the named list still gives both windows.
+        let old = try #require(JSONSerialization.jsonObject(with: Data(#"{"five_hour":{"utilization":12.5,"resets_at":"2026-11-15T17:00:00+00:00"},"seven_day":{"utilization":30,"resets_at":null}}"#.utf8)) as? [String: Any])
+        let windows = AIUsageReader.claudeWindows(old, observed: now)
+        #expect(windows.map(\.name) == ["5-hour window"] && windows.first?.usedPercent == 12.5)
+        #expect(AIUsageReader.claudePlan(type: "claude_pro", tier: nil) == "Pro")
+    }
+
+    @Test func claudeCodeIsAskedForItsLimitsWithNothingElseRunning() async throws {
+        let request = ClaudeLimitCheck.request(claude: URL(fileURLWithPath: "/usr/local/bin/claude"),
+                                               base: ["PATH": "/usr/bin", "CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli", "HTTPS_PROXY": "http://proxy"])
+        #expect(request.arguments.contains("--no-session-persistence") && request.arguments.contains("--strict-mcp-config"))
+        #expect(request.arguments[request.arguments.firstIndex(of: "--tools")! + 1] == "")
+        #expect(request.arguments[request.arguments.firstIndex(of: "--setting-sources")! + 1] == "")
+        #expect(request.environment?["CLAUDECODE"] == nil && request.environment?["CLAUDE_CODE_ENTRYPOINT"] == nil)
+        #expect(request.environment?["DISABLE_AUTOUPDATER"] == "1" && request.environment?["HTTPS_PROXY"] == "http://proxy")
+        let input = String(decoding: try #require(request.stdin), as: UTF8.self)
+        #expect(input.contains(#""subtype":"get_usage""#) && !input.contains("\"type\":\"user\""))
+
+        let answer = [
+            #"{"type":"control_response","response":{"subtype":"success","request_id":"initialize","response":{"commands":[]}}}"#,
+            #"{"type":"control_response","response":{"subtype":"success","request_id":"usage","response":{"rate_limits_available":true,"subscription_type":"max","rate_limits":{"five_hour":{"utilization":11,"resets_at":"2026-11-15T17:50:00.314990+00:00"},"seven_day":{"utilization":2,"resets_at":"2026-11-22T09:00:00.315011+00:00"}}}}}"#,
+        ].joined(separator: "\n")
+        let windows = try #require(ClaudeLimitCheck.parse(answer, observed: now))
+        #expect(windows.map(\.name) == ["5-hour window", "Weekly window"] && windows.map(\.usedPercent) == [11, 2])
+        #expect(ClaudeLimitCheck.parse(#"{"type":"control_response","response":{"subtype":"success","request_id":"usage","response":{"rate_limits_available":false}}}"#, observed: now) == nil)
+        #expect(ClaudeLimitCheck.parse(#"{"type":"control_response","response":{"subtype":"error","request_id":"usage","error":"Unsupported control request subtype"}}"#, observed: now) == nil)
+
+        // A fresh check wins over an older saved copy; an older check loses to a newer one.
+        let root = try makeTempDir("claude check")
+        defer { removeTemp(root) }
+        let project = root.appending(path: "projects/p")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try write(claudeLine("2026-11-15T14:00:00.000Z", id: "m", request: "r", input: 10, output: 10), to: project.appending(path: "s.jsonl"))
+        let profile = root.appending(path: ".claude.json")
+        try write(#"{"cachedUsageUtilization":{"fetchedAtMs":1763200000000,"utilization":{"five_hour":{"utilization":90,"resets_at":"2026-11-15T17:00:00+00:00"}}}}"#, to: profile)
+        let usage = try #require(AIUsageReader.claudeCode(projects: root.appending(path: "projects"), profile: profile, checked: windows, now: now, calendar: utc))
+        #expect(usage.windows.first?.usedPercent == 11)
+        var older = windows
+        older[0].observedAt = Date(timeIntervalSince1970: 1_763_100_000)
+        let stale = try #require(AIUsageReader.claudeCode(projects: root.appending(path: "projects"), profile: profile, checked: [older[0]], now: now, calendar: utc))
+        #expect(stale.windows.first?.usedPercent == 90)
     }
 
     func codexLine(_ time: String, used5h: Double, resets5h: Date, usedWeek: Double, resetsWeek: Date, input: Int) -> String {

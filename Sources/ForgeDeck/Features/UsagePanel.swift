@@ -2,8 +2,9 @@ import ForgeDeckKit
 import SwiftUI
 
 extension AppModel {
-    /// Reads usage off the main thread. Snapshot runs use fixed sample numbers instead of this Mac's logs.
-    func refreshUsage() {
+    /// Reads usage off the main thread. Claude Code's limits are checked at most every 5 minutes, or now when
+    /// `checkLimits` is set (the refresh button). Snapshot runs use fixed sample numbers instead of this Mac's logs.
+    func refreshUsage(checkLimits: Bool = false) {
         guard !usageLoading else { return }
         if Runtime.isSnapshot {
             usage = AIUsageReader.sample(now: now)
@@ -11,8 +12,14 @@ extension AppModel {
             return
         }
         usageLoading = true
+        let checkClaude = checkLimits || claudeLimitsCheckedAt.map { Date.now.timeIntervalSince($0) >= ClaudeLimitCheck.interval } ?? true
         Task {
-            let found = await Task.detached(priority: .utility) { AIUsageReader.all() }.value
+            if checkClaude {
+                claudeLimitsCheckedAt = .now
+                if let fresh = await ClaudeLimitCheck.check() { claudeLimits = fresh }
+            }
+            let checked = claudeLimits
+            let found = await Task.detached(priority: .utility) { AIUsageReader.all(claudeChecked: checked) }.value
             usage = found
             usageUpdatedAt = .now
             usageLoading = false
@@ -36,7 +43,7 @@ struct UsagePanel: View {
                 Text("AI Usage").kitType(.section)
                 Spacer()
                 if model.usageLoading { ProgressView().controlSize(.small) }
-                IconButton(.sync, label: "Read the logs again", kind: .toolbar) { model.refreshUsage() }
+                IconButton(.sync, label: "Check limits and read the logs again", kind: .toolbar) { model.refreshUsage(checkLimits: true) }
                 IconButton(.xmark, label: "Hide (⌘⇧U)", kind: .toolbar) { model.toggleUsagePanel() }
             }
             .padding(.horizontal, Space.md).frame(height: 44)
@@ -52,7 +59,7 @@ struct UsagePanel: View {
                         Text("\(quiet.joined(separator: " and ")) \(quiet.count == 1 ? "is" : "are") installed but \(quiet.count == 1 ? "keeps" : "keep") no token counts on this Mac, so \(quiet.count == 1 ? "it is" : "they are") not shown.")
                             .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("Read from the files these tools keep on this Mac: token counts and limits only, never message text. Nothing is sent anywhere. Updated every 5 minutes while open\(model.usageUpdatedAt.map { ", last \(RelativeTime.short($0, now: max(model.now, $0)))" } ?? "").")
+                    Text("Read from the files these tools keep on this Mac: token counts and limits only, never message text. Claude's limits come from Claude Code checking your account, as /usage does. Updated every 5 minutes while open\(model.usageUpdatedAt.map { ", last \(RelativeTime.short($0, now: max(model.now, $0)))" } ?? "").")
                         .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(Space.md)
