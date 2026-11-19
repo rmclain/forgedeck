@@ -2,7 +2,8 @@ import ForgeDeckKit
 import SwiftUI
 
 // The Issues tab: a to-do list per product. Implement with the agent opens it in a terminal with the item;
-// the agent asks about the item before it changes anything. Copying to GitHub is off until turned on here.
+// the agent asks about the item before it changes anything, and its done report moves the item to Done.
+// Plan asks the agent for a plan first; see PlansView.swift. Copying to GitHub is off until turned on here.
 
 extension AppModel {
     /// Shows the product's Issues tab with the cursor in the add field.
@@ -28,11 +29,22 @@ extension AppModel {
     }
 
     func setIssueDone(_ issue: ProductIssue, _ done: Bool, in product: Product) {
-        updateIssue(issue.id, in: product) {
-            $0.isDone = done
-            $0.doneAt = done ? .now : nil
-        }
-        record(done ? "issue.done" : "issue.reopen", product: product)
+        setIssuesDone([issue.id], done, in: product)
+    }
+
+    /// Moves the items an agent reported finished to Done, with a note saying which agent and what it did.
+    func applyIssueReports(_ reports: [IssueReports.Report], to productID: UUID) {
+        guard !reports.isEmpty else { return }
+        applyPlanProgress(reports, to: productID)
+        guard let product = product(productID), !product.isDemo, let issues = product.issues else { return }
+        let result = IssueReports.apply(reports, to: issues)
+        guard !result.closed.isEmpty else { return }
+        update(productID) { $0.issues = result.issues }
+        let agent = AgentCatalog.name(result.closed[0].doneBy ?? portfolio.settings.aiAgentProgram)
+        record("issue.done", product: product, detail: "count=\(result.closed.count) by=agent")
+        show(result.closed.count == 1
+             ? "\(agent) finished \u{201C}\(result.closed[0].title)\u{201D}. Moved to Done in \(product.name)."
+             : "\(agent) finished \(result.closed.count) issues. Moved to Done in \(product.name).")
     }
 
     /// Removes it from this Mac. A GitHub issue made from it stays on GitHub.
@@ -69,6 +81,9 @@ extension AppModel {
             for index in (product.issues ?? []).indices where ids.contains(product.issues![index].id) {
                 product.issues![index].isDone = done
                 product.issues![index].doneAt = done ? .now : nil
+                product.issues![index].doneBy = nil
+                product.issues![index].doneSummary = nil
+                if !done { product.issues![index].reopenedAt = .now }
             }
         }
         record(done ? "issue.done" : "issue.reopen", product: product, detail: "count=\(ids.count)")
@@ -143,7 +158,9 @@ struct IssuesTab: View {
     @Environment(AppModel.self) private var model
     let product: Product
     @State private var draft = ""
-    @State private var showDone = false
+    /// Snapshot mode only: open on the Done list.
+    static var startsOnDone = false
+    @State private var showDone = IssuesTab.startsOnDone
     @State private var editingID: UUID?
     @State private var editTitle = ""
     @State private var editNotes = ""
@@ -157,7 +174,7 @@ struct IssuesTab: View {
         let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
         VStack(alignment: .leading, spacing: Space.lg) {
             VStack(alignment: .leading, spacing: 0) {
-                CardHeader(title: "Issues", subtitle: "A to-do list for \(product.name). \(agent) asks about an item before it starts on it.") {
+                CardHeader(title: "Issues", subtitle: "A to-do list for \(product.name). \(agent) asks about an item before it starts, and moves it to Done when it finishes.") {
                     if product.isDemo { DemoBadge() }
                     SegmentedPill(options: [(false, "Open \(open.count)"), (true, "Done \(done.count)")], selection: $showDone, compact: true)
                 }
@@ -168,6 +185,14 @@ struct IssuesTab: View {
                         .onSubmit(add)
                     Button("Add") { add() }.buttonStyle(.kit(.secondary, compact: true))
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || product.isDemo)
+                    Button("Plan with \(agent)") {
+                        model.planFeature(draft, in: product)
+                        draft = ""
+                        showDone = false
+                    }
+                    .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || product.isDemo || !product.hasLocal)
+                    .help("Type a feature, then ask \(agent) for a step-by-step plan. You review it here before anything changes.")
                 }
                 .disabled(product.isDemo)
                 .padding(.horizontal, Space.lg).padding(.bottom, Space.lg)
@@ -177,6 +202,8 @@ struct IssuesTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Space.lg).padding(.vertical, Space.md).hairlineAbove()
                 }
+                let plans = (product.plans ?? []).filter { ($0.phase == .done) == showDone }
+                if !plans.isEmpty { PlanRows(product: product, plans: showDone ? plans.reversed() : plans) }
                 if !shown.isEmpty { bulkBar(shown, agent: agent) }
                 ForEach(shown) { issue in
                     if editingID == issue.id { editor(issue) } else { row(issue, agent: agent) }
@@ -208,7 +235,9 @@ struct IssuesTab: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(issue.title).kitType(.labelMedium, issue.isDone ? Ink.text3 : Ink.text).strikethrough(issue.isDone, color: Ink.text3)
                     .fixedSize(horizontal: false, vertical: true)
-                if !issue.notes.isEmpty { Text(issue.notes).kitType(.meta, Ink.text2).lineLimit(2) }
+                if let summary = issue.doneSummary, issue.isDone {
+                    Text(summary).kitType(.meta, Ink.text2).lineLimit(2)
+                } else if !issue.notes.isEmpty { Text(issue.notes).kitType(.meta, Ink.text2).lineLimit(2) }
                 Text(meta(issue)).kitType(.meta, Ink.text3)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,6 +248,10 @@ struct IssuesTab: View {
                     .buttonStyle(.kit(.link)).help("Open issue #\(number) on GitHub")
             }
             if !issue.isDone {
+                Button("Plan") { model.planFeature(issue.notes.isEmpty ? issue.title : issue.title + "\n" + issue.notes, issue: issue, in: product) }
+                    .buttonStyle(.kit(.ghost, compact: true)).fixedSize()
+                    .disabled(product.isDemo || !product.hasLocal)
+                    .help("Ask \(agent) for a step-by-step plan for this item. You tick the steps to do here, then execute it.")
                 Button("Implement with \(agent)") { model.implementIssue(issue, in: product) }
                     .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
                     .disabled(product.isDemo || !product.hasLocal)
@@ -278,7 +311,13 @@ struct IssuesTab: View {
 
     private func meta(_ issue: ProductIssue) -> String {
         var parts = ["Added \(issue.createdAt.formatted(.relative(presentation: .named)))"]
-        if let done = issue.doneAt, issue.isDone { parts.append("done \(done.formatted(.relative(presentation: .named)))") }
+        if let done = issue.doneAt, issue.isDone {
+            let by = issue.doneBy.map { " by \(AgentCatalog.name($0))" } ?? ""
+            parts.append("done\(by) \(done.formatted(.relative(presentation: .named)))")
+        }
+        if !issue.isDone, let plan = model.openPlan(for: issue, in: product) {
+            parts.append("plan \(model.phaseText(plan))")
+        }
         if let started = issue.startedAt, !issue.isDone {
             parts.append("started with \(AgentCatalog.name(issue.startedWith ?? "")) \(started.formatted(.relative(presentation: .named)))")
         }

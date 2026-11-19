@@ -232,6 +232,7 @@ enum KitIcon: String {
     case wrench = "wrench.and.screwdriver"
     case xmark = "xmark"
     case tag = "tag"
+    case checklist = "checklist"
 }
 
 struct Icon: View {

@@ -97,6 +97,8 @@ enum SelfTest {
             model.removeDemo()
             check("removing the demo leaves real products", !model.hasDemo && model.products.count == 3)
             await genesisChecks(model: model)
+            await issueReportChecks(model: model)
+            await planChecks(model: model)
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
             finish(code: failures == 0 ? 0 : 1)
@@ -307,6 +309,94 @@ enum SelfTest {
 
     /// New Project in a temporary folder: the folder, Git, and product; refusals; a real generator in a terminal;
     /// and a blueprint approved without starting an agent.
+    /// A plan: the agent's file becomes a checklist, executing sends the ticked steps, left-out steps become issues,
+    /// and reported steps finish the plan and the issue it came from.
+    private static func planChecks(model: AppModel) async {
+        let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-plans-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appending(path: "selftest-plans")
+        let request = GenesisRequest(name: "Selftest Plans", idea: "", parent: root.path, folder: "selftest-plans", starter: GenesisStarter.find("empty"))
+        guard await model.createProject(request) == nil,
+              let product = model.products.first(where: { $0.checkouts.first?.path == folder.path }) else {
+            return check("a product for the plan checks", false)
+        }
+        model.addIssue("dark mode", to: product)
+        guard let issue = model.product(product.id)?.issues?.first,
+              let plan = model.beginPlan("dark mode", issue: issue, in: model.product(product.id) ?? product) else {
+            return check("a plan can be requested", false)
+        }
+        check("a requested plan waits for the agent", model.plan(plan.id, in: product.id)?.phase == .planning)
+        let planFile = folder.appending(path: FeaturePlans.relativePath)
+        try? FileManager.default.createDirectory(at: planFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("{\"plan\": \"\(plan.id.uuidString)\", \"steps\": []}".utf8).write(to: planFile)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        let waiting = model.plan(plan.id, in: product.id)
+        check("a plan file with a problem is not shown as ready, and says why", waiting?.phase == .planning
+              && FeaturePlans.problems(model.planFiles[product.id] ?? [], for: waiting!) == ["It has no steps."])
+        let json = """
+        {"plan": "\(plan.id.uuidString)", "title": "Dark mode", "summary": "Variables first.",
+         "steps": [{"id": "1", "title": "Variables"}, {"id": "2", "title": "Palette"}, {"id": "3", "title": "Switcher", "optional": true}]}
+        """
+        try? Data(json.utf8).write(to: planFile)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        check("the agent's plan becomes a checklist to review", model.plan(plan.id, in: product.id)?.phase == .ready
+              && model.plan(plan.id, in: product.id)?.steps.count == 3 && model.toast?.text.contains("is ready: 3 steps") == true, model.toast?.text ?? "")
+
+        let current = model.product(product.id) ?? product
+        let executed = model.recordExecution(plan.id, in: current, skipped: ["3"], notes: ["1": "keep aliases"])
+        let after = model.product(product.id)
+        check("executing keeps the choices and turns the left-out step into an issue", executed?.phase == .executing
+              && executed?.steps.first?.note == "keep aliases" && after?.issues?.contains { $0.title == "Switcher" && !$0.isDone } == true)
+        check("nothing is executed with every step left out",
+              model.recordExecution(plan.id, in: after ?? product, skipped: ["1", "2", "3"], notes: [:]) == nil)
+
+        try? await Task.sleep(for: .milliseconds(20))
+        let report = folder.appending(path: IssueReports.relativePath)
+        let id = plan.id.uuidString
+        try? Data("{\"steps\": [{\"plan\": \"\(id)\", \"step\": \"1\", \"summary\": \"Variables in.\"}]}".utf8).write(to: report)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        check("a reported step ticks off", model.plan(plan.id, in: product.id).map { $0.progress == (1, 2) } == true)
+        try? Data("{\"steps\": [{\"plan\": \"\(id)\", \"step\": \"1\"}, {\"plan\": \"\(id)\", \"step\": \"2\"}]}".utf8).write(to: report)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        let done = model.product(product.id)
+        check("the last step finishes the plan and the issue it came from", model.plan(plan.id, in: product.id)?.phase == .done
+              && done?.issues?.first { $0.id == issue.id }?.isDone == true, model.toast?.text ?? "")
+        if let finished = model.plan(plan.id, in: product.id) { model.deletePlan(finished, from: done ?? product) }
+        check("a plan can be deleted", model.product(product.id)?.plans?.isEmpty == true)
+    }
+
+    /// The agent's done report moves an item it was started on to Done, and a reopened item stays open.
+    private static func issueReportChecks(model: AppModel) async {
+        let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-issues-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = GenesisRequest(name: "Selftest Issues", idea: "", parent: root.path, folder: "selftest-issues", starter: GenesisStarter.find("empty"))
+        guard await model.createProject(request) == nil,
+              let product = model.products.first(where: { $0.checkouts.first?.path == root.appending(path: "selftest-issues").path }) else {
+            return check("a product for the issue checks", false)
+        }
+        model.addIssue("fix the export", to: product)
+        model.addIssue("left alone", to: product)
+        guard let issues = model.product(product.id)?.issues, let target = issues.first(where: { $0.title == "fix the export" }),
+              let other = issues.first(where: { $0.title == "left alone" }) else { return check("issues are added", false) }
+        model.updateIssue(target.id, in: product) { $0.startedAt = .now.addingTimeInterval(-60); $0.startedWith = "claude" }
+        let file = root.appending(path: "selftest-issues").appending(path: IssueReports.relativePath)
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let report = "{\"done\": [{\"id\": \"\(target.id.uuidString)\", \"summary\": \"Export keeps the last row.\"}, {\"id\": \"\(other.id.uuidString)\"}]}"
+        try? Data(report.utf8).write(to: file)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        let after = model.product(product.id)?.issues ?? []
+        let closed = after.first { $0.id == target.id }
+        check("the agent's done report moves the item to Done", closed?.isDone == true && closed?.doneBy == "claude"
+              && closed?.doneSummary == "Export keeps the last row.")
+        check("a toast says the agent finished it", model.toast?.text.contains("finished \u{201C}fix the export\u{201D}") == true, model.toast?.text ?? "")
+        check("an item no agent was started on stays open", after.first { $0.id == other.id }?.isDone == false)
+        if let closed { model.setIssueDone(closed, false, in: product) }
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        check("an item reopened after the report stays open", model.product(product.id)?.issues?.first { $0.id == target.id }?.isDone == false)
+    }
+
     private static func genesisChecks(model: AppModel) async {
         let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-genesis-\(UUID().uuidString.prefix(8))")
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

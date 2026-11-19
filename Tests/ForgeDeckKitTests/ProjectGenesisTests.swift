@@ -305,8 +305,24 @@ import Testing
         #expect(prompt.contains("forgedeck blueprint check \(product.slug)"))
         #expect(prompt.contains("Never a value") && prompt.contains("Then wait"))
         #expect(prompt.contains("A. Build it one step at a time") && prompt.contains("Don't create a GitHub repository, push, deploy"))
+    }
+
+    @Test func thePlanSuggestsSkillsBeforeTheBuild() throws {
+        let product = newProduct(usesAgent: true)
+        let prompt = GenesisPrompt.plan(product, folder: "/tmp/desk", tools: [], cli: "forgedeck",
+                                        installedSkills: ["swift-swiftui"], installedPlugins: ["bama"])
+        let skills = try #require(prompt.range(of: "5. Suggest 3 to 8 agent skills"))
+        let review = try #require(prompt.range(of: "6. Tell me your recommendation and the skills"))
+        #expect(skills.lowerBound < review.lowerBound, "skills are suggested in planning, before the person approves")
+        #expect(prompt.contains(SkillSuggestions.relativePath) && prompt.contains("forgedeck skills check \(product.slug)"))
+        #expect(prompt.contains("Skills installed on this Mac: swift-swiftui") && prompt.contains("plugins installed: bama"))
+        #expect(prompt.contains("Project setup › Skills") && prompt.contains("Suggest only; install nothing"))
+        #expect(prompt.contains("E. Use the skills chosen"))
         let message = GenesisPrompt.approvalMessage(stack: "Next.js\nrm -rf", note: "line\rtwo")
         #expect(!message.contains("\n") && !message.contains("\r"), "one line typed into the agent's terminal")
+        #expect(!message.contains("Skills chosen"))
+        let withSkills = GenesisPrompt.approvalMessage(stack: "Next.js", note: nil, skills: ["nextjs", "playwright"])
+        #expect(withSkills.contains("Skills chosen for this project: nextjs, playwright.") && !withSkills.contains("\n"))
         #expect(GenesisPrompt.build(product, stack: "Remix", note: nil, cli: "forgedeck", resuming: true).hasPrefix("Continue building"))
     }
 

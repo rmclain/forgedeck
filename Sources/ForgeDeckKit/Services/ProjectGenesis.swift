@@ -871,7 +871,8 @@ public enum GenesisPrompt {
     }
 
     /// Planning only: research and write the blueprint, then wait.
-    public static func plan(_ product: Product, folder: String, tools: [String], cli: String) -> String {
+    public static func plan(_ product: Product, folder: String, tools: [String], cli: String,
+                            installedSkills: [String] = [], installedPlugins: Set<String> = []) -> String {
         let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
         let genesis = product.genesis
         let idea = genesis?.idea.isEmpty == false ? genesis!.idea : product.tagline
@@ -909,7 +910,9 @@ public enum GenesisPrompt {
            - production is a plan: nothing is deployed and the domain may not exist. Leave out what you don't know.
            - variables are names and what they are for. Never a value, a key, or a token, anywhere in the file.
         4. Run `\(tool) blueprint check \(product.slug)` and fix every problem it prints.
-        5. Tell me your recommendation in a few lines, then tell me to review the blueprint in \(Brand.name) (on \(product.name)'s Overview). \
+        5. \(SkillSuggestions.planStep(product, cli: cli, installedSkills: installedSkills, installedPlugins: installedPlugins))
+        6. Tell me your recommendation and the skills you suggest in a few lines, then tell me to review the blueprint in \(Brand.name) \
+        (on \(product.name)'s Overview) and to choose skills under Project setup › Skills, so they are there for the build. \
         Then wait: don't build until \(Brand.name) or I tell you the plan is approved and which stack I chose.
 
         After I approve, build it like this:
@@ -935,8 +938,9 @@ public enum GenesisPrompt {
         then run `\(tool) run check \(product.slug)` and fix what it prints.
         D. Only if an environment already exists and answers today, propose it in `\(EnvironmentProposals.relativePath)` and run `\(tool) env check \(product.slug)`. \
         Don't propose environments that aren't deployed yet: the blueprint's production section records the plan.
-        E. Suggest 3 to 6 skills for working on this project in `\(SkillSuggestions.relativePath)` (format: SUGGESTING SKILLS in `\(tool) help`) \
-        and run `\(tool) skills check \(product.slug)`. Suggest only; install nothing.
+        E. Use the skills chosen for this project when the work fits. If `\(SkillSuggestions.relativePath)` is missing, or I chose a different stack \
+        than the one the suggestions were for, write or update it (format: SUGGESTING SKILLS in `\(tool) help`) and run \
+        `\(tool) skills check \(product.slug)`. Suggest only; install nothing.
         F. \(git ? "Commit the result to the local Git repository with a short message." : "There is no Git repository; don't create one.") \
         Don't create a GitHub repository, push, deploy, or sign up for any service.
         G. Tell me in a few lines what you built and how to run it, then tell me to finish in \(Brand.name): \(product.name) › Overview › Project setup.
@@ -952,10 +956,11 @@ public enum GenesisPrompt {
     }
 
     /// The one line sent to the agent that wrote the blueprint, in its own terminal, when the person approves.
-    public static func approvalMessage(stack: String, note: String?) -> String {
+    public static func approvalMessage(stack: String, note: String?, skills: [String] = []) -> String {
         let clean = { (text: String) in text.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ") }
         return "\(Brand.name): the blueprint is approved. Build it with: \(clean(stack))."
             + (note.map { " My note: \(clean($0))" } ?? "")
+            + (skills.isEmpty ? "" : " Skills chosen for this project: \(clean(skills.joined(separator: ", "))). Use them when the work fits.")
             + " Follow build steps A to G from my first message."
     }
 

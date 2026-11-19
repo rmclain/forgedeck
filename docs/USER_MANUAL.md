@@ -60,7 +60,7 @@ Choose **File › New Project…** (⌘⇧N), or **Create a project from an idea
 1. **What are we building?** Give it a name and describe the idea in your own words.
 2. **Where should it live?** Pick the folder that holds it. ForgeDeck shows the full path and refuses a name that's taken, a link, a file, or a folder another product already uses. To set up in a folder that already has files, tick the box: nothing in it is changed or overwritten.
 3. **How should it be set up?**
-   - **Your agent recommends.** ForgeDeck makes the folder, a Git repository, and the product, then starts your agent to plan. The agent researches the stack and writes `.forgedeck/blueprint.json`, which holds the recommended stack and why, alternatives, structure, tools, build steps, a production plan, and the variables it will need (names only). It builds nothing yet.
+   - **Your agent recommends.** ForgeDeck makes the folder, a Git repository, and the product, then starts your agent to plan. The agent researches the stack and writes `.forgedeck/blueprint.json`, which holds the recommended stack and why, alternatives, structure, tools, build steps, a production plan, and the variables it will need (names only). It also suggests skills for that stack in `.forgedeck/skills.json`; the blueprint lists them, and **Choose Skills…** opens Development › Skills so you can install them before the build. It builds nothing yet.
    - **I'll pick a starter.** Next.js, Vite + React, FastAPI, Python, Swift Package, Node.js, Go, Rust, WordPress Plugin, or an empty folder. The generator runs in a terminal you can see, from a fixed command. Its run, test, and build commands are proposed for Play.
 
 The new product opens with a **Project setup** checklist on its Overview. The checklist covers the folder and Git, the plan, the build, run and test commands, environments, skills, and GitHub. It's worked out from what is on disk, so after a restart or an interrupted agent it shows where things stopped and offers **Continue** or **Run Generator Again**.
@@ -69,7 +69,7 @@ The new product opens with a **Project setup** checklist on its Overview. The ch
 - add Production (and Staging) environments with no checks yet. They show Unknown until a check answers, so a planned host is never shown as live.
 - add the variable names to Secrets without values.
 
-**Approve and Build** tells the agent to build: in its own terminal if it's still running, otherwise in a new session. The agent reports each build step in the blueprint, and the checklist shows them as "Reported by the agent". It then proposes run commands, environments that already exist, and skills, which you review as usual. It never creates a GitHub repository, pushes, or deploys. **Create Private Repository…** is a separate press-and-hold step that runs `gh repo create --private` and pushes nothing.
+**Approve and Build** tells the agent to build: in its own terminal if it's still running, otherwise in a new session. The agent reports each build step in the blueprint, and the checklist shows them as "Reported by the agent". The approval names the skills you chose so the agent uses them. It then proposes run commands and environments that already exist, and updates the skill suggestions if you picked a different stack, which you review as usual. It never creates a GitHub repository, pushes, or deploys. **Create Private Repository…** is a separate press-and-hold step that runs `gh repo create --private` and pushes nothing.
 
 `forgedeck blueprint check <product>` checks the blueprint and changes nothing. The project's idea and the chosen stack stay in the agent's context for later sessions.
 
@@ -196,6 +196,7 @@ Install the command once (Settings > Command Line, or `./build.sh --link-cli`). 
 | Command | What it does |
 | --- | --- |
 | `forgedeck list [--json]` | One line per product: slug, status, name |
+| `forgedeck find [<words> \| <number>] [--json]` | Products with a folder on this Mac, by group and numbered; with words or a number, the one product they mean (exit 2 and a short list when several fit) |
 | `forgedeck status <product> [--json]` | Checkouts, the four evidence stages, the relations between them, open incidents |
 | `forgedeck open <product> [--checkout <name>] [--terminal <name>] [--editor]` | Opens a checkout in the preferred terminal, a named app, or the preferred editor |
 | `forgedeck doctor [--product <product>] [--ssh <host-alias>] [--json]` | Checks data, integrity, tools, and credential references; optionally a product's folders and evidence, or an SSH host |
@@ -370,7 +371,8 @@ If an agent reports that `forgedeck exec` was refused with "no profile", open th
 Settings › Forge Remote › **Turn on Forge Remote** starts Claude Code's Remote Control server (`claude remote-control`) in a terminal named Forge Remote. It runs in a folder of its own, `remote/` in the data folder, which holds:
 
 - `CLAUDE.md`, a few lines every session loads: one product per session, no deploys or pushes unless asked, and "read nothing until asked; use the forgedeck skill".
-- `.claude/skills/forgedeck/SKILL.md`, the forgedeck skill. A session loads only its one-line description up front. When you name a product, it reads the skill, finds the product with `forgedeck list`, and reads only what the task needs: `forgedeck context <slug> --write` for code work, `status --json` for what is deployed, `ci --brief` for a failing build, `links` for dashboards.
+- `.claude/skills/forgedeck/SKILL.md`, the forgedeck skill. A session loads only its one-line description up front. When you name a product, it reads the skill, finds the product with `forgedeck find <your words>` (it asks when several fit), and reads only what the task needs: `forgedeck context <slug> --write` for code work, `status --json` for what is deployed, `ci --brief` for a failing build, `links` for dashboards.
+- `.claude/skills/products` and `.claude/skills/product`, two commands you type: `/products` lists your products by group, numbered, with their folders; `/product 7` or `/product cloud` finds one by number or part of its name, loads its context, moves into its folder, and keeps the session on it. When several products fit, it lists them and asks.
 - `.claude/settings.json`, which makes every product folder and the context folder working directories, so a session can `cd` into any product.
 
 ForgeDeck rewrites these files when products change. On your phone, open the Claude app (or claude.ai/code), pick the session, and name a product. The session reads that product's CONTEXT.md and works in its folder.
@@ -386,7 +388,7 @@ ForgeDeck rewrites these files when products change. On your phone, open the Cla
 
 ### The forgedeck skill everywhere
 
-Settings › Command Line › Agent skill › **Install** puts the same skill in `~/.claude/skills/forgedeck`, so any Claude Code session on this Mac can find a product and its context when you mention it, without loading anything first. It never replaces a `forgedeck` skill that ForgeDeck did not write, and Remove deletes only its own copy.
+Settings › Command Line › Agent skill › **Install** puts the same skill in `~/.claude/skills/forgedeck`, so any Claude Code session on this Mac can find a product and its context when you mention it, without loading anything first, along with the `/products` and `/product` commands. ForgeDeck updates its own copy when it opens. It never replaces a `forgedeck` skill that ForgeDeck did not write, skips a `products` or `product` skill of yours, and Remove deletes only its own copies.
 
 ## Let a repository propose its environments
 
@@ -430,6 +432,17 @@ A recipe that is not approved opens for review first. Saving approves it, and Pl
 The **Issues** tab is a to-do list for the product, kept on this Mac. Type a short note and press Return; the first line is the title and any further lines are notes. File › New Issue (⌘⇧I) jumps to the field.
 
 **Implement with Claude Code** opens your agent in the product's folder with the item. Items are usually quick notes, not prompts, so the agent first reads the code, says what it thinks the item asks for, and asks up to four questions. It starts only after you answer. It does not push, deploy, or touch GitHub issues.
+
+When the agent finishes an item and its tests pass, it writes the item's ID and a one-sentence summary to `.forgedeck/issues-done.json` in the product's folder. ForgeDeck sees the file within a second while the session runs (or on the next refresh), moves the item to Done, and shows the summary and "done by Claude Code" on it, so nobody starts on it again. Only items an agent was started on can be closed this way. If you reopen one, an older report doesn't close it again; a new one after the reopen does. **Mark Done** by hand still works.
+
+**Plan** on an item, or **Plan with Claude Code** beside the add field (Product › Plan a Feature…, ⌘⇧L), asks your agent for a plan first. It reads the code, may ask you questions in its terminal, and writes `.forgedeck/plan.json`. It changes nothing else. The plan shows up under **Plans** in the Issues tab. **Review Plan…** opens it as a checklist of steps, with the files each one touches, plus open questions and risks.
+
+- Untick steps you don't want, and use **Note** to add a note to any step. There is also a note field for the whole plan.
+- **Execute Plan** sends the ticked steps and your notes to the agent. If its terminal is still open, ForgeDeck types the go-ahead there; otherwise it starts a new session with the whole plan. Steps you unticked become open issues, so they aren't lost.
+- **Revise** sends your notes back and waits for a new version. **Discard Plan** deletes it.
+- As the agent finishes each step, it reports it in `.forgedeck/issues-done.json` and the step ticks off. When the last one is done, the plan, and the issue it came from, move to Done. Each plan's menu also has **Mark Done** and **Delete**.
+
+ForgeDeck checks the plan file before showing it: at most 30 steps, file paths inside the project, nothing that looks like a secret, and the plan ID it sent. If the file has a problem, the plan's row says what it is.
 
 The checkbox on each item selects it. With items selected, the bar above the list offers **Implement with Claude Code** (one session for up to 10 items: the agent asks about all of them first, then does them one at a time), **Mark Done**, and **Delete**. In the Done list, **Reopen** moves items back.
 

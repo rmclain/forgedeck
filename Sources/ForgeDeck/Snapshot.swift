@@ -29,6 +29,12 @@ enum Snapshot {
                 model.productTab = .issues
                 model.selectedIssues = Set((product.issues ?? []).filter { !$0.isDone }.prefix(2).map(\.id))
             })
+            shots.append(Shot(name: "product-issues-done") { model in
+                IssuesTab.startsOnDone = true
+                model.route = .product(product.id)
+                model.productTab = .issues
+                model.selectedIssues = []
+            })
         }
         if let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) {
             shots.append(Shot(name: "product-unknown-production") { $0.route = .product(orbit.id); $0.productTab = .development })
@@ -94,6 +100,20 @@ enum Snapshot {
                 model.update(orbit.id) { $0.genesis = DemoFixtures.genesis() }
                 model.route = .product(orbit.id)
                 model.productTab = .overview
+            },
+            Shot(name: "sheet-plan") { model in
+                guard let lumen = model.products.first(where: { $0.slug == "lumen" }),
+                      let plan = lumen.plans?.first(where: { $0.phase == .ready }) else { return }
+                model.route = .product(lumen.id)
+                model.productTab = .issues
+                model.sheet = .plan(productID: lumen.id, planID: plan.id)
+            },
+            Shot(name: "sheet-plan-done") { model in
+                guard let lumen = model.products.first(where: { $0.slug == "lumen" }),
+                      let plan = lumen.plans?.first(where: { $0.phase == .done }) else { return }
+                model.route = .product(lumen.id)
+                model.productTab = .issues
+                model.sheet = .plan(productID: lumen.id, planID: plan.id)
             },
             Shot(name: "sheet-blueprint") { model in
                 guard let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) else { return }

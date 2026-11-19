@@ -129,6 +129,7 @@ enum SheetKind: Identifiable {
     case leadsSetup(UUID)
     case newProject
     case blueprint(UUID)
+    case plan(productID: UUID, planID: UUID)
 
     var id: String {
         switch self {
@@ -155,6 +156,7 @@ enum SheetKind: Identifiable {
         case .leadsSetup(let product): "leads-setup-\(product)"
         case .newProject: "new-project"
         case .blueprint(let product): "blueprint-\(product)"
+        case .plan(_, let plan): "plan-\(plan)"
         }
     }
 }
@@ -247,6 +249,8 @@ final class AppModel {
     var skillFiles: [UUID: SkillFile] = [:]
     /// `.forgedeck/blueprint.json` of a product started with New Project.
     var blueprintFiles: [UUID: BlueprintFile] = [:]
+    /// `.forgedeck/plan.json` in each product's checkouts, kept to say why a waiting plan hasn't shown up.
+    var planFiles: [UUID: [PlanFile]] = [:]
     /// A starter's generator running in a built-in terminal, per product.
     var genesisScaffolds: [UUID: TerminalSession] = [:]
     /// Watches on the files setup agents write, by product.
@@ -357,6 +361,8 @@ final class AppModel {
         cache.prune(retentionDays: portfolio.settings.cacheRetentionDays)
         checkForUpdatesIfDue()
         refreshMCP()
+        // A skill this app wrote earlier is brought up to date, so a new version's commands (/products, /product) appear.
+        if isSkillInstalled { _ = try? ForgeDeckSkill.install(in: ForgeDeckSkill.claudeSkills, cli: cliCommand) }
         if remoteSettings.enabled { startRemote(showTerminal: false) }
         pollTask = Task { [weak self] in
             // Local Git state first: it is cheap and works offline.
@@ -522,10 +528,13 @@ final class AppModel {
     /// Reads the files a setup agent writes (environments, run, skills) and nothing else: no Git, no network.
     func reloadAgentFiles(_ product: Product) async {
         guard !product.isDemo else { return }
-        let (proposals, runs, skillFile, blueprint) = await Task.detached {
+        let (proposals, runs, skillFile, blueprint, issueReports, plans) = await Task.detached {
             (EnvironmentProposals.read(product), RunSetup.read(product), SkillSuggestions.read(product),
-             product.genesis == nil ? nil : BlueprintCheck.read(product))
+             product.genesis == nil ? nil : BlueprintCheck.read(product), IssueReports.read(product), FeaturePlans.read(product))
         }.value
+        if planFiles[product.id] != plans { planFiles[product.id] = plans }
+        applyPlanFiles(plans, to: product.id)
+        applyIssueReports(issueReports, to: product.id)
         if blueprintFiles[product.id] != blueprint { blueprintFiles[product.id] = blueprint }
         if environmentFiles[product.id] != proposals { environmentFiles[product.id] = proposals }
         if runFiles[product.id] != runs { runFiles[product.id] = runs }

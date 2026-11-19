@@ -50,7 +50,23 @@ extension AppModel {
                     self.paletteOpen = false
                     self.newIssue(product)
                 })
+                if product.hasLocal {
+                    commands.append(PaletteCommand(id: "plan-new-\(product.id)", label: "Plan a Feature · \(product.name)", group: "Issues", icon: .checklist, kbd: "⌘⇧L") {
+                        self.paletteOpen = false
+                        self.newIssue(product)
+                    })
+                }
+                for plan in product.plans ?? [] where plan.phase == .ready {
+                    commands.append(PaletteCommand(id: "plan-review-\(plan.id)", label: "Review Plan: \(plan.name) · \(product.name)", group: "Issues", icon: .checklist) {
+                        self.paletteOpen = false
+                        self.sheet = .plan(productID: product.id, planID: plan.id)
+                    })
+                }
                 for issue in ProductIssues.sorted(product.issues ?? []) where !issue.isDone && product.hasLocal {
+                    commands.append(PaletteCommand(id: "issue-plan-\(issue.id)", label: "Plan: \(issue.title) · \(product.name)", group: "Issues", icon: .checklist) {
+                        self.paletteOpen = false
+                        self.planFeature(issue.notes.isEmpty ? issue.title : issue.title + "\n" + issue.notes, issue: issue, in: product)
+                    })
                     commands.append(PaletteCommand(id: "issue-implement-\(issue.id)", label: "Implement: \(issue.title) · \(product.name)", group: "Issues", icon: .sparkle) {
                         self.paletteOpen = false
                         self.implementIssue(issue, in: product)
@@ -329,6 +345,7 @@ struct SheetHost: View {
                     case .leadsSetup(let product): LeadsSetupSheet(productID: product)
                     case .newProject: NewProjectSheet().id(String(describing: NewProjectSheet.preset))
                     case .blueprint(let product): BlueprintSheet(productID: product)
+                    case .plan(let product, let plan): PlanSheet(productID: product, planID: plan)
                     }
                 }
                 .id(sheet.id)

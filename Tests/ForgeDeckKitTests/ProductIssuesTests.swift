@@ -40,6 +40,7 @@ import Testing
         var prompt = ProductIssues.prompt(for: issue, product: product())
         #expect(prompt.contains("\"export bug\"") && prompt.contains("Ask what you need to know") && prompt.contains("Wait for the answers"))
         #expect(prompt.contains("Do not push, deploy"))
+        #expect(prompt.contains("ID: \(issue.id.uuidString)") && prompt.contains(IssueReports.relativePath) && prompt.contains("moves it to Done"))
         #expect(!prompt.contains("ghp_abcdefghijklmnopqrstuvwxyz0123456789"))
         #expect(!prompt.contains("gh issue view"))
         issue.githubNumber = 12
@@ -53,10 +54,12 @@ import Testing
         let issues = (1...12).map { ProductIssue(title: "item \($0)", notes: $0 == 2 ? "only on mobile" : "") }
         let prompt = ProductIssues.prompt(for: issues, product: product())
         #expect(prompt.contains("10 items:"))
-        #expect(prompt.contains("1. \"item 1\"\nNotes: none.") && prompt.contains("2. \"item 2\"\nNotes:\nonly on mobile"))
+        #expect(prompt.contains("1. \"item 1\"\nID: \(issues[0].id.uuidString)\nNotes: none.")
+                && prompt.contains("2. \"item 2\"\nID: \(issues[1].id.uuidString)\nNotes:\nonly on mobile"))
         #expect(prompt.contains("10. \"item 10\"") && !prompt.contains("item 11"))
         #expect(prompt.contains("grouped under each item's number") && prompt.contains("all in one message"))
         #expect(prompt.contains("one at a time") && prompt.contains("Do not push, deploy"))
+        #expect(prompt.contains("keeping the items already there") && prompt.contains("ID: \(issues[9].id.uuidString)"))
         #expect(ProductIssues.prompt(for: [issues[0]], product: product()) == ProductIssues.prompt(for: issues[0], product: product()))
     }
 
@@ -84,5 +87,61 @@ import Testing
         let lumen = DemoFixtures.products().first { $0.slug == "lumen" }
         #expect(lumen?.isDemo == true && (lumen?.issues?.count ?? 0) > 0)
         #expect(DemoFixtures.issues().allSatisfy { $0.githubURL?.contains("-demo/") ?? true })
+    }
+
+    // MARK: The agent's done report
+
+    private func started(_ title: String, at date: Date) -> ProductIssue {
+        var issue = ProductIssue(title: title)
+        issue.startedAt = date
+        issue.startedWith = "claude"
+        return issue
+    }
+
+    @Test func aDoneReportMovesTheStartedItemToDone() throws {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let issue = started("export bug", at: start)
+        let untouched = ProductIssue(title: "never started")
+        let data = Data("""
+        {"done": [{"id": "\(issue.id.uuidString)", "summary": "Kept the last row.\\nAdded a test. token ghp_abcdefghijklmnopqrstuvwxyz0123456789"},
+                  {"id": "\(untouched.id.uuidString)"}, {"id": "not-a-uuid"}]}
+        """.utf8)
+        let entries = try #require(IssueReports.parse(data))
+        #expect(entries.count == 3)
+        let now = Date(timeIntervalSince1970: 3_000)
+        let result = IssueReports.apply([.init(entries: entries, written: start.addingTimeInterval(60))], to: [issue, untouched], now: now)
+        #expect(result.closed.map(\.id) == [issue.id])
+        let done = try #require(result.issues.first { $0.id == issue.id })
+        #expect(done.isDone && done.doneAt == now && done.doneBy == "claude")
+        #expect(done.doneSummary?.hasPrefix("Kept the last row. Added a test.") == true && done.doneSummary?.contains("ghp_abcdef") == false)
+        #expect(result.issues.first { $0.id == untouched.id }?.isDone == false)
+    }
+
+    @Test func anOldReportDoesNotCloseAnItemAgain() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        var issue = started("export bug", at: start)
+        let entry = IssueReports.Entry(id: issue.id.uuidString, summary: "done")
+        // Written before this session started: a leftover from an earlier one.
+        #expect(IssueReports.apply([.init(entries: [entry], written: start.addingTimeInterval(-5))], to: [issue]).closed.isEmpty)
+        // Reopened by the person after the report.
+        issue.reopenedAt = start.addingTimeInterval(120)
+        #expect(IssueReports.apply([.init(entries: [entry], written: start.addingTimeInterval(60))], to: [issue]).closed.isEmpty)
+        // A new report after the reopen closes it.
+        #expect(IssueReports.apply([.init(entries: [entry], written: start.addingTimeInterval(180))], to: [issue]).closed.count == 1)
+        // Already done: nothing changes.
+        issue.isDone = true
+        #expect(IssueReports.apply([.init(entries: [entry], written: start.addingTimeInterval(180))], to: [issue]).closed.isEmpty)
+    }
+
+    @Test func aBrokenOrMissingReportIsIgnored() throws {
+        #expect(IssueReports.parse(Data("{\"finished\": []}".utf8)) == nil)
+        #expect(IssueReports.parse(Data("not json".utf8)) == nil)
+        let folder = FileManager.default.temporaryDirectory.appending(path: "issue-reports-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(IssueReports.read(folder: folder.path) == nil)
+        try FileManager.default.createDirectory(at: folder.appending(path: ".forgedeck"), withIntermediateDirectories: true)
+        try Data("{\"done\": [{\"id\": \"x\"}]}".utf8).write(to: folder.appending(path: IssueReports.relativePath))
+        #expect(IssueReports.read(folder: folder.path)?.entries.count == 1)
+        #expect(AgentFiles.relativePaths.contains(IssueReports.relativePath))
     }
 }

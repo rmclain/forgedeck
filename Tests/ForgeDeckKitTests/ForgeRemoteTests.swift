@@ -67,15 +67,28 @@ import Testing
         #expect(text.contains("`/Users/me/.local/bin/forgedeck context <slug> --write`"))
         #expect(text.contains("status <slug> --json"))
         #expect(text.contains("ci <slug> --brief"))
-        #expect(ForgeDeckSkill.text(cli: "/Apps/My Forge/forgedeck").contains("`\"/Apps/My Forge/forgedeck\" list`"))
+        #expect(ForgeDeckSkill.text(cli: "/Apps/My Forge/forgedeck").contains("`\"/Apps/My Forge/forgedeck\" find"))
 
         let skills = FileManager.default.temporaryDirectory.appending(path: "fd-skills-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: skills) }
         #expect(try ForgeDeckSkill.install(in: skills, cli: "forgedeck"))
         #expect(try !ForgeDeckSkill.install(in: skills, cli: "forgedeck"))
         #expect(ForgeDeckSkill.isInstalled(in: skills))
+        for command in ForgeDeckSkill.commandNames {
+            #expect(FileManager.default.fileExists(atPath: skills.appending(path: "\(command)/SKILL.md").path), "\(command)")
+        }
         try ForgeDeckSkill.remove(from: skills)
         #expect(!ForgeDeckSkill.isInstalled(in: skills))
+        #expect(!FileManager.default.fileExists(atPath: skills.appending(path: "product").path))
+
+        // Someone's own /product skill is left alone; the rest still installs.
+        let theirs = skills.appending(path: "product")
+        try FileManager.default.createDirectory(at: theirs, withIntermediateDirectories: true)
+        try "---\nname: product\n---\ntheirs".write(to: theirs.appending(path: "SKILL.md"), atomically: true, encoding: .utf8)
+        #expect(try ForgeDeckSkill.install(in: skills, cli: "forgedeck"))
+        try ForgeDeckSkill.remove(from: skills)
+        #expect(try String(contentsOf: theirs.appending(path: "SKILL.md"), encoding: .utf8).hasSuffix("theirs"))
+        try FileManager.default.removeItem(at: theirs)
 
         let foreign = skills.appending(path: "forgedeck")
         try FileManager.default.createDirectory(at: foreign, withIntermediateDirectories: true)
@@ -85,12 +98,41 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: foreign.appending(path: "SKILL.md").path))
     }
 
+    @Test func theSlashCommandsAreTypedByThePersonAndResolveThroughFind() {
+        let list = ForgeDeckSkill.listCommand(cli: "forgedeck")
+        #expect(list.hasPrefix("---\nname: products\n") && list.contains("disable-model-invocation: true") && list.contains("`forgedeck find`"))
+        let pick = ForgeDeckSkill.pickCommand(cli: "/Apps/My Forge/forgedeck")
+        #expect(pick.hasPrefix("---\nname: product\n") && pick.contains("disable-model-invocation: true") && pick.contains("$ARGUMENTS"))
+        #expect(pick.contains("`\"/Apps/My Forge/forgedeck\" find <what they typed>`") && pick.contains("Exit 2: several fit"))
+        #expect(pick.contains("context <slug> --write") && pick.contains("ask before switching"))
+        let briefing = ForgeRemoteWorkspace.briefing(portfolio: Portfolio(), context: ContextLocation(root: URL(fileURLWithPath: "/tmp/c")),
+                                                     cli: "forgedeck", machine: "Studio")
+        #expect(briefing.contains("`/products`") && briefing.contains("`forgedeck find <their words>`"))
+    }
+
     @Test func folderAccessCoversEveryProductFolderAndTheContextFolder() throws {
         let context = ContextLocation(root: URL(fileURLWithPath: "/tmp/fd-remote/context"))
         let data = try ForgeRemoteWorkspace.settings(portfolio: portfolio, context: context)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let folders = (object["permissions"] as? [String: Any])?["additionalDirectories"] as? [String]
         #expect(folders == ["/tmp/fd-remote/alpha", "/tmp/fd-remote/zeta", "/tmp/fd-remote/context"])
+    }
+
+    @Test func readOnlyLookupsRunWithoutAskingAndExecStillAsks() throws {
+        let context = ContextLocation(root: URL(fileURLWithPath: "/tmp/fd-remote/context"))
+        let data = try ForgeRemoteWorkspace.settings(portfolio: portfolio, context: context, cli: "/Users/me/.local/bin/forgedeck")
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let allow = try #require((object["permissions"] as? [String: Any])?["allow"] as? [String])
+        let tool = "/Users/me/.local/bin/forgedeck"
+        for rule in ["Bash(\(tool) context *)", "Bash(\(tool) find *)", "Bash(\(tool) find)", "Bash(\(tool) status *)", "Bash(\(tool) ci * --brief)"] {
+            #expect(allow.contains(rule), "\(rule)")
+        }
+        #expect(!allow.contains { $0.contains(" exec") || $0.contains(" agent") || $0.contains(" open") || $0.contains(" link ") || $0.contains("ci *)") })
+
+        let pick = ForgeDeckSkill.pickCommand(cli: tool)
+        #expect(pick.contains("allowed-tools: ") && pick.contains("\"Bash(\(tool) context *)\""))
+        #expect(ForgeDeckSkill.text(cli: tool).contains("allowed-tools: "))
+        #expect(ForgeDeckSkill.allowRules(cli: "/Apps/My Forge/forgedeck").contains("Bash(\"/Apps/My Forge/forgedeck\" find *)"))
     }
 
     @Test func writingTwiceReportsNoChangeAndOldSettingsStillLoad() throws {

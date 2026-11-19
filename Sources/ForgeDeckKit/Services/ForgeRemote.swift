@@ -92,7 +92,7 @@ public struct ForgeRemoteWorkspace: Sendable {
                                                 attributes: [.posixPermissions: 0o700])
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
         let briefing = Self.briefing(portfolio: portfolio, context: context, cli: cli, machine: machine)
-        let settings = try Self.settings(portfolio: portfolio, context: context)
+        let settings = try Self.settings(portfolio: portfolio, context: context, cli: cli ?? Brand.cliName)
         var changed = false
         for (url, data) in [(briefingFile, Data(briefing.utf8)), (settingsFile, settings)] where (try? Data(contentsOf: url)) != data {
             try data.write(to: url, options: .atomic)
@@ -102,13 +102,14 @@ public struct ForgeRemoteWorkspace: Sendable {
         return changed
     }
 
-    /// Claude Code project settings: every product folder and the context folder become working directories.
-    public static func settings(portfolio: Portfolio, context: ContextLocation) throws -> Data {
+    /// Claude Code project settings: every product folder and the context folder become working directories, and the
+    /// read-only `forgedeck` commands run without asking (a session on a phone otherwise stops at its first lookup).
+    public static func settings(portfolio: Portfolio, context: ContextLocation, cli: String = Brand.cliName) throws -> Data {
         var folders = ForgeRemote.products(in: portfolio).flatMap { $0.checkouts.map(\.path) }
         folders.append(context.root.path)
         var seen = Set<String>()
         let unique = folders.filter { !$0.isEmpty && seen.insert($0).inserted }
-        let object: [String: Any] = ["permissions": ["additionalDirectories": unique]]
+        let object: [String: Any] = ["permissions": ["additionalDirectories": unique, "allow": ForgeDeckSkill.allowRules(cli: cli)]]
         return try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) + Data("\n".utf8)
     }
 
@@ -122,6 +123,8 @@ public struct ForgeRemoteWorkspace: Sendable {
 
         - Read nothing until the person asks for something. Then use the `\(ForgeDeckSkill.name)` skill to find the product \
         (\(count) on this Mac) and only the context that task needs.
+        - `/products` lists them, numbered. `/product <number or name>` loads one and keeps the session on it. When the person \
+        names a product in other words, run `\(cli.map { $0.contains(" ") ? "\"\($0)\"" : $0 } ?? Brand.cliName) find <their words>`; if several fit, ask which.
         - One product per session. If the person asks for another, suggest a new session in the Claude app (it starts clean) \
         or `/clear`. If they go on here anyway, treat earlier work as belonging to the other product.
         - Do no project work in this folder. Never deploy, push, publish, or change remote data unless asked in this session.

@@ -40,13 +40,15 @@ public final class CapturedOutput: @unchecked Sendable {
 public enum CLIExit {
     public static let ok: Int32 = 0
     public static let failure: Int32 = 1
+    /// Several products fit: the agent asks which one.
+    public static let ambiguous: Int32 = 2
     public static let usage: Int32 = 64
     public static let denied: Int32 = 77
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.12.0"
-    public static let commands = ["list", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.13.0"
+    public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -80,6 +82,7 @@ public struct CLI: Sendable {
 
     USAGE
       \(Brand.cliName) list [--json]
+      \(Brand.cliName) find [<words> | <number>] [--json]  (numbered list of products with a folder here; or the one the words mean)
       \(Brand.cliName) status <product> [--json]
       \(Brand.cliName) open <product> [--checkout <name>] [--terminal <name>] [--editor]
       \(Brand.cliName) doctor [--product <product>] [--ssh <host-alias>] [--json]
@@ -155,7 +158,7 @@ public struct CLI: Sendable {
       --json prints stable, documented JSON. Secret values never appear in any output.
 
     EXIT CODES
-      0 ok · 1 failed · 64 wrong usage · 77 denied
+      0 ok · 1 failed · 2 several products fit (find) · 64 wrong usage · 77 denied
     """
 
     struct Arguments {
@@ -228,6 +231,7 @@ public struct CLI: Sendable {
             io.out("\(Brand.cliName) \(Self.version)")
             return CLIExit.ok
         case "list": return list(args)
+        case "find": return find(args)
         case "status": return status(args)
         case "open": return await open(args)
         case "doctor": return await runDoctor(args)
@@ -284,6 +288,72 @@ public struct CLI: Sendable {
             }
         }
         return CLIExit.ok
+    }
+
+    // MARK: find
+
+    public struct FoundRow: Codable, Sendable, Equatable {
+        public var number: Int
+        public var slug: String
+        public var name: String
+        public var group: String
+        public var folder: String
+        public var folders: [String]
+    }
+
+    private func find(_ args: Arguments) -> Int32 {
+        guard let portfolio = loadPortfolio() else { return CLIExit.failure }
+        let products = ProductFinder.workable(in: portfolio)
+        let row = { (product: Product) -> FoundRow in
+            let number = (products.firstIndex { $0.id == product.id } ?? 0) + 1
+            let folders = product.checkouts.map(\.path)
+            return FoundRow(number: number, slug: product.slug, name: product.name, group: product.group,
+                            folder: product.primaryCheckout?.path ?? folders.first ?? "", folders: folders)
+        }
+        let query = args.positional.joined(separator: " ")
+        let rows: [FoundRow]
+        var exit = CLIExit.ok
+        var heading: String?
+        if query.trimmingCharacters(in: .whitespaces).isEmpty {
+            rows = products.map(row)
+        } else {
+            switch ProductFinder.find(query, in: products) {
+            case .one(let product): rows = [row(product)]
+            case .several(let matches):
+                rows = matches.map(row)
+                heading = "\(matches.count) products fit \"\(query)\". Ask which one:"
+                exit = CLIExit.ambiguous
+            case .none:
+                rows = []
+                exit = CLIExit.failure
+            }
+        }
+        if args.switches.contains("json") {
+            io.out(json(rows))
+            return exit
+        }
+        if rows.isEmpty {
+            io.out(query.isEmpty ? "No products with a folder on this Mac. Add one in \(Brand.name)."
+                   : "No product fits \"\(query)\". Run `\(Brand.cliName) find` for the list.")
+            return exit
+        }
+        if rows.count == 1, !query.isEmpty, let only = rows.first {
+            io.out("\(only.name)  (\(only.slug))")
+            for folder in only.folders { io.out("  \(folder)") }
+            io.out("Context: `\(Brand.cliName) context \(only.slug) --write`")
+            return exit
+        }
+        if let heading { io.out(heading) }
+        var group: String?
+        for item in rows {
+            if heading == nil, item.group != group {
+                if group != nil { io.out("") }
+                io.out(item.group.isEmpty ? "Other" : item.group)
+                group = item.group
+            }
+            io.out("\(String(item.number).leftPad(3))  \(item.name)  ·  \(ProductFinder.short(item.folder))")
+        }
+        return exit
     }
 
     // MARK: status
@@ -1057,4 +1127,8 @@ final class LineBuffer: @unchecked Sendable {
             return String(decoding: pending, as: UTF8.self)
         }
     }
+}
+
+private extension String {
+    func leftPad(_ width: Int) -> String { count >= width ? self : String(repeating: " ", count: width - count) + self }
 }

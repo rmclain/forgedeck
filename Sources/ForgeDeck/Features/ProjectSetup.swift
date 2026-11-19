@@ -274,7 +274,8 @@ struct BlueprintSheet: View {
                         VStack(alignment: .leading, spacing: Space.xs) {
                             ForEach(Array(structure.prefix(30).enumerated()), id: \.offset) { _, folder in
                                 HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-                                    Text(folder.path).kitType(.monoSmall, Ink.text).frame(width: 150, alignment: .leading).lineLimit(1)
+                                    Text(folder.path).kitType(.monoSmall, Ink.text).lineLimit(1).truncationMode(.head).frame(width: 150, alignment: .leading)
+                                        .help(folder.path)
                                     Text(folder.purpose ?? "").kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
                                 }
                             }
@@ -286,13 +287,18 @@ struct BlueprintSheet: View {
                     group("Tools") {
                         VStack(alignment: .leading, spacing: Space.xs) {
                             ForEach(Array(tools.prefix(20).enumerated()), id: \.offset) { _, tool in
-                                HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-                                    Text(tool.name).kitType(.monoSmall, Ink.text)
-                                    if let installed = tool.installed {
-                                        TagBadge(installed ? "Installed" : "Not installed", tone: installed ? .ok : .warn)
+                                VStack(alignment: .leading, spacing: 2) { // grid: ok name and reason read as one line pair
+                                    HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
+                                        Text(tool.name).kitType(.monoSmall, Ink.text).lineLimit(1).truncationMode(.middle)
+                                        if let installed = tool.installed {
+                                            TagBadge(installed ? "Installed" : "Not installed", tone: installed ? .ok : .warn).fixedSize()
+                                        }
                                     }
-                                    Text(tool.why ?? "").kitType(.meta, Ink.text3).lineLimit(1)
+                                    if let why = tool.why, !why.isEmpty {
+                                        Text(why).kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+                                    }
                                 }
+                                .padding(.bottom, 2) // grid: ok gap between tools
                             }
                         }
                     }
@@ -341,6 +347,8 @@ struct BlueprintSheet: View {
                 }
             }
 
+            skillsGroup(product, agent: agent, approved: approved)
+
             if let questions = blueprint.questions, !questions.isEmpty {
                 group("Open questions") {
                     VStack(alignment: .leading, spacing: Space.xs) {
@@ -367,6 +375,49 @@ struct BlueprintSheet: View {
         }
     }
 
+    /// The skills the agent suggested with the plan, and the ones already chosen, so they are in place before the build.
+    @ViewBuilder private func skillsGroup(_ product: Product, agent: String, approved: Bool) -> some View {
+        let suggested = model.skillSuggestions(product).filter(\.isValid).map(\.entry)
+        let chosen = (product.agentSkills ?? []).filter { !$0.isDismissed }
+        if !suggested.isEmpty || !chosen.isEmpty {
+            group("Skills") {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    ForEach(chosen) { skill in
+                        skillRow(skill.id, why: skill.why, isPlugin: skill.isPlugin, state: skill.isActive ? "Chosen" : "Off")
+                    }
+                    ForEach(suggested, id: \.name) { entry in
+                        skillRow(entry.name, why: entry.why ?? "", isPlugin: entry.isPlugin, state: nil)
+                    }
+                    HStack(spacing: Space.sm) {
+                        Text(suggested.isEmpty ? "\(agent) is told about the chosen skills when it builds."
+                             : approved ? "Choose them in Development › Skills."
+                             : "Choose them before approving, so \(agent) can use them while it builds.")
+                            .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if !suggested.isEmpty {
+                            Button("Choose Skills…") {
+                                model.sheet = nil
+                                model.open(product, tab: .development)
+                            }
+                            .buttonStyle(.kit(.link))
+                        }
+                    }
+                    .padding(.top, Space.xs)
+                }
+            }
+        }
+    }
+
+    private func skillRow(_ name: String, why: String, isPlugin: Bool, state: String?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
+            Icon(.sparkle, size: 10).foregroundStyle(state == nil ? Ink.text3 : Ink.accent)
+            Text(name).kitType(.monoSmall, Ink.text).lineLimit(1).fixedSize()
+            if isPlugin { TagBadge("Plugin").fixedSize() }
+            if let state { TagBadge(state, tone: state == "Chosen" ? .ok : .muted).fixedSize() }
+            Text(why).kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             Text(title).kitType(.section).accessibilityAddTraits(.isHeader)
@@ -390,7 +441,7 @@ struct BlueprintSheet: View {
                     }
                     if let why = stack.why { Text(why).kitType(.label, Ink.text2).fixedSize(horizontal: false, vertical: true).multilineTextAlignment(.leading) }
                     if let parts = stack.parts, !parts.isEmpty {
-                        HStack(spacing: Space.xs) { ForEach(parts.prefix(8), id: \.self) { Chip($0) } }
+                        FlowLayout { ForEach(parts.prefix(8), id: \.self) { Chip($0) } }
                     }
                 }
                 Spacer(minLength: 0)

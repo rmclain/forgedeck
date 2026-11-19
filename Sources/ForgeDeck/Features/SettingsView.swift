@@ -183,10 +183,10 @@ struct SettingsView: View {
                         }
                     }
                 } header: { Text("Agent skill") } footer: {
-                    Text("A short skill that tells Claude Code how to find a product and read only the context a task needs, through \(Brand.cliName). Claude Code loads its one-line description in every session and reads the rest only when you mention a product. Forge Remote always has it.")
+                    Text("A short skill that tells Claude Code how to find a product and read only the context a task needs, through \(Brand.cliName). Claude Code loads its one-line description in every session and reads the rest only when you mention a product. It adds two commands: /\u{2060}products lists your products, numbered, and /\u{2060}product <number or name> puts the session on one. Forge Remote always has them, and \(Brand.name) keeps them up to date.")
                 }
                 Section("Examples") {
-                    ForEach(["\(Brand.cliName) list", "\(Brand.cliName) status <product> --json", "\(Brand.cliName) open <product>",
+                    ForEach(["\(Brand.cliName) list", "\(Brand.cliName) find <part of a name>", "\(Brand.cliName) status <product> --json", "\(Brand.cliName) open <product>",
                              "\(Brand.cliName) env list <product> --environment development",
                              "\(Brand.cliName) exec --product <product> --environment development --profile tests -- npm test", "\(Brand.cliName) doctor"], id: \.self) { line in
                         Text(line).font(.system(size: 11.5, design: .monospaced)).textSelection(.enabled)

@@ -167,6 +167,30 @@ private struct CLIHarness {
         #expect(lines[2].contains("Archived"))
     }
 
+    @Test func findNumbersProductsWithAFolderAndResolvesWords() async throws {
+        let harness = try CLIHarness()
+        defer { harness.cleanUp() }
+        #expect(await harness.cli.run(["find"]) == CLIExit.ok)
+        #expect(harness.captured.stdout.contains("  1  Acme API  ·  "))
+        #expect(!harness.captured.stdout.contains("Archived"))
+
+        let one = try CLIHarness()
+        defer { one.cleanUp() }
+        #expect(await one.cli.run(["find", "acme"]) == CLIExit.ok)
+        #expect(one.captured.stdout.hasPrefix("Acme API  (\(one.slug))") && one.captured.stdout.contains("context \(one.slug) --write"))
+
+        let json = try CLIHarness()
+        defer { json.cleanUp() }
+        #expect(await json.cli.run(["find", "1", "--json"]) == CLIExit.ok)
+        let rows = try JSONDecoder().decode([CLI.FoundRow].self, from: Data(json.captured.stdout.utf8))
+        #expect(rows.count == 1 && rows[0].number == 1 && rows[0].name == "Acme API" && !rows[0].folder.isEmpty)
+
+        let none = try CLIHarness()
+        defer { none.cleanUp() }
+        #expect(await none.cli.run(["find", "zzz-nothing"]) == CLIExit.failure)
+        #expect(none.captured.stdout.contains("No product fits"))
+    }
+
     @Test func listJSONDecodesIntoProductRows() async throws {
         let harness = try CLIHarness()
         defer { harness.cleanUp() }

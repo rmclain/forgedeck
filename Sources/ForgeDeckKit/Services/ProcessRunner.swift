@@ -103,9 +103,11 @@ public struct SystemProcessRunner: ProcessRunning {
                     box.append(Self.drain(err.fileHandleForReading), stream: .err)
                     continuation.resume(returning: box.result(exitCode: finished.terminationStatus))
                 }
+                // Start the timer before launching: a dispatch source released without ever being resumed is a crash,
+                // and the catch below cancels it when the launch fails (a working folder deleted meanwhile, say).
+                timer.resume()
                 do {
                     try process.run()
-                    timer.resume()
                     if let input, let data = request.stdin {
                         input.fileHandleForWriting.write(data)
                         try? input.fileHandleForWriting.close()

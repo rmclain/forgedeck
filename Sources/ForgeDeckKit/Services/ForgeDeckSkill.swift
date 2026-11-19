@@ -20,6 +20,7 @@ public enum ForgeDeckSkill {
         ---
         name: \(name)
         description: \(description)
+        \(allowedToolsLine(cli: cli))
         ---
         \(marker)
 
@@ -30,7 +31,9 @@ public enum ForgeDeckSkill {
 
         ## 1. Find the product
 
-        Run `\(tool) list`. Match the person's words to a name or slug. Skip rows marked (demo). If two fit, ask.
+        Run `\(tool) find <the person's words>` (a number from `\(tool) find` works too). Exit 0 names one product and its folder. \
+        Exit 2 lists the products that fit: ask which one. Exit 1: nothing fits; show `\(tool) find` and ask. Never guess between two.
+        If the session is already on a product (the person used /product), the person means that one unless they name another.
 
         ## 2. Read what the task needs
 
@@ -111,27 +114,111 @@ public enum ForgeDeckSkill {
         """
     }
 
-    /// Writes `<skills>/forgedeck/SKILL.md`. Refuses to replace a folder of that name that ForgeDeck did not write.
-    @discardableResult
-    public static func install(in skills: URL, cli: String) throws -> Bool {
-        let folder = skills.appending(path: name, directoryHint: .isDirectory)
-        let file = folder.appending(path: "SKILL.md")
-        if FileManager.default.fileExists(atPath: folder.path), !isOurs(file) {
-            throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: folder.path,
-                NSLocalizedDescriptionKey: "\(folder.path) holds a skill \(Brand.name) did not write. Rename or remove it first."])
-        }
-        let data = Data(text(cli: cli).utf8)
-        if (try? Data(contentsOf: file)) == data { return false }
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try data.write(to: file, options: .atomic)
-        return true
+    // MARK: Permissions
+
+    /// The CLI calls the skill and the commands make that only read, or write a context file into ForgeDeck's own
+    /// context folder. Claude Code runs them without asking. `exec`, `open`, `agent`, `link`, `ci --fix`, and
+    /// `doctor` (which may reach SSH hosts) are left out, so those still ask.
+    public static func allowedCommands(cli: String) -> [String] {
+        let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
+        let bare = ["find", "list", "usage"].map { "\(tool) \($0)" }
+        let withArguments = ["find", "list", "context", "status", "links", "leads", "skills", "env check", "run check", "blueprint check"]
+            .map { "\(tool) \($0) *" }
+        return (bare + withArguments + ["\(tool) ci * --brief"]).sorted()
     }
 
-    /// Removes the skill only when ForgeDeck wrote it.
+    /// The same commands as Claude Code `Bash(…)` permission rules.
+    public static func allowRules(cli: String) -> [String] { allowedCommands(cli: cli).map { "Bash(\($0))" } }
+
+    /// `allowed-tools` frontmatter for a skill or command file.
+    static func allowedToolsLine(cli: String) -> String {
+        "allowed-tools: " + allowRules(cli: cli).map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
+    }
+
+    // MARK: Slash commands
+
+    /// `/products` and `/product`: typed by the person, never started by the agent on its own.
+    public static let commandNames = ["products", "product"]
+
+    public static func listCommand(cli: String) -> String {
+        let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
+        return """
+        ---
+        name: products
+        description: List the \(Brand.name) products on this Mac, numbered, so the person can pick one with /product.
+        disable-model-invocation: true
+        argument-hint: "[part of a name]"
+        \(allowedToolsLine(cli: cli))
+        ---
+        \(marker)
+
+        Run `\(tool) find` and show its output as it is: numbered products by group, each with its folder. \
+        If the person typed words after /products ($ARGUMENTS), run `\(tool) find <those words>` instead.
+        Then say, in one line: reply `/product <number or name>` to work on one. Read nothing else.
+        """
+    }
+
+    public static func pickCommand(cli: String) -> String {
+        let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
+        return """
+        ---
+        name: product
+        description: Work on one \(Brand.name) product, found by its number from /products or part of its name. Loads its context and keeps the session on it.
+        disable-model-invocation: true
+        argument-hint: "<number or part of a name>"
+        \(allowedToolsLine(cli: cli))
+        ---
+        \(marker)
+
+        The person typed: $ARGUMENTS
+
+        1. Nothing typed: run `\(tool) find`, show the list, and ask which one. Stop there.
+        2. Run `\(tool) find <what they typed>`, with each word as its own argument.
+           - Exit 0: it names one product, its slug, and its folders.
+           - Exit 2: several fit. Show them with their numbers and ask which. Stop there.
+           - Exit 1: none fit. Show `\(tool) find` and ask. Stop there.
+        3. Run `\(tool) context <slug> --write` and read the file it prints. Then `cd` into the product's first folder.
+        4. Reply in at most three short lines: "On <name>", its folder, and the branch or anything urgent the context shows. \
+        Ask what to do. Change nothing yet.
+        5. For the rest of this session, "it", "the app", and "the project" mean this product, and work happens in its folders only. \
+        If the person names a different product, ask before switching, then do these steps again for it.
+        """
+    }
+
+    /// Every file ForgeDeck installs: the skill and the two commands, by folder name.
+    public static func files(cli: String) -> [(name: String, text: String)] {
+        [(name, text(cli: cli)), ("products", listCommand(cli: cli)), ("product", pickCommand(cli: cli))]
+    }
+
+    /// Writes `<skills>/forgedeck/SKILL.md` and the commands' folders. Refuses to replace a `forgedeck` folder that
+    /// ForgeDeck did not write; a command folder of someone else's is left alone and that command is not installed.
+    @discardableResult
+    public static func install(in skills: URL, cli: String) throws -> Bool {
+        var changed = false
+        for (folderName, text) in files(cli: cli) {
+            let folder = skills.appending(path: folderName, directoryHint: .isDirectory)
+            let file = folder.appending(path: "SKILL.md")
+            if FileManager.default.fileExists(atPath: folder.path), !isOurs(file) {
+                guard folderName == name else { continue }
+                throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: folder.path,
+                    NSLocalizedDescriptionKey: "\(folder.path) holds a skill \(Brand.name) did not write. Rename or remove it first."])
+            }
+            let data = Data(text.utf8)
+            if (try? Data(contentsOf: file)) == data { continue }
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try data.write(to: file, options: .atomic)
+            changed = true
+        }
+        return changed
+    }
+
+    /// Removes the skill and the commands, each only when ForgeDeck wrote it.
     public static func remove(from skills: URL) throws {
-        let folder = skills.appending(path: name, directoryHint: .isDirectory)
-        guard isOurs(folder.appending(path: "SKILL.md")) else { return }
-        try FileManager.default.removeItem(at: folder)
+        for folderName in [name] + commandNames {
+            let folder = skills.appending(path: folderName, directoryHint: .isDirectory)
+            guard isOurs(folder.appending(path: "SKILL.md")) else { continue }
+            try FileManager.default.removeItem(at: folder)
+        }
     }
 
     public static func isInstalled(in skills: URL) -> Bool { isOurs(skills.appending(path: "\(name)/SKILL.md")) }

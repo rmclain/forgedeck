@@ -88,7 +88,11 @@ extension AppModel {
         guard let checkout = checkout(for: product) else { return }
         Task {
             let tools = await Task.detached { ProjectGenesis.installedTools() }.value
-            let prompt = GenesisPrompt.plan(product, folder: checkout.path, tools: tools, cli: cliCommand)
+            if installedPlugins == nil { await loadInstalledPlugins() }
+            let home = agentHomeURL
+            let skills = await Task.detached { Array(SkillSuggestions.installedSkills(home: home)) }.value
+            let prompt = GenesisPrompt.plan(product, folder: checkout.path, tools: tools, cli: cliCommand,
+                                            installedSkills: skills, installedPlugins: installedPlugins ?? [])
             startSetupAgent(product, checkout: checkout, prompt: prompt, title: "Plan", audit: "genesis.plan")
         }
     }
@@ -209,7 +213,7 @@ extension AppModel {
     func sendBuild(_ product: Product, stack: String, note: String?, resuming: Bool = false) {
         guard let current = self.product(product.id), let checkout = checkout(for: current) else { return }
         if !resuming, let session = agentSession(current) {
-            session.view.pasteText(GenesisPrompt.approvalMessage(stack: stack, note: note))
+            session.view.pasteText(GenesisPrompt.approvalMessage(stack: stack, note: note, skills: SkillSuggestions.activeNames(current)))
             // The paste lands asynchronously; Return goes after it.
             Task {
                 try? await Task.sleep(for: .milliseconds(400))

@@ -30,7 +30,7 @@ struct ProductPage: View {
                 Group {
                     switch model.productTab {
                     case .overview: ProductOverviewTab(product: product)
-                    case .issues: IssuesTab(product: product)
+                    case .issues: IssuesTab(product: product).id(IssuesTab.startsOnDone)
                     case .development: DevelopmentTab(product: product)
                     case .environments: EnvironmentsTab(product: product)
                     case .metrics: LeadsContent(product: product)

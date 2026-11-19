@@ -17,6 +17,11 @@ public struct ProductIssue: Codable, Identifiable, Hashable, Sendable {
     /// Set once it is copied to GitHub.
     public var githubNumber: Int?
     public var githubURL: String?
+    /// Set when the agent reported it finished (`.forgedeck/issues-done.json`): which agent, and its one-line summary.
+    public var doneBy: String?
+    public var doneSummary: String?
+    /// When the person last moved it back to Open. A report written before this does not close it again.
+    public var reopenedAt: Date?
 
     public init(id: UUID = UUID(), title: String, notes: String = "", isDone: Bool = false, createdAt: Date = .now) {
         self.id = id
@@ -82,15 +87,16 @@ public enum ProductIssues {
                       + "anything ambiguous. At most three short questions per item, all in one message. Skip what the code already answers.",
                   "4. Wait for the answers. Then do the items one at a time, in the order that makes sense. Run the tests after each, "
                       + "and say which item is finished before you start the next.",
-                  "Do not push, deploy, or open, close, or comment on GitHub issues. The person marks items done in \(Brand.name)."]
+                  IssueReports.instruction(several: true),
+                  "Do not push, deploy, or open, close, or comment on GitHub issues."]
         return lines.joined(separator: "\n")
     }
 
-    /// Title, notes, and the GitHub issue when there is one.
+    /// Title, ID, notes, and the GitHub issue when there is one.
     private static func describe(_ issue: ProductIssue, product: Product) -> String {
         let redactor = Redactor()
         let notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
-        var text = "\"\(redactor.redact(issue.title))\"\n" + (notes.isEmpty ? "Notes: none." : "Notes:\n\(notes)")
+        var text = "\"\(redactor.redact(issue.title))\"\nID: \(issue.id.uuidString)\n" + (notes.isEmpty ? "Notes: none." : "Notes:\n\(notes)")
         if let number = issue.githubNumber, let repo = repository(product) {
             text += "\nIt is GitHub issue #\(number) in \(repo.owner)/\(repo.name). Read the discussion with `gh issue view \(number) --repo \(repo.owner)/\(repo.name) --comments` if it helps."
         }
@@ -106,7 +112,8 @@ public enum ProductIssues {
                   "3. Ask what you need to know to do it well: what done looks like, the scope, anything ambiguous. "
                       + "At most four short numbered questions, in one message. Skip what the code already answers.",
                   "4. Wait for the answers. Then give a short plan, do the work, and run the tests.",
-                  "Do not push, deploy, or open, close, or comment on GitHub issues. When it is done, say so; the person marks it done in \(Brand.name)."]
+                  IssueReports.instruction(several: false),
+                  "Do not push, deploy, or open, close, or comment on GitHub issues."]
         return lines.joined(separator: "\n")
     }
 
@@ -127,5 +134,94 @@ public enum ProductIssues {
             return (text, number)
         }
         return nil
+    }
+}
+
+// When the agent finishes an item it writes `.forgedeck/issues-done.json` with the item's ID and a one-line summary.
+// The app reads it while the session runs and on every refresh, and moves the item to Done. Only items an agent was
+// started on can be closed this way, only by a report written after that start, and never one the person reopened later.
+
+public enum IssueReports {
+    public static let relativePath = ".forgedeck/issues-done.json"
+    static let maxBytes = 64 * 1024
+    static let maxEntries = 50
+    public static let maxSummary = 280
+
+    public struct Entry: Codable, Hashable, Sendable {
+        public var id: String
+        public var summary: String?
+        public init(id: String, summary: String? = nil) { self.id = id; self.summary = summary }
+    }
+
+    /// A plan step the agent finished.
+    public struct StepEntry: Codable, Hashable, Sendable {
+        public var plan: String
+        public var step: String
+        public var summary: String?
+        public init(plan: String, step: String, summary: String? = nil) { self.plan = plan; self.step = step; self.summary = summary }
+    }
+
+    /// One checkout's file and when it was last written.
+    public struct Report: Hashable, Sendable {
+        public var entries: [Entry]
+        public var steps: [StepEntry]
+        public var written: Date
+        public init(entries: [Entry], steps: [StepEntry] = [], written: Date) { self.entries = entries; self.steps = steps; self.written = written }
+    }
+
+    /// What the agent is told to do when an item is finished.
+    public static func instruction(several: Bool) -> String {
+        let example = "{\"done\": [{\"id\": \"<the item's ID>\", \"summary\": \"One sentence: what changed.\"}]}"
+        return several
+            ? "When an item is finished and its tests pass, add it to `\(relativePath)` in this folder, keeping the items already there: "
+                + "\(example). \(Brand.name) then moves it to Done. List only items that are really finished; leave out any you stopped on."
+            : "When it is finished and the tests pass, say so and write `\(relativePath)` in this folder: \(example). "
+                + "\(Brand.name) then moves it to Done. Do not write the file if you stopped before it was finished."
+    }
+
+    public static func read(_ product: Product) -> [Report] {
+        product.checkouts.compactMap { read(folder: $0.path) }
+    }
+
+    public static func read(folder: String) -> Report? {
+        let url = URL(fileURLWithPath: folder).appending(path: relativePath)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              (attributes[.type] as? FileAttributeType) == .typeRegular,
+              ((attributes[.size] as? NSNumber)?.intValue ?? 0) <= maxBytes,
+              let data = try? Data(contentsOf: url), let parsed = parseReport(data) else { return nil }
+        return Report(entries: parsed.entries, steps: parsed.steps, written: attributes[.modificationDate] as? Date ?? .distantPast)
+    }
+
+    public static func parse(_ data: Data) -> [Entry]? { parseReport(data)?.entries }
+
+    /// Finished items under "done" and finished plan steps under "steps". Either may be left out, not both.
+    public static func parseReport(_ data: Data) -> (entries: [Entry], steps: [StepEntry])? {
+        struct File: Decodable { var done: [Entry]?; var steps: [StepEntry]? }
+        guard let file = try? JSONDecoder().decode(File.self, from: data), file.done != nil || file.steps != nil else { return nil }
+        return (Array((file.done ?? []).prefix(maxEntries)), Array((file.steps ?? []).prefix(maxEntries * 2)))
+    }
+
+    /// The items with every report applied, and the ones it moved to Done.
+    public static func apply(_ reports: [Report], to issues: [ProductIssue], now: Date = .now) -> (issues: [ProductIssue], closed: [ProductIssue]) {
+        var issues = issues
+        var closed: [ProductIssue] = []
+        let redactor = Redactor()
+        for report in reports {
+            for entry in report.entries {
+                guard let id = UUID(uuidString: entry.id.trimmingCharacters(in: .whitespaces)),
+                      let index = issues.firstIndex(where: { $0.id == id }) else { continue }
+                let issue = issues[index]
+                guard !issue.isDone, let started = issue.startedAt, report.written >= started,
+                      issue.reopenedAt.map({ report.written > $0 }) ?? true else { continue }
+                let summary = redactor.redact(entry.summary ?? "")
+                    .split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                issues[index].isDone = true
+                issues[index].doneAt = now
+                issues[index].doneBy = issue.startedWith
+                issues[index].doneSummary = summary.isEmpty ? nil : String(summary.prefix(maxSummary))
+                closed.append(issues[index])
+            }
+        }
+        return (issues, closed)
     }
 }

@@ -54,7 +54,16 @@ extension DemoFixtures {
 
     /// Demo skill suggestions for Lumen. Made-up names; nothing installs.
     public static func skillSuggestions(for product: Product) -> [ProposedSkill] {
-        guard product.isDemo, product.slug == "lumen" else { return [] }
+        guard product.isDemo else { return [] }
+        if product.slug == "orbit-crm" {
+            return [
+                ProposedSkill(name: "demo-nextjs", repo: "example/demo-skills", why: "App Router conventions, server actions, and route handlers."),
+                ProposedSkill(name: "demo-stripe", repo: "example/demo-skills", why: "Checkout, subscriptions, and verifying webhook signatures."),
+                ProposedSkill(name: "demo-playwright", plugin: "demo-playwright", marketplace: "example/demo-plugins",
+                              why: "Writes and runs the end-to-end tests.", includes: ["skills"]),
+            ]
+        }
+        guard product.slug == "lumen" else { return [] }
         return [
             ProposedSkill(name: "demo-design-review", repo: "example/demo-skills", why: "Reviews the React screens for layout, contrast, and empty states."),
             ProposedSkill(name: "demo-vitest", plugin: "demo-vitest", marketplace: "example/demo-plugins",
@@ -75,6 +84,8 @@ extension DemoFixtures {
         started.startedWith = "claude"
         var done = ProductIssue(title: "Rename \"Seats\" to \"Members\" in billing", isDone: true, createdAt: now.addingTimeInterval(-86_400 * 9))
         done.doneAt = now.addingTimeInterval(-86_400)
+        done.doneBy = "claude"
+        done.doneSummary = "Billing pages, emails, and the plan table now say Members; tests updated."
         return [ProductIssue(title: "onboarding email feels long", createdAt: now.addingTimeInterval(-3_600)), exportBug, started, done]
     }
 }
@@ -94,13 +105,13 @@ extension DemoFixtures {
             summary: "A multi-tenant web app where small businesses manage customer subscriptions: plans, invoices, and churn. A Next.js dashboard and API on one deployment, PostgreSQL for data, and Stripe for billing and webhooks.",
             stack: .init(name: "Next.js + PostgreSQL + Stripe",
                          why: "One TypeScript codebase for the dashboard and the API routes Stripe webhooks need. Postgres fits relational billing data. Node 22 and Docker are already on this Mac.",
-                         parts: ["Next.js", "TypeScript", "PostgreSQL", "Prisma", "Stripe", "Auth.js"]),
+                         parts: ["Next.js 15 App Router", "TypeScript", "PostgreSQL 17", "Prisma ORM", "Stripe Billing", "Auth.js", "Vitest", "Playwright end-to-end tests"]),
             alternatives: [.init(name: "Remix + PostgreSQL", why: "Similar shape with simpler data loading; a smaller ecosystem for billing examples.", parts: ["Remix", "PostgreSQL"]),
                            .init(name: "Django + HTMX", why: "Choose it if the team prefers Python and server-rendered pages.", parts: ["Django", "HTMX", "PostgreSQL"])],
-            structure: [.init(path: "app/", purpose: "dashboard pages and API routes"), .init(path: "app/api/stripe/", purpose: "webhook handler"),
+            structure: [.init(path: "app/", purpose: "dashboard pages and API routes"), .init(path: "app/api/stripe/webhooks/handlers/", purpose: "webhook handler, one file per Stripe event type"),
                         .init(path: "prisma/", purpose: "schema and migrations"), .init(path: "tests/", purpose: "Vitest and Playwright")],
             tools: [.init(name: "node", why: "runs Next.js", installed: true), .init(name: "docker", why: "local Postgres", installed: true),
-                    .init(name: "stripe", why: "forwards webhooks locally", installed: false)],
+                    .init(name: "stripe", why: "forwards webhooks to the local server so checkout and subscription events can be tested without deploying", installed: false)],
             steps: [.init(title: "Generate the app with create-next-app", status: approved ? "done" : "pending", detail: approved ? "Next.js 15, TypeScript, App Router" : nil),
                     .init(title: "Add Prisma and a Postgres compose service", status: approved ? "done" : "pending"),
                     .init(title: "Add Auth.js sign-in", status: approved ? "running" : "pending"),
@@ -116,5 +127,42 @@ extension DemoFixtures {
             questions: ["Do customers sign in themselves, or only your staff?"])
         let (problems, warnings) = BlueprintCheck.check(blueprint)
         return BlueprintFile(blueprint: blueprint, problems: problems, warnings: warnings)
+    }
+}
+
+extension DemoFixtures {
+    /// Lumen's plans: one ready to review, made from the dark-mode issue, and one finished.
+    public static func plans(issues: [ProductIssue], now: Date = .now) -> [FeaturePlan] {
+        var ready = FeaturePlan(request: "dark mode for the embed widget", issueID: issues.first { $0.title.hasPrefix("dark mode") }?.id,
+                                createdAt: now.addingTimeInterval(-3_600 * 3))
+        ready.startedWith = "claude"
+        ready.phase = .ready
+        ready.title = "Dark mode for the embed widget"
+        ready.summary = "The widget reads the host page's color scheme, with a data-theme attribute to force light or dark. "
+            + "Colors move to CSS variables so both themes share one stylesheet."
+        ready.steps = [
+            .init(id: "1", title: "Move widget colors to CSS variables", detail: "Replace the 14 hard-coded colors in widget.css; no visual change in light mode.",
+                  files: ["packages/embed/src/widget.css"]),
+            .init(id: "2", title: "Add the dark palette", detail: "A prefers-color-scheme block with contrast checked against WCAG AA.",
+                  files: ["packages/embed/src/theme.css"]),
+            .init(id: "3", title: "Support data-theme=\"light|dark|auto\"", detail: "Read the attribute on mount; auto follows the host page.",
+                  files: ["packages/embed/src/mount.ts", "packages/embed/README.md"]),
+            .init(id: "4", title: "Theme switcher in the dashboard's embed settings", detail: "A three-way picker that updates the snippet.",
+                  files: ["apps/web/app/settings/embed/page.tsx"], optional: true),
+            .init(id: "5", title: "Visual tests for both themes", detail: "Playwright screenshots of the widget in light and dark.",
+                  files: ["packages/embed/tests/theme.spec.ts"]),
+        ]
+        ready.questions = ["Should auto follow the host page or the visitor's system setting when they differ?"]
+        ready.risks = ["Customers who override widget colors with !important may see mixed themes."]
+
+        var done = FeaturePlan(request: "Rename Seats to Members in billing", createdAt: now.addingTimeInterval(-86_400 * 3))
+        done.startedWith = "claude"
+        done.title = "Rename Seats to Members"
+        done.steps = [.init(id: "1", title: "Rename in the billing UI"), .init(id: "2", title: "Rename in emails"), .init(id: "3", title: "Update tests")]
+        for index in done.steps.indices { done.steps[index].doneAt = now.addingTimeInterval(-86_400) }
+        done.phase = .done
+        done.executedAt = now.addingTimeInterval(-86_400 * 2)
+        done.doneAt = now.addingTimeInterval(-86_400)
+        return [ready, done]
     }
 }

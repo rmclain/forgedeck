@@ -202,6 +202,48 @@ public enum SkillSuggestions {
         return "Skills chosen for \(product.name): \(names.joined(separator: "; ")). Use them when the work fits."
     }
 
+    /// What is installed and already decided, as bullet lines for a prompt.
+    static func knownLines(_ product: Product, installedSkills: [String], installedPlugins: Set<String>) -> [String] {
+        var facts = ["- Skills installed on this Mac: " + (installedSkills.isEmpty ? "none" : installedSkills.sorted().joined(separator: ", ")),
+                     "- Claude Code plugins installed: " + (installedPlugins.isEmpty ? "none" : installedPlugins.sorted().joined(separator: ", "))]
+        let chosen = (product.agentSkills ?? []).filter { !$0.isDismissed }.map(\.id)
+        if !chosen.isEmpty { facts.append("- Already chosen for this product: " + chosen.joined(separator: ", ")) }
+        let dismissed = (product.agentSkills ?? []).filter(\.isDismissed).map(\.id)
+        if !dismissed.isEmpty { facts.append("- Turned down, do not suggest again: " + dismissed.joined(separator: ", ")) }
+        return facts
+    }
+
+    /// Where to look, how to choose, and the file format. Shared by the Suggest prompt and the new-project plan.
+    static func findAndWrite(indent: String) -> String {
+        """
+        \(indent)Look at skills.sh and GitHub skills repositories (folders with a SKILL.md), \
+        `claude plugin list --available --json` (plugins from the marketplaces already added; installCount shows use), and \
+        claudemarketplaces.com. Prefer well-maintained ones with real use. An installed skill that fits is a good suggestion: \
+        it only has to be chosen. Skip what overlaps another suggestion or what this product does not need. \
+        Open each one's repository and read it. Prefer a plain skill (a SKILL.md folder) over a plugin when both exist. \
+        For a plugin, note what it adds; hooks and MCP servers run code in every session.
+        \(indent)Write `\(relativePath)` in the folder. A skill from a GitHub repository:
+        \(indent)  `{"name": "skill-folder-name", "repo": "owner/repo", "why": "one short line on what it does for this product"}`
+        \(indent)A Claude Code plugin:
+        \(indent)  `{"name": "plugin-name", "plugin": "plugin-name", "marketplace": "owner/repo or \(officialMarketplace)", \
+        "why": "…", "includes": ["skills", "hooks"]}`
+        \(indent)The whole file: `{"skills": [ … ]}`. Take names from the repository itself (the skill's folder, or the \
+        marketplace's `.claude-plugin/marketplace.json`); never guess them.
+        """
+    }
+
+    /// The skills step of a new project's plan: suggested alongside the blueprint, so they can be chosen before the build.
+    public static func planStep(_ product: Product, cli: String, installedSkills: [String], installedPlugins: Set<String>) -> String {
+        let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
+        return """
+        Suggest 3 to 8 agent skills for building and working on this project with the stack you recommend: \
+        the framework, its tests, design, deployment, and anything the idea needs. Suggest only; install nothing.
+        \(knownLines(product, installedSkills: installedSkills, installedPlugins: installedPlugins).map { "   " + $0 }.joined(separator: "\n"))
+        \(findAndWrite(indent: "   "))
+           Then run `\(tool) skills check \(product.slug)` and fix every problem it prints.
+        """
+    }
+
     /// The prompt that asks the agent for suggestions.
     public static func prompt(for product: Product, checkout: LocalCheckout, cli: String, installedSkills: [String], installedPlugins: Set<String>) -> String {
         let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
@@ -210,12 +252,7 @@ public enum SkillSuggestions {
         if !product.stack.isEmpty { facts.append("- Stack: " + product.stack.joined(separator: ", ")) }
         let hints = RunSetup.hints(for: checkout)
         if !hints.isEmpty { facts.append("- Files at the top: " + hints.joined(separator: ", ")) }
-        facts.append("- Skills installed on this Mac: " + (installedSkills.isEmpty ? "none" : installedSkills.sorted().joined(separator: ", ")))
-        facts.append("- Claude Code plugins installed: " + (installedPlugins.isEmpty ? "none" : installedPlugins.sorted().joined(separator: ", ")))
-        let chosen = (product.agentSkills ?? []).filter { !$0.isDismissed }.map(\.id)
-        if !chosen.isEmpty { facts.append("- Already chosen for this product: " + chosen.joined(separator: ", ")) }
-        let dismissed = (product.agentSkills ?? []).filter(\.isDismissed).map(\.id)
-        if !dismissed.isEmpty { facts.append("- Turned down, do not suggest again: " + dismissed.joined(separator: ", ")) }
+        facts += knownLines(product, installedSkills: installedSkills, installedPlugins: installedPlugins)
         return """
         Suggest agent skills that would help with \(product.name). Suggest only; install nothing.
 
@@ -224,21 +261,10 @@ public enum SkillSuggestions {
 
         1. Work out what this product is and what work happens in it: read the README and the top-level files, and run \
         `git log --oneline -30`. Note the kinds of work: UI and design, WordPress, an API, tests, docs, releases, data, mobile.
-        2. Find skills that fit that work. Look at skills.sh and GitHub skills repositories (folders with a SKILL.md), \
-        `claude plugin list --available --json` (plugins from the marketplaces already added; installCount shows use), and \
-        claudemarketplaces.com. Prefer well-maintained ones with real use. An installed skill that fits is a good suggestion: \
-        it only has to be chosen. Skip what overlaps another suggestion or what this product does not need.
-        3. Open each one's repository and read it. Prefer a plain skill (a SKILL.md folder) over a plugin when both exist. \
-        For a plugin, note what it adds; hooks and MCP servers run code in every session. Suggest between 3 and 8.
-        4. Write `\(relativePath)` in the folder. A skill from a GitHub repository:
-           `{"name": "skill-folder-name", "repo": "owner/repo", "why": "one short line on what it does for this product"}`
-           A Claude Code plugin:
-           `{"name": "plugin-name", "plugin": "plugin-name", "marketplace": "owner/repo or \(officialMarketplace)", \
-        "why": "…", "includes": ["skills", "hooks"]}`
-           The whole file: `{"skills": [ … ]}`. Take names from the repository itself (the skill's folder, or the \
-        marketplace's `.claude-plugin/marketplace.json`); never guess them.
-        5. Run `\(tool) skills check \(product.slug)` and fix every problem it prints.
-        6. Show me a short table (name, why, skill or plugin), then tell me to open \(product.name) › Development › Skills \
+        2. Find between 3 and 8 skills that fit that work.
+        \(findAndWrite(indent: "   "))
+        3. Run `\(tool) skills check \(product.slug)` and fix every problem it prints.
+        4. Show me a short table (name, why, skill or plugin), then tell me to open \(product.name) › Development › Skills \
         in \(Brand.name) and press Install or Use on the ones I want. Nothing is installed before that.
         """
     }
