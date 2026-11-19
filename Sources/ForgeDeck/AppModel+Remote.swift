@@ -16,6 +16,7 @@ extension AppModel {
         if isRemoteRunning { return "Running: \(ForgeRemote.products(in: portfolio).count) products reachable from the Claude app" }
         if case .exited(let code)? = remoteSession?.state { return code.map { "Stopped (exit \($0))" } ?? "Stopped" }
         if case .failed(let why)? = remoteSession?.state { return "Could not start: \(why)" }
+        if remoteWaiting { return "Waiting for the previous Forge Remote to stop…" }
         return remoteSettings.enabled ? "Starting…" : "Off"
     }
 
@@ -31,12 +32,45 @@ extension AppModel {
         if enabled { startRemote(showTerminal: true) } else { stopRemote() }
     }
 
-    /// Starts the server, or brings its terminal forward when it already runs.
+    /// Starts the server, or brings its terminal forward when it already runs. A server left in the workspace from
+    /// the last run (or still shutting down after a restart) holds the folder, so it is stopped and awaited first.
     func startRemote(showTerminal: Bool) {
         if let session = remoteSession, session.isRunning {
             if showTerminal { showRemoteTerminal() }
             return
         }
+        guard !remoteWaiting else { return }
+        let leftovers = ForgeRemote.leftoverServers(in: remoteWorkspace)
+        guard leftovers.isEmpty else {
+            remoteWaiting = true
+            record("remote.stop", detail: "reason=left-from-before count=\(leftovers.count)")
+            Task { [weak self] in
+                await Self.stopProcesses(leftovers)
+                guard let self else { return }
+                self.remoteWaiting = false
+                guard self.remoteSettings.enabled, !self.remoteStopping else { return }
+                if !ForgeRemote.leftoverServers(in: self.remoteWorkspace).isEmpty {
+                    return self.show("Another Forge Remote still serves its folder and would not stop. Quit it, then turn Forge Remote on again.", isError: true)
+                }
+                self.startRemote(showTerminal: showTerminal)
+            }
+            return
+        }
+        launchRemote(showTerminal: showTerminal)
+    }
+
+    /// Asks each process to stop, waits up to 20 seconds, then ends any that is still there.
+    private static func stopProcesses(_ pids: [pid_t]) async {
+        for pid in pids { kill(pid, SIGTERM) }
+        for _ in 0..<40 {
+            if !pids.contains(where: ProcessInspector.isAlive) { return }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        for pid in pids where ProcessInspector.isAlive(pid) { kill(pid, SIGKILL) }
+        try? await Task.sleep(for: .seconds(1))
+    }
+
+    private func launchRemote(showTerminal: Bool) {
         guard let claude = ExecutableLocator.find(ForgeRemote.program) else {
             return show("Forge Remote needs Claude Code. Install it, then turn Forge Remote on again.", isError: true)
         }
@@ -71,6 +105,7 @@ extension AppModel {
 
     func stopRemote() {
         remoteStopping = true
+        remoteWaiting = false
         if let session = remoteSession {
             terminals.close(session)
             record("remote.stop")
@@ -83,6 +118,7 @@ extension AppModel {
     func restartRemote() {
         guard remoteSettings.enabled else { return }
         stopRemote()
+        remoteStopping = false
         startRemote(showTerminal: false)
     }
 
@@ -154,9 +190,9 @@ extension AppModel {
         let home = NSHomeDirectory()
         let folder = remoteWorkspace.folder.path.replacingOccurrences(of: home, with: "~")
         let lines = [
-            "\(bold)Forge Remote\(reset)  open the Claude app or claude.ai/code and pick \"\(ForgeRemote.sessionName(settings))\"",
+            "\(bold)Forge Remote\(reset)  in the Claude app or claude.ai/code, start a new session on this Mac (the link below opens one)",
             "\(dim)Workspace  \(folder) (a short CLAUDE.md; the forgedeck skill finds products on demand)\(reset)",
-            "\(dim)Sessions   each new session starts clean; one product per session\(reset)",
+            "\(dim)Sessions   each new session starts clean and is named \"\(ForgeRemote.sessionName(settings))…\"; one product per session\(reset)",
             "\(dim)Approvals  \(settings.mode.title)\(settings.keepAwake ? "; this Mac stays awake while this runs" : "")\(reset)",
             "",
         ]

@@ -270,6 +270,8 @@ final class AppModel {
     @ObservationIgnored var remoteActivity: (any NSObjectProtocol)?
     @ObservationIgnored var remoteRestarts: [Date] = []
     @ObservationIgnored var remoteStopping = false
+    /// Set while a start waits for a server left from before to exit.
+    var remoteWaiting = false
     @ObservationIgnored var mcpCache: [UUID: (product: Product, info: MCPProductInfo)] = [:]
     @ObservationIgnored var playCache: [UUID: (product: Product, options: [PlayOption])] = [:]
     /// Sites made with Local, read once at launch. Play opens a plugin's site from here.

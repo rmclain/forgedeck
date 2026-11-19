@@ -89,4 +89,66 @@ public enum ProcessInspector {
     }
 
     public static func isAlive(_ pid: pid_t) -> Bool { pid > 0 && kill(pid, 0) == 0 }
+
+    /// Every process ID this user can see.
+    public static func allPIDs() -> [pid_t] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(count) + 64)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        return Array(pids.prefix(max(0, Int(filled)))).filter { $0 > 0 }
+    }
+
+    /// The folder a process runs in.
+    public static func workingDirectory(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        return path.isEmpty ? nil : path
+    }
+
+    /// A process's arguments, the program first. nil for a process this user cannot read.
+    public static func arguments(of pid: pid_t) -> [String]? {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return nil }
+        let argc = buffer.withUnsafeBytes { Int($0.load(as: Int32.self)) }
+        // After argc: the executable path, padding NULs, then argc NUL-terminated arguments.
+        var index = MemoryLayout<Int32>.size
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+        var arguments: [String] = []
+        while arguments.count < argc, index < size {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            arguments.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return arguments
+    }
+
+    /// Processes running `arguments` (matched in order, anywhere in the command) in `folder`.
+    public static func processes(running arguments: [String], in folder: String) -> [pid_t] {
+        let folder = URL(fileURLWithPath: folder).standardizedFileURL.resolvingSymlinksInPath().path
+        let me = getpid()
+        return allPIDs().filter { pid in
+            guard pid != me, let cwd = workingDirectory(of: pid),
+                  URL(fileURLWithPath: cwd).standardizedFileURL.resolvingSymlinksInPath().path == folder,
+                  let argv = ProcessInspector.arguments(of: pid) else { return false }
+            return contains(argv, arguments)
+        }
+    }
+
+    static func contains(_ argv: [String], _ wanted: [String]) -> Bool {
+        guard !wanted.isEmpty else { return true }
+        let names = argv.enumerated().map { $0.offset == 0 ? ($0.element as NSString).lastPathComponent : $0.element }
+        return (0...max(0, names.count - wanted.count)).contains { start in
+            names.count >= wanted.count && Array(names[start..<start + wanted.count]) == wanted
+        }
+    }
 }

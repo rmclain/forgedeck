@@ -21,7 +21,7 @@ public struct ForgeRemoteSettings: Codable, Hashable, Sendable {
     }
 
     public var enabled = false
-    /// The name of the first session, shown in the Claude app.
+    /// What every session's name starts with in the Claude app.
     public var name = "Forge Session"
     public var permissionMode = Mode.ask.rawValue
     /// Hold off idle sleep while the server runs. Closing the lid still sleeps the Mac.
@@ -46,9 +46,14 @@ public struct ForgeRemoteSettings: Codable, Hashable, Sendable {
 public enum ForgeRemote {
     /// The agent that has a Remote Control server. Other agents have no equivalent to start.
     public static let program = "claude"
-    public static let namePrefix = "Forge"
 
     public static func supports(_ program: String) -> Bool { program == Self.program }
+
+    /// A Remote Control server still serving the workspace that ForgeDeck does not hold: one left from the last
+    /// time ForgeDeck ran, or one that is still shutting down after a restart. Claude Code allows one per folder.
+    public static func leftoverServers(in workspace: ForgeRemoteWorkspace, except kept: Set<pid_t> = []) -> [pid_t] {
+        ProcessInspector.processes(running: [program, "remote-control"], in: workspace.folder.path).filter { !kept.contains($0) }
+    }
 
     /// The products a remote session may work on: real, not archived, with a folder on this Mac.
     public static func products(in portfolio: Portfolio) -> [Product] {
@@ -56,7 +61,7 @@ public enum ForgeRemote {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// The session name, trimmed to something the app shows well.
+    /// The session name prefix, trimmed to something the app shows well.
     public static func sessionName(_ settings: ForgeRemoteSettings) -> String {
         let trimmed = settings.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let clean = String(trimmed.filter { !$0.isNewline && $0 != "\0" }.prefix(60))
@@ -64,10 +69,12 @@ public enum ForgeRemote {
     }
 
     /// `claude remote-control …`: a server whose sessions all start in the workspace. An argument array, no shell.
+    /// No session is made ahead of time: one made at start would live as long as the server and pile up context,
+    /// so every session is one the person starts in the Claude app, and it starts clean.
     public static func command(program: URL, settings: ForgeRemoteSettings) -> [String] {
         [program.path, "remote-control",
-         "--name", sessionName(settings),
-         "--remote-control-session-name-prefix", namePrefix,
+         "--no-create-session-in-dir",
+         "--remote-control-session-name-prefix", sessionName(settings),
          "--permission-mode", settings.mode.rawValue,
          "--spawn", "same-dir"]
     }

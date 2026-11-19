@@ -375,13 +375,13 @@ Settings › Forge Remote › **Turn on Forge Remote** starts Claude Code's Remo
 - `.claude/skills/products` and `.claude/skills/product`, two commands you type: `/products` lists your products by group, numbered, with their folders; `/product 7` or `/product cloud` finds one by number or part of its name, loads its context, moves into its folder, and keeps the session on it. When several products fit, it lists them and asks.
 - `.claude/settings.json`, which makes every product folder and the context folder working directories, so a session can `cd` into any product.
 
-ForgeDeck rewrites these files when products change. On your phone, open the Claude app (or claude.ai/code), pick the session, and name a product. The session reads that product's CONTEXT.md and works in its folder.
+ForgeDeck rewrites these files when products change. On your phone, open the Claude app (or claude.ai/code), start a new session on this Mac, and name a product. Forge Remote makes no session ahead of time, so there is no long-lived session that piles up old context: every session is one you start, and it starts clean. Its name starts with the Session names setting ("Forge Session" unless you change it). The session reads that product's CONTEXT.md and works in its folder.
 
 **Switching products.** Every session you start from the app begins in the Forge Session folder with empty context, so start a new session for each product. A session asked to switch suggests exactly that, or `/clear`. If you continue in the same session anyway, it re-reads the new context and treats earlier work as belonging to the other product.
 
-- **Approvals** (Ask before every change, Edit files without asking, Plan only, Auto) apply to every session. Prompts come to your phone. Modes that skip every question are not offered. Changing approvals or the session name restarts Forge Remote, which ends open sessions.
+- **Approvals** (Ask before every change, Edit files without asking, Plan only, Auto) apply to every session. Prompts come to your phone. Modes that skip every question are not offered. Changing approvals or the session names restarts Forge Remote, which ends open sessions.
 - **Keep this Mac awake while it runs** prevents idle sleep. Closing the lid still sleeps the Mac.
-- Forge Remote runs while ForgeDeck is open and starts again when ForgeDeck opens. If it stops on its own, ForgeDeck restarts it, at most three times in ten minutes.
+- Forge Remote runs while ForgeDeck is open and starts again when ForgeDeck opens. If it stops on its own, ForgeDeck restarts it, at most three times in ten minutes. Claude Code allows one Remote Control server per folder, so when a server from the last time ForgeDeck ran (or one still shutting down after a restart) holds the Forge Session folder, ForgeDeck stops it and waits for it to exit before starting; Settings shows "Waiting for the previous Forge Remote to stop…" meanwhile.
 - The first time, Claude Code may ask in the Forge Remote terminal whether to trust the folder. Answer it at the Mac.
 - Production secrets need Touch ID at this Mac, so a remote session cannot use them.
 - Only Claude Code has Remote Control. Other agents still start from product pages.

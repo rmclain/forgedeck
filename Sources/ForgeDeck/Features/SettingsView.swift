@@ -241,10 +241,10 @@ struct ForgeRemoteSettingsView: View {
                 }
             }
         } header: { Text("Forge Remote") } footer: {
-            Text("Runs Claude Code's Remote Control in the background, in a Forge Session folder. Sessions start almost empty and find products through the forgedeck skill, reading only what a task needs. Open the Claude app or claude.ai/code, pick the session, and name a product. Start a new session for each product. Only Claude Code has Remote Control; other agents keep working from the product pages.")
+            Text("Runs Claude Code's Remote Control in the background, in a Forge Session folder. Sessions start almost empty and find products through the forgedeck skill, reading only what a task needs. In the Claude app or claude.ai/code, start a new session on this Mac and name a product. Each session starts clean, so start a new one for each product. Only Claude Code has Remote Control; other agents keep working from the product pages.")
         }
         Section {
-            LabeledContent("Session name") {
+            LabeledContent("Session names start with") {
                 TextField("", text: $name, prompt: Text("Forge Session"))
                     .labelsHidden()
                     .onSubmit { commitName() }

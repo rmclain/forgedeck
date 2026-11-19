@@ -35,7 +35,7 @@ import Testing
 
     @Test func theCommandIsAServerThatAsksBeforeChangesByDefault() {
         let argv = ForgeRemote.command(program: URL(fileURLWithPath: "/usr/local/bin/claude"), settings: ForgeRemoteSettings())
-        #expect(argv == ["/usr/local/bin/claude", "remote-control", "--name", "Forge Session", "--remote-control-session-name-prefix", "Forge",
+        #expect(argv == ["/usr/local/bin/claude", "remote-control", "--no-create-session-in-dir", "--remote-control-session-name-prefix", "Forge Session",
                          "--permission-mode", "default", "--spawn", "same-dir"])
         #expect(!argv.contains("bypassPermissions"))
     }
@@ -116,6 +116,28 @@ import Testing
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let folders = (object["permissions"] as? [String: Any])?["additionalDirectories"] as? [String]
         #expect(folders == ["/tmp/fd-remote/alpha", "/tmp/fd-remote/zeta", "/tmp/fd-remote/context"])
+    }
+
+    @Test func aServerLeftInTheWorkspaceIsFoundByItsFolderAndArguments() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "fd-leftover-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["37"]
+        process.currentDirectoryURL = folder
+        try process.run()
+        defer { process.terminate() }
+        let pid = process.processIdentifier
+        #expect(ProcessInspector.workingDirectory(of: pid).map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+                == folder.resolvingSymlinksInPath().path)
+        #expect(ProcessInspector.arguments(of: pid) == ["/bin/sleep", "37"])
+        #expect(ProcessInspector.processes(running: ["sleep", "37"], in: folder.path) == [pid])
+        #expect(ProcessInspector.processes(running: ["sleep", "38"], in: folder.path).isEmpty)
+        #expect(ProcessInspector.processes(running: ["sleep", "37"], in: FileManager.default.temporaryDirectory.path).isEmpty)
+        #expect(ForgeRemote.leftoverServers(in: ForgeRemoteWorkspace(folder: folder)).isEmpty)
+        #expect(ProcessInspector.contains(["/Users/me/.local/bin/claude", "remote-control", "--spawn", "same-dir"], ["claude", "remote-control"]))
+        #expect(!ProcessInspector.contains(["/usr/bin/claude"], ["claude", "remote-control"]))
     }
 
     @Test func readOnlyLookupsRunWithoutAskingAndExecStillAsks() throws {
