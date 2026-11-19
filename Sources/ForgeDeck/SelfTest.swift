@@ -93,6 +93,7 @@ enum SelfTest {
             await terminalChecks(model: model)
             skillChecks(model: model)
             await mcpChecks(model: model)
+            await cloneChecks(model: model)
             check("the palette never lists a secret", !model.paletteCommands {}.contains { $0.label.contains("selftest-value") })
             model.removeDemo()
             check("removing the demo leaves real products", !model.hasDemo && model.products.count == 3)
@@ -205,6 +206,48 @@ enum SelfTest {
         check("the clone is deleted after adding", !fm.fileExists(atPath: clone.path))
         check("the Toolbox lists the added skill", AgentSkills.installed(home: home).map(\.name) == ["demo-skill"])
         model.agentHome = nil
+        try? fm.removeItem(at: base)
+    }
+
+    /// Add Product › GitHub Repository with "Clone to this Mac": the repository becomes a product and its clone that
+    /// product's local folder. git rewrites the GitHub URL to a local bare repository, so nothing reaches the network.
+    private static func cloneChecks(model: AppModel) async {
+        let fm = FileManager.default
+        let base = model.store.location.directory.appending(path: "clone-test")
+        let origin = base.appending(path: "origin/selftest-clone.git"), work = base.appending(path: "work"), parent = base.appending(path: "Projects")
+        guard let git = ExecutableLocator.find("git") else { return check("git is installed for the clone check", false) }
+        let runner = SystemProcessRunner()
+        func run(_ arguments: [String], in folder: URL) async -> Bool {
+            (try? await runner.run(ProcessRequest(executable: git, arguments: arguments, workingDirectory: folder, timeout: 30)))?.ok == true
+        }
+        do { try fm.createDirectory(at: work, withIntermediateDirectories: true); try fm.createDirectory(at: parent, withIntermediateDirectories: true) }
+        catch { return check("a repository to clone can be made", false, error.localizedDescription) }
+        try? "# Self-test\n".write(to: work.appending(path: "README.md"), atomically: true, encoding: .utf8)
+        var made = true
+        for (arguments, folder) in [(["init", "-q"], work), (["add", "README.md"], work),
+                                    (["-c", "user.name=Self Test", "-c", "user.email=selftest@example.invalid", "commit", "-q", "-m", "First"], work),
+                                    (["clone", "-q", "--bare", work.path, origin.path], base)] where made {
+            made = await run(arguments, in: folder)
+        }
+        guard made else { try? fm.removeItem(at: base); return check("a repository to clone can be made", false) }
+        // git reads config from the environment; the clone's own process inherits it.
+        let keys = ["GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "url.\(base.appending(path: "origin").path)/.insteadOf",
+                    "GIT_CONFIG_VALUE_0": "git@github.com:selftest/"]
+        for (key, value) in keys { setenv(key, value, 1) }
+        defer { for key in keys.keys { unsetenv(key) } }
+
+        guard let url = RepositoryURL.parse("git@github.com:selftest/selftest-clone.git") else { return check("the repository URL parses", false) }
+        let product = model.addRepository(url, original: "git@github.com:selftest/selftest-clone.git", group: "Self-test")
+        guard let repository = model.product(product.id)?.repositories.first else { return check("the repository is added as a product", false) }
+        await model.cloneRepository(repository, into: parent, for: product.id)
+        let destination = parent.appending(path: "selftest-clone")
+        check("Add and Clone clones into the chosen folder", fm.fileExists(atPath: destination.appending(path: "README.md").path), model.toast?.text ?? "")
+        let checkout = model.product(product.id)?.checkouts.first
+        check("the clone becomes the product's local folder",
+              checkout.map { URL(fileURLWithPath: $0.path).resolvingSymlinksInPath().path == destination.resolvingSymlinksInPath().path } == true, checkout?.path ?? "none")
+        await model.cloneRepository(repository, into: parent, for: product.id)
+        check("a second clone never overwrites the folder", model.toast?.isError == true && model.product(product.id)?.checkouts.count == 1, model.toast?.text ?? "")
+        if let current = model.product(product.id) { model.portfolio.products.removeAll { $0.id == current.id }; model.save() }
         try? fm.removeItem(at: base)
     }
 

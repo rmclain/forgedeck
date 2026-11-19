@@ -92,6 +92,14 @@ enum Snapshot {
             Shot(name: "production-context") { $0.route = .overview; $0.context = .production },
             Shot(name: "palette") { $0.context = .staging; $0.route = .overview; $0.paletteOpen = true },
             Shot(name: "sheet-add-product") { $0.paletteOpen = false; $0.sheet = .addProduct },
+            Shot(name: "sheet-add-product-github") { model in
+                AddProductState.shared.initialMode = .github
+                AddProductState.shared.initialRepository = "acme/subscription-desk"
+                model.paletteOpen = false
+                // The previous shot shows the same sheet: close it so this one opens fresh on the GitHub tab.
+                model.sheet = nil
+                DispatchQueue.main.async { model.sheet = .addProduct }
+            },
             Shot(name: "sheet-new-project") { $0.paletteOpen = false; NewProjectSheet.preset = nil; $0.sheet = .newProject },
             Shot(name: "sheet-new-project-filled") { NewProjectSheet.preset = .agent; $0.sheet = .newProject },
             Shot(name: "sheet-new-project-starter") { NewProjectSheet.preset = .starter; $0.sheet = .newProject },

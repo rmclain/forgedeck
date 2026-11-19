@@ -9,6 +9,9 @@ final class AddProductState {
     static let shared = AddProductState()
     /// Folders dropped on the window, waiting for the sheet to scan them.
     var pendingFolders: [URL] = []
+    /// The tab and repository to open with, for snapshots.
+    var initialMode: AddProductSheet.Mode?
+    var initialRepository = ""
 }
 
 struct AddProductSheet: View {
@@ -30,6 +33,8 @@ struct AddProductSheet: View {
     @State private var listNote = ""
     @State private var listing = false
     @State private var listFilter = ""
+    @State private var cloneNow = true
+    @State private var cloneParent = ""
     // Server
     @State private var alias = ""
     @State private var serverName = ""
@@ -112,6 +117,12 @@ struct AddProductSheet: View {
             }
         }
         .onAppear {
+            if cloneParent.isEmpty { cloneParent = Runtime.isSnapshot ? "/Users/me/Projects" : model.defaultCloneParent }
+            if let initial = AddProductState.shared.initialMode {
+                mode = initial
+                repoURL = AddProductState.shared.initialRepository
+                AddProductState.shared.initialMode = nil
+            }
             let pending = AddProductState.shared.pendingFolders
             if !pending.isEmpty {
                 AddProductState.shared.pendingFolders = []
@@ -123,7 +134,7 @@ struct AddProductSheet: View {
     private var footnote: String {
         switch mode {
         case .local: "Skips node_modules, .venv, vendor, build folders, and symlinks."
-        case .github: "Cloning is a separate step you start yourself."
+        case .github: cloneNow ? "Clones with your own Git sign-in. An existing folder is never overwritten." : "Clone later from the product page."
         case .server: "Keys stay with your SSH agent. Host keys are always checked."
         case .manual: "Add folders, repositories, and environments later."
         }
@@ -134,7 +145,7 @@ struct AddProductSheet: View {
     private var addLabel: String {
         switch mode {
         case .local: "Add \(selectedProposals.count)"
-        case .github: chosen.isEmpty ? "Add Repository" : "Add \(chosen.count)"
+        case .github: (chosen.isEmpty ? "Add Repository" : "Add \(chosen.count)") + (cloneNow ? " and Clone" : "")
         case .server: "Add Server"
         case .manual: "Add Product"
         }
@@ -143,7 +154,7 @@ struct AddProductSheet: View {
     private var canAdd: Bool {
         switch mode {
         case .local: !selectedProposals.isEmpty && !scanning
-        case .github: !chosen.isEmpty || RepositoryURL.parse(repoURL) != nil
+        case .github: (!chosen.isEmpty || RepositoryURL.parse(repoURL) != nil) && (!cloneNow || !cloneParent.isEmpty)
         case .server: SSHConfig.isValidAlias(alias)
         case .manual: !name.trimmingCharacters(in: .whitespaces).isEmpty
         }
@@ -155,12 +166,22 @@ struct AddProductSheet: View {
             let ids = model.applyImport(selectedProposals, group: group)
             finish(Array(Set(ids)), message: "Added \(selectedProposals.count) project\(selectedProposals.count == 1 ? "" : "s")")
         case .github:
-            var ids: [UUID] = []
-            if let url = RepositoryURL.parse(repoURL) { ids.append(model.addRepository(url, original: repoURL, group: group).id) }
+            var added: [(product: Product, url: RepositoryURL)] = []
+            if let url = RepositoryURL.parse(repoURL) { added.append((model.addRepository(url, original: repoURL, group: group), url)) }
             for item in listings where chosen.contains(item.id) {
-                if let url = RepositoryURL.parse(item.webURL) { ids.append(model.addRepository(url, original: item.sshURL, group: group).id) }
+                if let url = RepositoryURL.parse(item.webURL) { added.append((model.addRepository(url, original: item.sshURL, group: group), url)) }
             }
-            finish(Array(Set(ids)), message: "Added \(Set(ids).count) repositor\(Set(ids).count == 1 ? "y" : "ies")")
+            let ids = Array(Set(added.map(\.product.id)))
+            finish(ids, message: "Added \(ids.count) repositor\(ids.count == 1 ? "y" : "ies")")
+            guard cloneNow else { return }
+            // One clone per repository, skipping a product that already has a folder on this Mac.
+            let parent = URL(fileURLWithPath: cloneParent, isDirectory: true)
+            let clones = added.compactMap { entry -> (UUID, Repository)? in
+                guard let product = model.product(entry.product.id), product.checkouts.isEmpty,
+                      let repository = product.repositories.first(where: { ImportPlannerBridge.same($0, entry.url) }) else { return nil }
+                return (product.id, repository)
+            }
+            Task { for (id, repository) in clones { await model.cloneRepository(repository, into: parent, for: id) } }
         case .server:
             finish([model.addServer(alias: alias, name: serverName, group: group, tier: tier).id], message: "Added \(serverName.isEmpty ? alias : serverName)")
         case .manual:
@@ -271,7 +292,43 @@ struct AddProductSheet: View {
                 .background(Ink.panel, in: RoundedRectangle(cornerRadius: Metric.tileRadius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Metric.tileRadius, style: .continuous).strokeBorder(Ink.line, lineWidth: Metric.hairline))
             }
+            cloneLocation
         }
+    }
+
+    /// Where the repository goes on this Mac, so a new product starts with its folder.
+    private var cloneLocation: some View {
+        let names = (RepositoryURL.parse(repoURL).map { [$0.name] } ?? []) + listings.filter { chosen.contains($0.id) }.map(\.name)
+        let taken = names.filter { FileManager.default.fileExists(atPath: (cloneParent as NSString).appendingPathComponent($0)) }
+        return VStack(alignment: .leading, spacing: Space.sm) {
+            Toggle("Clone to this Mac", isOn: $cloneNow).toggleStyle(.checkbox).kitType(.label, Ink.text2)
+            if cloneNow {
+                LabeledField(label: "Into", hint: taken.isEmpty
+                             ? (names.count == 1 ? "\(abbreviate((cloneParent as NSString).appendingPathComponent(names[0]))) will be its local folder." : "Each repository gets its own folder here.")
+                             : "\(taken.joined(separator: ", ")) already \(taken.count == 1 ? "exists" : "exist") here and will not be cloned; choose another folder.") {
+                    HStack(spacing: Space.sm) {
+                        Icon(.projects, size: 12).foregroundStyle(Ink.text2)
+                        Text(abbreviate(cloneParent)).kitType(.mono).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: Space.sm)
+                        Button("Choose…") { chooseCloneParent() }.buttonStyle(.kit(.secondary, compact: true))
+                    }
+                    .padding(.leading, Space.sm).padding(.trailing, Space.xs).frame(height: Metric.controlHeight)
+                    .background(Ink.field, in: RoundedRectangle(cornerRadius: Metric.controlRadius, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func chooseCloneParent() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "Choose the folder that will hold the clone."
+        panel.directoryURL = URL(fileURLWithPath: cloneParent)
+        if panel.runModal() == .OK, let url = panel.url { cloneParent = url.path }
     }
 
     private var server: some View {

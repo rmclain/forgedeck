@@ -50,7 +50,8 @@ Notes:
 - The local scan reads project metadata only. It never opens `.env` files, key files, `.npmrc`, or `wp-config.php`.
 - If a folder's repository already belongs to a product, the review list says "Adds a checkout to <product>" instead of creating a duplicate.
 - Scanning the same folder again says "Already in <product>: refreshes metadata". Your name, tagline, tags, and group are kept.
-- To clone a GitHub-only product: Development tab > Repositories > "Clone…", then choose the parent folder. An existing folder is never overwritten.
+- Add Product > GitHub Repository clones as you add: "Clone to this Mac" is on, and **Into** shows the folder (the last one you used, else your usual code folder) and the repository's local folder inside it. Press **Add Repository and Clone**. The clone uses your own Git sign-in and becomes the product's local folder. A folder that already exists is never overwritten. Turn the box off to add the repository only.
+- To clone a GitHub-only product later: Development tab > Repositories > "Clone…", then choose the parent folder.
 - To attach more folders to a product: Development tab > "Link Folder…".
 
 ## Start a new project

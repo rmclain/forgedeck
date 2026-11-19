@@ -349,20 +349,32 @@ extension AppModel {
         panel.canCreateDirectories = true
         panel.prompt = "Clone Here"
         panel.message = "Choose the folder that will hold \(repository.name). Nothing is overwritten."
+        panel.directoryURL = URL(fileURLWithPath: defaultCloneParent)
         guard panel.runModal() == .OK, let parent = panel.url else { return }
-        Task {
-            show("Cloning \(repository.fullName)…")
-            do {
-                let destination = try await engine.git.clone(url: repository.cloneURL, into: parent, name: repository.name)
-                if let project = ProjectDiscovery().inspect(destination) {
-                    _ = applyImport([ImportProposal(project: project, action: .addCheckout(productID: product.id))], group: product.group)
-                }
-                record("repository.clone", product: product, detail: "repo=\(repository.fullName)")
-                show("Cloned \(repository.name)")
-                if let current = self.product(product.id) { await refresh(current, announce: false) }
-            } catch {
-                show(String(describing: error), isError: true)
+        Task { await cloneRepository(repository, into: parent, for: product.id) }
+    }
+
+    /// Where clones go unless the person picks another folder: the last one used, else where new projects go.
+    var defaultCloneParent: String {
+        if let saved = UserDefaults.standard.string(forKey: "clone.parent"), FileManager.default.fileExists(atPath: saved) { return saved }
+        return defaultProjectParent
+    }
+
+    /// Clones into `parent/<name>` (never over an existing folder) and adds the clone as the product's local folder.
+    func cloneRepository(_ repository: Repository, into parent: URL, for productID: UUID) async {
+        guard let product = product(productID) else { return }
+        if !Runtime.isAutomated { UserDefaults.standard.set(parent.path, forKey: "clone.parent") }
+        show("Cloning \(repository.fullName)…")
+        do {
+            let destination = try await engine.git.clone(url: repository.cloneURL, into: parent, name: repository.name)
+            if let project = ProjectDiscovery().inspect(destination) {
+                _ = applyImport([ImportProposal(project: project, action: .addCheckout(productID: product.id))], group: product.group)
             }
+            record("repository.clone", product: product, detail: "repo=\(repository.fullName)")
+            show("Cloned \(repository.name) into \(abbreviate(destination.path))")
+            if let current = self.product(product.id) { await refresh(current, announce: false) }
+        } catch {
+            show(String(describing: error), isError: true)
         }
     }
 
