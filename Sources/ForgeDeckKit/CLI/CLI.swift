@@ -47,8 +47,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.13.3"
-    public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "ci", "usage", "help", "version"]
+    public static let version = "0.13.4"
+    public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "memory", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -95,6 +95,7 @@ public struct CLI: Sendable {
       \(Brand.cliName) actions list <product> [--json]
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
       \(Brand.cliName) context <product> [--write]
+      \(Brand.cliName) memory <product> [--json]     (rules and key facts agents read first)
       \(Brand.cliName) pack <product> [--related] [--checkout <name>]
       \(Brand.cliName) agent <product> [--agent claude|codex|opencode|gemini|agy] [--model <name>] [--print]
       \(Brand.cliName) usage                      (AI tool usage and limits on this Mac)
@@ -246,6 +247,7 @@ public struct CLI: Sendable {
         case "pack": return await pack(args)
         case "agent": return await agent(args)
         case "links": return links(args)
+        case "memory": return memory(args)
         case "ci": return await ci(args)
         case "usage": return usage()
         case "link": return link(args)
@@ -878,6 +880,21 @@ public struct CLI: Sendable {
         public var checkout: String
         public var state: String
         public var tracked: Bool
+    }
+
+    /// The product's memory. Read only: an agent adds to it through `.forgedeck/memory.json`, which the app moves into the list.
+    private func memory(_ args: Arguments) -> Int32 {
+        guard let portfolio = loadPortfolio(), let product = product(args.positional.first, in: portfolio) else { return CLIExit.failure }
+        let notes = ProductMemory.sorted(product.memory ?? [])
+        if args.switches.contains("json") {
+            io.out(json(notes))
+        } else if notes.isEmpty {
+            io.out("No memory saved for \(product.name) yet.")
+        } else {
+            for note in notes { io.out("\(note.kind.title.padding(toLength: 5, withPad: " ", startingAt: 0))  \(note.text)") }
+        }
+        if !args.switches.contains("json") { io.err(ProductMemory.instruction) }
+        return CLIExit.ok
     }
 
     private func links(_ args: Arguments) -> Int32 {

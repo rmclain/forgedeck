@@ -107,6 +107,9 @@ public enum ForgeDeckSkill {
         ## Rules
 
         - One product per task. Never change two products unless the person asks for exactly that.
+        - The context file starts with the product's Memory (`\(tool) memory <slug>` prints it too): rules and key facts from the person \
+        and earlier sessions. Follow the rules. When you learn something lasting the next session would need, add it to \
+        `\(ProductMemory.relativePath)` in the product's folder, as the context file shows.
         - `exec` runs no shell: `$NAME` in an argument stays literal. The program reads the value from its environment.
         - Production secrets need Touch ID at the Mac. If the person is not at the Mac, say so and stop.
         - Never deploy, push to a shared branch, publish, or change remote or production data unless the person asks.
@@ -122,7 +125,7 @@ public enum ForgeDeckSkill {
     public static func allowedCommands(cli: String) -> [String] {
         let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
         let bare = ["find", "list", "usage"].map { "\(tool) \($0)" }
-        let withArguments = ["find", "list", "context", "status", "links", "leads", "skills", "env check", "run check", "blueprint check"]
+        let withArguments = ["find", "list", "context", "memory", "status", "links", "leads", "skills", "env check", "run check", "blueprint check"]
             .map { "\(tool) \($0) *" }
         return (bare + withArguments + ["\(tool) ci * --brief"]).sorted()
     }
@@ -177,7 +180,7 @@ public enum ForgeDeckSkill {
            - Exit 0: it names one product, its slug, and its folders.
            - Exit 2: several fit. Show them with their numbers and ask which. Stop there.
            - Exit 1: none fit. Show `\(tool) find` and ask. Stop there.
-        3. Run `\(tool) context <slug> --write` and read the file it prints. Then `cd` into the product's first folder.
+        3. Run `\(tool) context <slug> --write` and read the file it prints, its Memory section first. Then `cd` into the product's first folder.
         4. Reply in at most three short lines: "On <name>", its folder, and the branch or anything urgent the context shows. \
         Ask what to do. Change nothing yet.
         5. For the rest of this session, "it", "the app", and "the project" mean this product, and work happens in its folders only. \

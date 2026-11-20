@@ -6,7 +6,7 @@ import Foundation
 
 public enum AgentFiles {
     public static let relativePaths = [EnvironmentProposals.relativePath, RunSetup.relativePath, SkillSuggestions.relativePath, BlueprintCheck.relativePath,
-                                              IssueReports.relativePath, FeaturePlans.relativePath]
+                                              IssueReports.relativePath, FeaturePlans.relativePath, ProductMemory.relativePath]
 
     public struct Stamp: Hashable, Sendable {
         public var size: Int

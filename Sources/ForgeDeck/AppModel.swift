@@ -51,7 +51,7 @@ enum Route: Hashable {
 }
 
 enum ProductTab: String, CaseIterable, Identifiable {
-    case overview = "Overview", issues = "Issues", development = "Development", environments = "Environments", metrics = "Leads"
+    case overview = "Overview", issues = "Issues", memory = "Memory", development = "Development", environments = "Environments", metrics = "Leads"
     case connections = "Connections", secrets = "Secrets", actions = "Actions", activity = "Activity", settings = "Settings"
     var id: String { rawValue }
 }
@@ -261,6 +261,7 @@ final class AppModel {
     var installingSkills: Set<String> = []
     /// Set to move the cursor to the Issues tab's add field.
     var focusIssueField = false
+    var focusMemoryField = false
     /// Items checked in the Issues tab, for its bulk actions.
     var selectedIssues: Set<UUID> = []
     /// The Forge Remote terminal session, while it exists.
@@ -533,10 +534,12 @@ final class AppModel {
     /// Reads the files a setup agent writes (environments, run, skills) and nothing else: no Git, no network.
     func reloadAgentFiles(_ product: Product) async {
         guard !product.isDemo else { return }
-        let (proposals, runs, skillFile, blueprint, issueReports, plans) = await Task.detached {
+        let (proposals, runs, skillFile, blueprint, issueReports, plans, memory) = await Task.detached {
             (EnvironmentProposals.read(product), RunSetup.read(product), SkillSuggestions.read(product),
-             product.genesis == nil ? nil : BlueprintCheck.read(product), IssueReports.read(product), FeaturePlans.read(product))
+             product.genesis == nil ? nil : BlueprintCheck.read(product), IssueReports.read(product), FeaturePlans.read(product),
+             ProductMemory.read(product))
         }.value
+        applyMemoryFiles(memory, to: product.id)
         if planFiles[product.id] != plans { planFiles[product.id] = plans }
         applyPlanFiles(plans, to: product.id)
         applyIssueReports(issueReports, to: product.id)

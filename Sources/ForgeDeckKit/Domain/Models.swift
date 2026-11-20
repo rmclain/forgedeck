@@ -323,6 +323,8 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     public var issuesToGitHub: Bool?
     /// Feature plans the agent wrote for the Issues tab. Optional, so products saved before it load unchanged.
     public var plans: [FeaturePlan]?
+    /// Rules and key facts every agent session reads first. Optional, so products saved before it load unchanged.
+    public var memory: [MemoryNote]?
     /// Set when ForgeDeck started this product with New Project: the idea, the plan's approval, and setup progress.
     /// Optional, so products saved before it load unchanged.
     public var genesis: GenesisRecord?

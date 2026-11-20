@@ -45,7 +45,16 @@ extension AppModel {
                 self.route = .product(product.id)
                 self.productTab = .issues
             })
+            commands.append(PaletteCommand(id: "memory-\(product.id)", label: "Memory · \(product.name)", group: "Memory", icon: .memory) {
+                self.paletteOpen = false
+                self.route = .product(product.id)
+                self.productTab = .memory
+            })
             if !product.isDemo {
+                commands.append(PaletteCommand(id: "memory-new-\(product.id)", label: "Add to Memory · \(product.name)", group: "Memory", icon: .plus, kbd: "⌘⇧M") {
+                    self.paletteOpen = false
+                    self.newMemory(product)
+                })
                 commands.append(PaletteCommand(id: "issue-new-\(product.id)", label: "New Issue · \(product.name)", group: "Issues", icon: .plus, kbd: "⌘⇧I") {
                     self.paletteOpen = false
                     self.newIssue(product)

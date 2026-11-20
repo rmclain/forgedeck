@@ -74,6 +74,16 @@ extension DemoFixtures {
 
 extension DemoFixtures {
     /// Lumen's Issues list: short notes, the way people write them, one already on GitHub, one done.
+    /// Lumen's Memory tab: rules from the person and facts an agent saved.
+    public static func memory(now: Date = .now) -> [MemoryNote] {
+        [MemoryNote(text: "Run the tests with make test; it starts the local database first.", kind: .rule, createdAt: now.addingTimeInterval(-86_400 * 12)),
+         MemoryNote(text: "Never change the public embed API without bumping its version in embed/VERSION.", kind: .rule,
+                    createdAt: now.addingTimeInterval(-86_400 * 6), addedBy: "claude"),
+         MemoryNote(text: "Billing webhooks arrive at /api/stripe; the handler retries, so it must stay idempotent.", kind: .note,
+                    createdAt: now.addingTimeInterval(-86_400 * 3), addedBy: "claude"),
+         MemoryNote(text: "The dashboard charts come from the reports service, not the main database.", kind: .note, createdAt: now.addingTimeInterval(-3_600 * 5))]
+    }
+
     public static func issues(now: Date = .now) -> [ProductIssue] {
         var exportBug = ProductIssue(title: "CSV export drops the last row", notes: "Seen on the Demo dashboard with 3+ filters.",
                                      createdAt: now.addingTimeInterval(-86_400 * 2))

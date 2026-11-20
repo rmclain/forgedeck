@@ -428,6 +428,9 @@ public struct AgentContextBundle: Sendable, Equatable {
     /// The active skills, one line for the prompt.
     public var skillsLine: String?
     public var skillNames: [String] = []
+    /// The product's memory and how to add to it, for the prompt. nil for a demo product.
+    public var memory: String?
+    public var memoryCount = 0
 
     public init(contextFile: URL, workingDirectory: String, readableFolders: [String], relatedNames: [String], approxTokens: Int,
                 contextFolders: [String] = [], skillsLine: String? = nil, skillNames: [String] = []) {
@@ -471,7 +474,8 @@ public struct AgentContextBundle: Sendable, Equatable {
             "## No production environment\n\n\(Brand.name) has no production environment for \(product.name), so it cannot say what is live. "
             + "If the person asks, propose one in `\(EnvironmentProposals.relativePath)` in this folder and run `\(Brand.cliName) env check \(product.slug)`. "
             + "The forgedeck skill has the steps. The person approves it in \(Brand.name); you cannot add it yourself."]
-        let text = Redactor().redact(([header] + sections + variables + production + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
+        let memory = product.isDemo ? [] : [ProductMemory.contextSection(product)]
+        let text = Redactor().redact(([header] + memory + sections + variables + production + servers + tools).joined(separator: "\n\n---\n\n")) + "\n"
         let folder = location.productFolder(product)
         try location.prepare(folder)
         let file = location.contextFile(product)
@@ -481,9 +485,14 @@ public struct AgentContextBundle: Sendable, Equatable {
         let owned = [folder.path] + (packFolderUsed ? [location.packsFolder.path] : [])
         var seen = Set(owned)
         let readable = folders.filter { $0 != primary?.path && seen.insert($0).inserted }
-        return AgentContextBundle(contextFile: file, workingDirectory: primary?.path ?? NSHomeDirectory(), readableFolders: readable,
-                                  relatedNames: names, approxTokens: text.utf8.count / 4, contextFolders: owned, skillsLine: SkillSuggestions.promptLine(for: product),
-                                  skillNames: SkillSuggestions.activeNames(product))
+        var bundle = AgentContextBundle(contextFile: file, workingDirectory: primary?.path ?? NSHomeDirectory(), readableFolders: readable,
+                                        relatedNames: names, approxTokens: text.utf8.count / 4, contextFolders: owned, skillsLine: SkillSuggestions.promptLine(for: product),
+                                        skillNames: SkillSuggestions.activeNames(product))
+        if !product.isDemo {
+            bundle.memory = ProductMemory.prompt(product)
+            bundle.memoryCount = ProductMemory.count(product)
+        }
+        return bundle
     }
 
     /// Variable names per environment and the exact `forgedeck exec` line for each profile. Never a value:
@@ -527,6 +536,7 @@ public struct AgentContextBundle: Sendable, Equatable {
         "\(Brand.name) wrote a context file for this session at \(contextFile.path). Read it before working across repositories."
             + (relatedNames.isEmpty ? "" : " Related repositories you may read: \(relatedNames.joined(separator: ", ")).")
             + (skillsLine.map { " " + $0 } ?? "")
+            + (memory.map { "\n\n" + $0 } ?? "")
     }
 
     /// A few lines printed above the agent in the in-app terminal. The system-prompt flag and the folder flags
@@ -539,6 +549,10 @@ public struct AgentContextBundle: Sendable, Equatable {
         var rows: [(String, String)] = [("Context", "\(tilde(contextFile.path))  \(dim)~\(max(1, approxTokens / 1_000))k tokens, read when needed\(reset)")]
         let related = relatedNames.isEmpty ? "none linked. Link products in the Agent context card." : relatedNames.joined(separator: ", ")
         rows.append(("Related", related))
+        if memory != nil {
+            rows.append(("Memory", memoryCount == 0 ? "empty  \(dim)the agent adds what it learns\(reset)"
+                                   : "\(memoryCount) item\(memoryCount == 1 ? "" : "s")  \(dim)in the prompt; the agent adds what it learns\(reset)"))
+        }
         if !skillNames.isEmpty { rows.append(("Skills", skillNames.joined(separator: ", ") + "  \(dim)named in the prompt\(reset)")) }
         if let flag = spec?.addFolderFlag {
             let added = spec?.grantsReadBySettings == true ? readableFolders.count : readableFolders.count + contextFolders.count

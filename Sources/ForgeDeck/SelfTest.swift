@@ -99,6 +99,7 @@ enum SelfTest {
             check("removing the demo leaves real products", !model.hasDemo && model.products.count == 3)
             await genesisChecks(model: model)
             await issueReportChecks(model: model)
+            await memoryChecks(model: model)
             await planChecks(model: model)
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
@@ -438,6 +439,38 @@ enum SelfTest {
         if let closed { model.setIssueDone(closed, false, in: product) }
         await model.reloadAgentFiles(model.product(product.id) ?? product)
         check("an item reopened after the report stays open", model.product(product.id)?.issues?.first { $0.id == target.id }?.isDone == false)
+    }
+
+    /// Memory: the person's items and the agent's file both land in the list, every session's prompt carries them, and delete works.
+    private static func memoryChecks(model: AppModel) async {
+        let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-memory-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = GenesisRequest(name: "Selftest Memory", idea: "", parent: root.path, folder: "selftest-memory", starter: GenesisStarter.find("empty"))
+        let folder = root.appending(path: "selftest-memory")
+        guard await model.createProject(request) == nil, let product = model.products.first(where: { $0.checkouts.first?.path == folder.path }) else {
+            return check("a product for the memory checks", false)
+        }
+        let added = model.addMemory("Run the tests with make test.", kind: .rule, to: product)
+        let again = model.addMemory("run the tests with make test", kind: .note, to: product)
+        check("a typed rule is saved once", added && !again && model.product(product.id)?.memory?.count == 1)
+        let file = folder.appending(path: ProductMemory.relativePath)
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data("{\"add\": [{\"kind\": \"note\", \"text\": \"Webhooks retry, so the handler must be idempotent.\"}]}".utf8).write(to: file)
+        await model.reloadAgentFiles(model.product(product.id) ?? product)
+        let notes = model.product(product.id)?.memory ?? []
+        let learned = notes.first { $0.kind == .note }
+        check("the agent's file adds to the memory", notes.count == 2 && learned?.addedBy == model.portfolio.settings.aiAgentProgram,
+              notes.map(\.text).joined(separator: " | "))
+        check("the agent's file is emptied once read", ProductMemory.read(folder: folder.path)?.entries == [])
+        check("a toast names what the agent added", model.toast?.text.contains("memory") == true, model.toast?.text ?? "")
+        let current = model.product(product.id) ?? product
+        let bundle = try? AgentContextBundle.write(for: current, portfolio: model.portfolio, cache: model.cache, location: model.contextLocation)
+        let context = bundle.flatMap { try? String(contentsOf: $0.contextFile, encoding: .utf8) } ?? ""
+        check("every session's prompt and context file carry the memory", bundle?.pointer.contains("- Rule: Run the tests with make test.") == true
+              && bundle?.pointer.contains(ProductMemory.relativePath) == true && context.contains("- Note: Webhooks retry"))
+        if let learned { model.deleteMemory(learned, from: current) }
+        check("an item can be deleted", model.product(product.id)?.memory?.map(\.text) == ["Run the tests with make test."])
     }
 
     private static func genesisChecks(model: AppModel) async {

@@ -107,6 +107,7 @@ public enum DemoFixtures {
                 product.agentSkills = [AgentSkill(id: "demo-release-notes", repo: "example/demo-skills", why: "Writes release notes from merged pull requests.")]
                 product.issues = DemoFixtures.issues()
                 product.plans = DemoFixtures.plans(issues: product.issues ?? [])
+                product.memory = DemoFixtures.memory()
             }
             product.lifecycle = spec.id == "ledgerly" ? .maintenance : .active
             product.tags = [spec.group == "Client Work" ? "client" : spec.group == "Internal" ? "internal" : "saas"]

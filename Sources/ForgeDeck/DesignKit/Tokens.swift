@@ -233,6 +233,7 @@ enum KitIcon: String {
     case xmark = "xmark"
     case tag = "tag"
     case checklist = "checklist"
+    case memory = "brain"
 }
 
 struct Icon: View {

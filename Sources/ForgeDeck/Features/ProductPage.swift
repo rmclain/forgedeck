@@ -17,6 +17,9 @@ struct ProductPage: View {
         case .issues:
             let n = ProductIssues.openCount(product)
             return n > 0 ? "\(n)" : nil
+        case .memory:
+            let n = ProductMemory.count(product)
+            return n > 0 ? "\(n)" : nil
         case .actions: return product.recipes.isEmpty ? nil : "\(product.recipes.count)"
         case .environments: return product.environments.isEmpty ? nil : "\(product.environments.count)"
         default: return nil
@@ -31,6 +34,7 @@ struct ProductPage: View {
                     switch model.productTab {
                     case .overview: ProductOverviewTab(product: product)
                     case .issues: IssuesTab(product: product).id(IssuesTab.startsOnDone)
+                    case .memory: MemoryTab(product: product)
                     case .development: DevelopmentTab(product: product)
                     case .environments: EnvironmentsTab(product: product)
                     case .metrics: LeadsContent(product: product)

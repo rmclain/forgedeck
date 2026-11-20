@@ -481,6 +481,14 @@ ForgeDeck starts your agent (Settings › Agents) in the product's folder with a
 
 When the agent finishes, choose **Review Run Setup…** in the Play menu, or press Review… on the Run setup card in Overview. Saving approves the commands you tick. A command with the same name as a saved one replaces it. What run setup saves comes first in Play, in the order the agent proposed.
 
+### Memory for a product
+
+The **Memory** tab keeps rules and key facts for a product, so a new agent session does not start from nothing. Choose **Rule** (something to always or never do) or **Note** (a fact worth knowing), type one sentence, and press Add. Product › Add to Memory (⌘⇧M) jumps there.
+
+- Every agent session ForgeDeck starts reads the memory first. This covers Open with the agent, Implement and Plan from Issues, Set Up Run, CI fixes, and the other agent buttons. The memory is in the agent's prompt and at the top of the product's CONTEXT.md, so Forge Remote and the forgedeck skill read it too. `forgedeck memory <product>` prints it.
+- When the agent learns something the next session needs, it writes `.forgedeck/memory.json` in the product's folder. While a session runs, ForgeDeck adds the entries within a second and empties the file; otherwise it does this on the next refresh. A toast says what was added, and each item shows who added it.
+- Double-click an item to edit it. Use its menu to switch it between Rule and Note, or to delete it. Repeats are skipped, secrets are removed, and a product keeps up to 100 items.
+
 ## Toolbox and agent skills
 
 The Toolbox lists command-line tools that save AI tokens or check repositories. **Install with Homebrew** (or uv) runs in the background; the card shows Installing… and a failed install opens its output. Tools that run against a repository appear on each product's Overview tab, in the Tools card, with a checkout picker when the product has more than one.

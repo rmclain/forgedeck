@@ -142,6 +142,8 @@ struct AppCommands: Commands {
                 .disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("New Issue") { if let product = model.currentProduct { model.newIssue(product) } }
                 .keyboardShortcut("i", modifiers: [.command, .shift]).disabled(model.currentProduct.map(\.isDemo) ?? true)
+            Button("Add to Memory") { if let product = model.currentProduct { model.newMemory(product) } }
+                .keyboardShortcut("m", modifiers: [.command, .shift]).disabled(model.currentProduct.map(\.isDemo) ?? true)
             Button("Plan a Feature…") { if let product = model.currentProduct { model.newIssue(product) } }
                 .keyboardShortcut("l", modifiers: [.command, .shift]).disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("Suggest Skills…") { if let product = model.currentProduct { model.suggestSkills(product) } }
