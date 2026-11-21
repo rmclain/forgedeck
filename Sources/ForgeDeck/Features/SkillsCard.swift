@@ -80,8 +80,10 @@ extension AppModel {
         }
         record("skill.install", product: product, detail: "plugin=\(plugin) marketplace=\(marketplace)")
         choose(entry, for: product)
+        skillsChanged()
         await loadInstalledPlugins()
-        show("Installed \(plugin). Claude Code sessions started from now on have it.")
+        show(staleAgentSessions(product).isEmpty ? "Installed \(plugin). Claude Code sessions started from now on have it."
+                                                 : "Installed \(plugin). Restart the agent so it loads it: Restart Agent on the Skills card.")
     }
 
     /// Adds it to the product's skills, active.
@@ -91,7 +93,32 @@ extension AppModel {
             skills.append(entry.skill)
             product.agentSkills = skills
         }
+        skillsChangedAt[product.id] = .now
         record("skill.choose", product: product, detail: "skill=\(entry.name)")
+    }
+
+    /// Skills installed on this Mac reach every agent session, so every product with one running is marked.
+    func skillsChanged() {
+        let now = Date.now
+        for id in Set(terminals.running.filter { $0.launch.kind == .agent }.compactMap(\.productID)) { skillsChangedAt[id] = now }
+    }
+
+    /// The product's agent sessions in the dock that started before its skills last changed.
+    func staleAgentSessions(_ product: Product) -> [TerminalSession] {
+        guard let changed = skillsChangedAt[product.id] else { return [] }
+        return terminals.sessions(for: product.id).filter { $0.launch.kind == .agent && $0.startedAt < changed }
+    }
+
+    /// Closes the product's agent sessions that started before its skills changed and starts the agent again,
+    /// with a fresh context file that names the active skills. Whatever the old session was doing stops.
+    func restartAgent(_ product: Product) {
+        guard let current = self.product(product.id), !current.isDemo else { return }
+        let stale = staleAgentSessions(current)
+        let checkout = stale.last.flatMap { session in current.checkouts.first { $0.id == session.checkoutID } }
+        for session in stale { terminals.close(session) }
+        skillsChangedAt[current.id] = nil
+        record("agent.restart", product: current, detail: "agent=\(portfolio.agentProgram(for: current)) closed=\(stale.count) reason=skills")
+        openAgent(current, checkout: checkout)
     }
 
     func setSkill(_ id: String, active: Bool, in product: Product) {
@@ -130,7 +157,7 @@ struct SkillsCard: View {
         let suggestions = model.skillSuggestions(product)
         let installed = installedChoices(excluding: Set(chosen.map(\.id)))
         let errors = model.skillFiles[product.id]?.errors ?? []
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(title: "Skills", subtitle: "Active ones are named in the agent's prompt when it starts here") {
                 if product.isDemo { DemoBadge() }
@@ -147,6 +174,8 @@ struct SkillsCard: View {
                     .help("\(agent) looks at this product and suggests skills. Nothing installs until you press Install.")
             }
             .padding(Space.lg)
+            let stale = model.staleAgentSessions(product)
+            if !stale.isEmpty { restartRow(stale.count, agent: agent) }
             if chosen.isEmpty && suggestions.isEmpty {
                 Text("No skills yet. Suggest with \(agent) looks at what this product is and the work you do in it, then lists skills worth adding.")
                     .kitType(.label, Ink.text2).fixedSize(horizontal: false, vertical: true)
@@ -164,6 +193,24 @@ struct SkillsCard: View {
             await model.reloadAgentFiles(product)
             if model.installedPlugins == nil { await model.loadInstalledPlugins() }
         }
+    }
+
+    /// Skills load when an agent starts, so a session that was already running needs a restart to get them.
+    private func restartRow(_ count: Int, agent: String) -> some View {
+        HStack(spacing: Space.md) {
+            ToneIcon(icon: .sync, tone: .accent, size: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(count == 1 ? "An agent session started before these skills" : "\(count) agent sessions started before these skills").kitType(.labelMedium)
+                Text("Skills and plugins load when the agent starts. Restart closes \(count == 1 ? "that session" : "those sessions") and opens \(agent) again with the new skills and a fresh context.")
+                    .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: Space.sm)
+            Button("Restart Agent") { model.restartAgent(product) }
+                .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                .help("Closes the running \(agent) session in the dock and starts a new one that loads the new skills")
+        }
+        .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
+        .hairlineAbove()
     }
 
     private func installedChoices(excluding chosen: Set<String>) -> [ProposedSkill] {

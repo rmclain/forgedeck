@@ -57,7 +57,7 @@ struct ProductPage: View {
             }
             playButton(compact: compact)
             if compact {
-                IconButton(.sparkle, label: "Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) and linked context (⌘⌥O)") { model.openAgent(product) }
+                IconButton(.sparkle, label: "Open with \(AgentCatalog.name(model.portfolio.agentProgram(for: product))) and linked context (⌘⌥O)") { model.openAgent(product) }
                     .disabled(product.isDemo || !product.hasLocal)
                 IconButton(.code, label: "Open in Editor (⌘⇧O)") { model.openEditor(product) }.disabled(product.isDemo || !product.hasLocal)
                 IconButton(.external, label: "Open Dashboard") { model.openDashboard(product) }
@@ -66,10 +66,10 @@ struct ProductPage: View {
                     .disabled(product.isDemo || model.refreshing.contains(product.id))
             } else {
                 Button { model.openAgent(product) } label: {
-                    HStack(spacing: Space.sm) { Icon(.sparkle, size: 12); Text(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)); Kbd("⌘⌥O") }
+                    HStack(spacing: Space.sm) { Icon(.sparkle, size: 12); Text(AgentCatalog.name(model.portfolio.agentProgram(for: product))); Kbd("⌘⌥O") }
                 }
                 .buttonStyle(.kit(.secondary)).disabled(product.isDemo || !product.hasLocal)
-                .help(product.contextLinks.isEmpty ? "Start \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the checkout with a map of the repo" : "Start \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the checkout with a map of this repo and \(product.contextLinks.count) linked product\(product.contextLinks.count == 1 ? "" : "s")")
+                .help(product.contextLinks.isEmpty ? "Start \(AgentCatalog.name(model.portfolio.agentProgram(for: product))) in the checkout with a map of the repo" : "Start \(AgentCatalog.name(model.portfolio.agentProgram(for: product))) in the checkout with a map of this repo and \(product.contextLinks.count) linked product\(product.contextLinks.count == 1 ? "" : "s")")
                 Button { model.openEditor(product) } label: {
                     HStack(spacing: Space.sm) { Icon(.code, size: 12); Text("Editor"); Kbd("⌘⇧O") }
                 }
@@ -97,7 +97,7 @@ struct ProductPage: View {
     /// the button is Set Up Run.
     @ViewBuilder private func playButton(compact: Bool) -> some View {
         let options = product.isDemo ? PlayPlanner.options(for: product, localSites: [], allowDemo: true) : model.playOptions(product)
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         let pending = !product.isDemo && !model.runProposals(product).isEmpty
         if let first = options.first {
             Menu {
@@ -306,7 +306,7 @@ struct LocalCard: View {
                 Button { model.openTerminal(product) } label: { Text("Terminal").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
                 Button { model.openEditor(product) } label: { Text("Editor").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
                 Button { model.openAgent(product) } label: { Text("Agent").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary)).disabled(product.isDemo)
-                    .help("Open \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram)) in the terminal with the repo map and linked context")
+                    .help("Open \(AgentCatalog.name(model.portfolio.agentProgram(for: product))) in the terminal with the repo map and linked context")
             } else {
                 Button { model.productTab = .development } label: { Text("Set Up in Development").frame(maxWidth: .infinity) }.buttonStyle(.kit(.secondary))
             }
@@ -404,7 +404,7 @@ struct TrendCard: View {
                     .padding(.top, Space.md).hairlineAbove()
                 }
             } else {
-                let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+                let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
                 EmptyState(icon: .chart, title: "Connect a metrics source",
                            message: "See leads, signups, and purchases here. \(product.hasLocal && !product.isDemo ? "\(agent) can find what \(product.name) collects and set up the check, or point" : "Point") \(Brand.name) at a metrics endpoint your app serves. Nothing is shown until a source reports it.",
                            cta: product.hasLocal && !product.isDemo ? "Set Up Leads with \(agent)…" : product.environments.isEmpty ? "Add Environment" : "Add Metrics Source", compact: true) {
@@ -683,7 +683,7 @@ struct DevelopmentTab: View {
                             IconButton(.terminal, label: "Open Terminal") { model.openTerminal(product, checkout: checkout) }
                             IconButton(.code, label: "Open in Editor") { model.openEditor(product, checkout: checkout) }
                             IconButton(.finder, label: "Reveal in Finder") { model.reveal(product, checkout: checkout) }
-                            IconButton(.sparkle, label: "Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { model.openAgent(product, checkout: checkout) }
+                            IconButton(.sparkle, label: "Open with \(AgentCatalog.name(model.portfolio.agentProgram(for: product)))") { model.openAgent(product, checkout: checkout) }
                             IconButton(.download, label: "Fetch from the remote") { model.fetch(checkout, in: product) }
                         }
                         .disabled(product.isDemo)

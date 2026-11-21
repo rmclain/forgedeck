@@ -25,7 +25,7 @@ extension AppModel {
                                                    kbd: checkout.id == product.primaryCheckout?.id ? "⌘O" : "") { self.openTerminal(product, checkout: checkout) })
                 }
                 commands.append(PaletteCommand(id: "edit-\(product.id)", label: "Open \(product.name) in Editor", group: "Local", icon: .code, kbd: "⌘⇧O") { self.openEditor(product) })
-                commands.append(PaletteCommand(id: "agent-\(product.id)", label: "Open \(product.name) with \(AgentCatalog.name(portfolio.settings.aiAgentProgram))", group: "Local", icon: .sparkle, kbd: "⌘⌥O") { self.openAgent(product) })
+                commands.append(PaletteCommand(id: "agent-\(product.id)", label: "Open \(product.name) with \(AgentCatalog.name(portfolio.agentProgram(for: product)))", group: "Local", icon: .sparkle, kbd: "⌘⌥O") { self.openAgent(product) })
             }
             for recipe in product.recipes where recipe.isApproved && !product.isDemo {
                 let production = product.environment(id: recipe.environmentID)?.tier.isProduction == true || recipe.safety == .productionCritical
@@ -94,10 +94,14 @@ extension AppModel {
                                                    kbd: index == 0 ? "⌘⇧P" : "") { self.play(product, option: option) })
                 }
                 if product.hasLocal {
-                    commands.append(PaletteCommand(id: "run-setup-\(product.id)", label: "Set Up Run with \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) · \(product.name)",
+                    commands.append(PaletteCommand(id: "run-setup-\(product.id)", label: "Set Up Run with \(AgentCatalog.name(portfolio.agentProgram(for: product))) · \(product.name)",
                                                    group: "Play", icon: .play) { self.paletteOpen = false; self.setUpRun(product) })
-                    commands.append(PaletteCommand(id: "skills-suggest-\(product.id)", label: "Suggest Skills with \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) · \(product.name)",
+                    commands.append(PaletteCommand(id: "skills-suggest-\(product.id)", label: "Suggest Skills with \(AgentCatalog.name(portfolio.agentProgram(for: product))) · \(product.name)",
                                                    group: "Agent", icon: .sparkle) { self.paletteOpen = false; self.suggestSkills(product) })
+                    if !staleAgentSessions(product).isEmpty {
+                        commands.append(PaletteCommand(id: "agent-restart-\(product.id)", label: "Restart \(AgentCatalog.name(portfolio.agentProgram(for: product))) with New Skills · \(product.name)",
+                                                       group: "Agent", icon: .sync) { self.paletteOpen = false; self.restartAgent(product) })
+                    }
                     commands.append(PaletteCommand(id: "leads-setup-\(product.id)", label: "Set Up Leads · \(product.name)", group: "Leads", icon: .leads) {
                         self.paletteOpen = false
                         self.setUpLeads(product)

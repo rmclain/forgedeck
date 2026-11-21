@@ -11,7 +11,7 @@ struct ProjectSetupCard: View {
 
     var body: some View {
         let checklist = model.genesisChecklist(product)
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         let done = checklist.rows.filter { $0.state == .done }.count
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(title: "Project setup", subtitle: checklist.isComplete ? "Ready to work on. Press Play, or open \(agent)."
@@ -182,7 +182,7 @@ struct BlueprintSheet: View {
     var body: some View {
         let product = model.product(productID)
         let file = product.flatMap { model.blueprint($0) }
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         let approved = product?.genesis?.approvedStack
         SheetPanel(width: 720) {
             SheetHeader(icon: .sparkle, title: "Blueprint for \(product?.name ?? "the project")",

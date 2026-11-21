@@ -105,9 +105,14 @@ struct SettingsView: View {
                             Text(ExecutableLocator.find(spec.program) == nil ? "\(spec.name) (not installed)" : spec.name).tag(spec.program)
                         }
                     }
-                    AgentModelPicker(agent: model.portfolio.settings.aiAgentProgram)
+                    let agent = model.portfolio.settings.aiAgentProgram
+                    AgentModelPicker(agent: agent, current: model.portfolio.settings.agentModels?[agent] ?? "") { value in
+                        var models = model.portfolio.settings.agentModels ?? [:]
+                        models[agent] = value.isEmpty ? nil : value
+                        model.portfolio.settings.agentModels = models.isEmpty ? nil : models
+                    }
                 } header: { Text("Open with") } footer: {
-                    Text("The model applies each time the agent starts from \(Brand.name); Default uses the agent's own setting. Folders open through macOS, so no Automation or Accessibility permission is needed. Ghostty, Warp, and Zed follow their documentation and were not exercised on a test Mac. An AI agent starts in the project folder: \(Brand.name) sends it nothing.")
+                    Text("The model applies each time the agent starts from \(Brand.name); Default uses the agent's own setting. A product can choose its own agent and model on its Development tab. Folders open through macOS, so no Automation or Accessibility permission is needed. Ghostty, Warp, and Zed follow their documentation and were not exercised on a test Mac. An AI agent starts in the project folder: \(Brand.name) sends it nothing.")
                 }
                 Section {
                     ForEach(model.portfolio.settings.projectRoots, id: \.self) { root in
@@ -280,33 +285,31 @@ struct ForgeRemoteSettingsView: View {
 
 /// The model for one agent: the agent's own list when it has one, a few suggestions, or any name typed in.
 struct AgentModelPicker: View {
-    @Environment(AppModel.self) private var model
     let agent: String
+    /// The chosen model, or "" for the default.
+    let current: String
+    let set: (String) -> Void
+    var defaultLabel = "Default"
+    /// False inside a card row that already says "Model".
+    var labeled = true
     @State private var options: [(id: String, name: String)] = []
     @State private var custom = ""
 
-    private var current: String { model.portfolio.settings.agentModels?[agent] ?? "" }
-
-    private func set(_ value: String) {
-        var models = model.portfolio.settings.agentModels ?? [:]
-        models[agent] = value.isEmpty ? nil : value
-        model.portfolio.settings.agentModels = models.isEmpty ? nil : models
-    }
-
     var body: some View {
-        LabeledContent("Model") {
-            HStack {
-                Picker("", selection: Binding(get: { current }, set: { set($0) })) {
-                    Text("Default").tag("")
-                    ForEach(options, id: \.id) { option in Text(option.name == option.id ? option.id : "\(option.name)").tag(option.id) }
-                    if !current.isEmpty, !options.contains(where: { $0.id == current }) { Text(current).tag(current) }
-                }
-                .labelsHidden()
-                TextField("or type a model", text: $custom).frame(width: 140).onSubmit { set(custom.trimmingCharacters(in: .whitespaces)); custom = "" }
+        let controls = HStack {
+            Picker("", selection: Binding(get: { current }, set: { set($0) })) {
+                Text(defaultLabel).tag("")
+                ForEach(options, id: \.id) { option in Text(option.name == option.id ? option.id : "\(option.name)").tag(option.id) }
+                if !current.isEmpty, !options.contains(where: { $0.id == current }) { Text(current).tag(current) }
             }
+            .labelsHidden().fixedSize()
+            TextField("or type a model", text: $custom).frame(width: 140).onSubmit { set(custom.trimmingCharacters(in: .whitespaces)); custom = "" } // grid: ok field width
+        }
+        Group {
+            if labeled { LabeledContent("Model") { controls } } else { controls }
         }
         .task(id: agent) {
-            guard let spec = AgentCatalog.spec(agent) else { return }
+            guard let spec = AgentCatalog.spec(agent) else { options = []; return }
             options = Runtime.isAutomated ? spec.suggestedModels.map { (id: $0, name: $0) } : await AgentCatalog.models(spec)
         }
     }

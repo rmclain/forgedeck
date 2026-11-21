@@ -35,12 +35,12 @@ extension AppModel {
     /// Starts the agent in the checkout with the failure brief as its first message.
     func fixWithAgent(_ report: CIFailureReport, product: Product) {
         guard let checkout = product.checkouts.first(where: { $0.repositoryID == ciRepository(product)?.id }) ?? checkout(for: product) else { return }
-        let program = portfolio.settings.aiAgentProgram
+        let program = portfolio.agentProgram(for: product)
         guard let url = ExecutableLocator.find(program) else { return show("\(program) is not installed. Choose another agent in Settings.", isError: true) }
         do {
             let brief = try ciBrief(report, product: product)
             let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(product))
-            let command = CIFixPrompt.command(program: url, bundle: bundle, brief: brief, run: report.run, model: portfolio.settings.model(for: program))
+            let command = CIFixPrompt.command(program: url, bundle: bundle, brief: brief, run: report.run, model: portfolio.agentModel(for: product, program: program))
             sheet = nil
             if terminalsInApp {
                 runInTerminal(command, kind: .agent, title: "Fix \(report.run.workflow) · \(product.name)", product: product, checkout: checkout, directory: checkout.path)
@@ -82,7 +82,7 @@ struct CIFailureSheet: View {
 
     var body: some View {
         let product = model.product(productID)
-        let agent = model.portfolio.settings.aiAgentProgram
+        let agent = model.portfolio.agentProgram(for: product)
         SheetPanel(width: 760, stripe: report.map { $0.run.isDeployment ? Ink.prod : Ink.err }) {
             SheetHeader(icon: .error, tone: .err, title: report.map { "\($0.run.workflow) failed" } ?? "Last CI failure",
                         message: report.map { "\($0.repository) · \($0.run.branch) · \(shortSHA($0.run.sha)) · \(RelativeTime.short($0.run.createdAt)) · from \($0.source)" }

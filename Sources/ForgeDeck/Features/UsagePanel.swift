@@ -13,13 +13,16 @@ extension AppModel {
         }
         usageLoading = true
         let checkClaude = checkLimits || claudeLimitsCheckedAt.map { Date.now.timeIntervalSince($0) >= ClaudeLimitCheck.interval } ?? true
+        let checkAgy = checkLimits || agyLimitsCheckedAt.map { Date.now.timeIntervalSince($0) >= AgyLimitCheck.interval } ?? true
         Task {
-            if checkClaude {
-                claudeLimitsCheckedAt = .now
-                if let fresh = await ClaudeLimitCheck.check() { claudeLimits = fresh }
-            }
-            let checked = claudeLimits
-            let found = await Task.detached(priority: .utility) { AIUsageReader.all(claudeChecked: checked) }.value
+            if checkClaude { claudeLimitsCheckedAt = .now }
+            if checkAgy { agyLimitsCheckedAt = .now }
+            async let claude = checkClaude ? ClaudeLimitCheck.check() : nil
+            async let agy = checkAgy ? AgyLimitCheck.check() : nil
+            if let fresh = await claude { claudeLimits = fresh }
+            if let fresh = await agy { agyLimits = fresh }
+            let checked = claudeLimits, agyChecked = agyLimits
+            let found = await Task.detached(priority: .utility) { AIUsageReader.all(claudeChecked: checked, agyChecked: agyChecked) }.value
             usage = found
             usageUpdatedAt = .now
             usageLoading = false
@@ -51,15 +54,20 @@ struct UsagePanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.md) {
                     if model.usage.isEmpty && !model.usageLoading {
-                        EmptyState(icon: .chart, title: "No AI tools found", message: "Claude Code, Codex, and OpenCode keep usage logs on this Mac. None were found.", compact: true)
+                        EmptyState(icon: .chart, title: "No AI tools found", message: "Claude Code, Codex, and OpenCode keep usage logs on this Mac, and agy reports its limits. None were found.", compact: true)
+                    }
+                    ForEach(model.usage.flatMap { tool in tool.expiring(now: model.now).map { (tool.tool, $0) } }, id: \.1.id) { tool, window in
+                        ExpiringUsageNote(tool: tool, window: window)
                     }
                     ForEach(model.usage) { tool in UsageCard(tool: tool) }
-                    let quiet = AgentCatalog.installed().filter { ["gemini", "agy"].contains($0.program) }.map(\.name)
+                    let quiet = AgentCatalog.installed().filter { spec in
+                        spec.program == "gemini" || (spec.program == "agy" && !model.usageLoading && !model.usage.contains { $0.tool == AgyLimitCheck.toolName })
+                    }.map(\.name)
                     if !quiet.isEmpty, !Runtime.isSnapshot {
-                        Text("\(quiet.joined(separator: " and ")) \(quiet.count == 1 ? "is" : "are") installed but \(quiet.count == 1 ? "keeps" : "keep") no token counts on this Mac, so \(quiet.count == 1 ? "it is" : "they are") not shown.")
+                        Text("\(quiet.joined(separator: " and ")) \(quiet.count == 1 ? "is" : "are") installed but reported no usage on this Mac, so \(quiet.count == 1 ? "it is" : "they are") not shown.")
                             .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("Read from the files these tools keep on this Mac: token counts and limits only, never message text. Claude's limits come from Claude Code checking your account, as /usage does. Updated every 5 minutes while open\(model.usageUpdatedAt.map { ", last \(RelativeTime.short($0, now: max(model.now, $0)))" } ?? "").")
+                    Text("Read from the files these tools keep on this Mac: token counts and limits only, never message text. Claude's and agy's limits come from each tool checking your account, as /usage does. Updated every 5 minutes while open\(model.usageUpdatedAt.map { ", last \(RelativeTime.short($0, now: max(model.now, $0)))" } ?? "").")
                         .kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(Space.md)
@@ -83,7 +91,7 @@ struct UsageCard: View {
     @Environment(AppModel.self) private var model
     let tool: ToolUsage
 
-    private var icon: KitIcon { tool.tool == "Codex" ? .code : tool.tool == "OpenCode" ? .terminal : .sparkle }
+    private var icon: KitIcon { tool.tool == "Codex" ? .code : tool.tool == "OpenCode" ? .terminal : tool.tool == AgyLimitCheck.toolName ? .bolt : .sparkle }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
@@ -122,6 +130,15 @@ struct UsageCard: View {
                     Text("No activity in the last five hours: a fresh window.").kitType(.label, Ink.text2)
                 }
             }
+            if tool.countsTokens { tokenRows }
+            Text(tool.note).kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.md)
+        .card()
+    }
+
+    /// Today's tokens, the week's bars, and the top models. Left out for a tool that keeps no counts.
+    @ViewBuilder private var tokenRows: some View {
             Divider().overlay(Ink.line2)
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -152,10 +169,30 @@ struct UsageCard: View {
                     Text(TokenFormat.short(model.tokens.fresh)).kitType(.meta, Ink.text3).monospacedDigit()
                 }
             }
-            Text(tool.note).kitType(.meta, Ink.text3).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A weekly limit with a good share left that resets within a day: worth using before it is gone.
+struct ExpiringUsageNote: View {
+    @Environment(AppModel.self) private var model
+    let tool: String
+    let window: UsageWindow
+
+    var body: some View {
+        let left = Int(window.remainingPercent(now: model.now) ?? 0)
+        HStack(alignment: .top, spacing: Space.sm) {
+            ToneIcon(icon: .clock, tone: .ok, size: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(left)% of \(tool) left, resets \(RelativeTime.short(window.resetsAt, now: model.now))").kitType(.labelMedium)
+                Text("\(window.name) is paid for and unused. Use it before it resets.")
+                    .kitType(.meta, Ink.text2).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
         .padding(Space.md)
-        .card()
+        .background(Ink.ok.soft(0.10), in: RoundedRectangle(cornerRadius: Metric.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Metric.cardRadius, style: .continuous).strokeBorder(Ink.ok.soft(0.35), lineWidth: Metric.hairline))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -171,6 +208,7 @@ struct WindowGauge: View {
                 if window.hasReset(now: model.now) {
                     Text("reset \(RelativeTime.short(window.resetsAt, now: model.now))").kitType(.meta, Ink.ok)
                 } else {
+                    if window.isExpiringUnused(now: model.now) { TagBadge("Use it", tone: .ok).help("Resets within a day with \(Int(100 - window.usedPercent))% unused") }
                     Text("\(Int(100 - window.usedPercent))% left").kitType(.labelStrong, window.usedPercent >= 90 ? Ink.err : window.usedPercent >= 70 ? Ink.warn : Ink.ok).monospacedDigit()
                 }
             }

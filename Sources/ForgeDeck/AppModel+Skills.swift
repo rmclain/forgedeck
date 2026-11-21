@@ -74,6 +74,7 @@ extension AppModel {
         }
         discardSkillClone(plan)
         skillsVersion += 1
+        if !added.isEmpty || !updated.isEmpty { skillsChanged() }
         let where_ = SkillTarget.allCases.filter(targets.contains).map(\.title).joined(separator: " and ")
         record("skill.install", detail: "repo=\(plan.repository) commit=\(plan.commit.prefix(12)) targets=\(targets.map(\.rawValue).sorted().joined(separator: ",")) added=\(Set(added).count) updated=\(Set(updated).count) kept=\(Set(kept).count) failed=\(failed.count)",
                outcome: failed.isEmpty ? "ok" : "failed")

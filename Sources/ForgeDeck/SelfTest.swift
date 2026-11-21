@@ -100,6 +100,7 @@ enum SelfTest {
             await genesisChecks(model: model)
             await issueReportChecks(model: model)
             await memoryChecks(model: model)
+            await agentChoiceChecks(model: model)
             await planChecks(model: model)
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
@@ -439,6 +440,47 @@ enum SelfTest {
         if let closed { model.setIssueDone(closed, false, in: product) }
         await model.reloadAgentFiles(model.product(product.id) ?? product)
         check("an item reopened after the report stays open", model.product(product.id)?.issues?.first { $0.id == target.id }?.isDone == false)
+    }
+
+    /// A product's own agent and model, the restart after new skills, and the usage panel's use-it-before-it-resets note.
+    private static func agentChoiceChecks(model: AppModel) async {
+        let root = FileManager.default.temporaryDirectory.appending(path: "forgedeck-agent-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let request = GenesisRequest(name: "Selftest Agent", idea: "", parent: root.path, folder: "selftest-agent", starter: GenesisStarter.find("empty"))
+        let folder = root.appending(path: "selftest-agent")
+        guard await model.createProject(request) == nil, let product = model.products.first(where: { $0.checkouts.first?.path == folder.path }) else {
+            return check("a product for the agent choice checks", false)
+        }
+        let global = model.portfolio.settings.aiAgentProgram
+        check("a product follows the agent in Settings until it picks one", model.portfolio.agentProgram(for: product) == global)
+        // A program that is not installed, so nothing real starts.
+        model.setAgent("selftest-agent", for: product)
+        model.setAgentModel("selftest-model", agent: "selftest-agent", for: product)
+        var current = model.product(product.id) ?? product
+        check("a product's own agent and model are saved", model.portfolio.agentProgram(for: current) == "selftest-agent"
+              && model.portfolio.agentModel(for: current) == "selftest-model" && model.portfolio.settings.aiAgentProgram == global)
+        model.openAgent(current)
+        check("Open with starts the product's own agent", model.toast?.text.contains("selftest-agent is not installed") == true
+              && model.terminals.sessions(for: product.id).isEmpty, model.toast?.text ?? "")
+
+        guard let launch = TerminalLaunch.command(["/bin/sleep", "30"], kind: .agent, title: "agent", in: folder.path) else {
+            return check("a stand-in agent session starts", false)
+        }
+        let session = model.terminals.open(launch, productID: product.id, checkoutID: current.checkouts.first?.id)
+        check("a session started after the last skill change needs no restart", model.staleAgentSessions(current).isEmpty)
+        try? await Task.sleep(for: .milliseconds(20))
+        model.skillsChanged()
+        check("installing skills while the agent runs asks for a restart", model.staleAgentSessions(current).map(\.id) == [session.id])
+        model.restartAgent(current)
+        check("Restart Agent closes the old session and starts the product's agent again",
+              !model.terminals.sessions.contains { $0.id == session.id } && model.staleAgentSessions(current).isEmpty
+              && model.toast?.text.contains("selftest-agent is not installed") == true, model.toast?.text ?? "")
+
+        model.setAgent(nil, for: current)
+        current = model.product(product.id) ?? product
+        check("a product can go back to the agent in Settings", current.agentProgram == nil && model.portfolio.agentProgram(for: current) == global)
+        check("usage that resets within a day unused is flagged", AIUsageReader.sample(now: .now).contains { !$0.expiring().isEmpty })
     }
 
     /// Memory: the person's items and the agent's file both land in the list, every session's prompt carries them, and delete works.

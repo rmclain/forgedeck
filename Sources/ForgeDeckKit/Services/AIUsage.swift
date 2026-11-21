@@ -40,6 +40,17 @@ public struct UsageWindow: Sendable, Equatable, Identifiable {
     /// Once the reset time has passed, the reported number is history, not the current state.
     public func hasReset(now: Date = .now) -> Bool { resetsAt <= now }
     public func remainingPercent(now: Date = .now) -> Double? { hasReset(now: now) ? nil : max(0, 100 - usedPercent) }
+
+    /// A day or less before a window of a day or longer resets, with at least this share unused.
+    public static let expiringWithin: TimeInterval = 86_400
+    public static let expiringUnusedPercent = 20.0
+
+    /// Usage that is about to go to waste: a weekly (or longer) window that resets within a day with a good share left.
+    /// Short windows like the 5-hour one are left out: they reset all the time.
+    public func isExpiringUnused(now: Date = .now) -> Bool {
+        guard windowMinutes >= 1_440, let left = remainingPercent(now: now) else { return false }
+        return left >= Self.expiringUnusedPercent && resetsAt.timeIntervalSince(now) <= Self.expiringWithin
+    }
 }
 
 public struct ModelTokens: Sendable, Equatable, Identifiable {
@@ -70,6 +81,11 @@ public struct ToolUsage: Sendable, Equatable, Identifiable {
     public var byModel: [ModelTokens] = []
     public var lastActivity: Date?
     public var note: String
+    /// False for a tool that reports limits but keeps no token counts on this Mac (agy). The panel hides the token rows.
+    public var countsTokens = true
+
+    /// Windows whose unused share resets within a day.
+    public func expiring(now: Date = .now) -> [UsageWindow] { windows.filter { $0.isExpiringUnused(now: now) } }
 }
 
 public enum AIUsageReader {
@@ -471,16 +487,19 @@ public enum AIUsageReader {
                       note: "Limits are what Claude Code saved when it last checked your account."),
             ToolUsage(tool: "Codex", source: .reportedByTool, plan: "Plus",
                       windows: [UsageWindow(name: "5-hour window", usedPercent: 62, windowMinutes: 300, resetsAt: now.addingTimeInterval(5_400), observedAt: now.addingTimeInterval(-900)),
-                                UsageWindow(name: "Weekly window", usedPercent: 25, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(3 * 86_400), observedAt: now.addingTimeInterval(-900))],
+                                UsageWindow(name: "Weekly window", usedPercent: 25, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(18 * 3_600), observedAt: now.addingTimeInterval(-900))],
                       today: TokenCounts(input: 40_000, output: 12_000, cacheRead: 300_000), daily: [nil, 133_000, nil, nil, 80_000, nil, 52_000],
                       lastActivity: now.addingTimeInterval(-900), note: "Limits are what Codex reported after its last request."),
+            AgyLimitCheck.tool([UsageWindow(name: "Gemini Models · Weekly", usedPercent: 12, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(4 * 86_400), observedAt: now.addingTimeInterval(-300)),
+                                UsageWindow(name: "Claude and GPT models · Weekly", usedPercent: 40, windowMinutes: 10_080, resetsAt: now.addingTimeInterval(4 * 86_400), observedAt: now.addingTimeInterval(-300))]),
         ]
     }
 
     /// Every tool found on this Mac.
     /// `claudeChecked`: windows from a `ClaudeLimitCheck` that just ran, used when newer than Claude Code's saved copy.
-    public static func all(now: Date = .now, claudeChecked: [UsageWindow]? = nil) -> [ToolUsage] {
-        [claudeCode(checked: claudeChecked, now: now), codex(now: now), openCode(now: now)].compactMap { $0 }
+    /// `agyChecked`: windows from an `AgyLimitCheck`. agy keeps no usage file, so it shows only after a check.
+    public static func all(now: Date = .now, claudeChecked: [UsageWindow]? = nil, agyChecked: [UsageWindow]? = nil) -> [ToolUsage] {
+        [claudeCode(checked: claudeChecked, now: now), codex(now: now), openCode(now: now), agyChecked.map(AgyLimitCheck.tool)].compactMap { $0 }
     }
 }
 
@@ -538,6 +557,52 @@ public enum ClaudeLimitCheck {
     public static func check(runner: any ProcessRunning = SystemProcessRunner(), now: Date = .now) async -> [UsageWindow]? {
         guard let claude = ExecutableLocator.find("claude"),
               let result = try? await runner.run(request(claude: claude)), result.ok else { return nil }
+        return parse(result.stdout, observed: now)
+    }
+}
+
+/// Asks Antigravity (agy) for the limits its /usage shows: `agy --print /usage`, a slash command that answers
+/// locally from agy's own quota check and exits. No prompt reaches a model. agy prints one tab-separated line per
+/// limit: group, limit name, percent remaining, reset time (ISO 8601).
+public enum AgyLimitCheck {
+    public static let interval: TimeInterval = 5 * 60
+    public static let toolName = "Antigravity (agy)"
+    public static let arguments = ["--print", "/usage"]
+
+    public static func request(agy: URL) -> ProcessRequest {
+        ProcessRequest(executable: agy, arguments: arguments, workingDirectory: FileManager.default.temporaryDirectory, timeout: 30,
+                       stdin: Data(), maxOutputBytes: 200_000)
+    }
+
+    /// The windows in agy's answer; nil when none could be read (signed out, or an older agy).
+    public static func parse(_ stdout: String, observed: Date) -> [UsageWindow]? {
+        let iso = ISO8601DateFormatter()
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var windows: [UsageWindow] = []
+        for line in Toolbox.stripANSI(stdout).split(separator: "\n") {
+            let parts = line.split(separator: "\t").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard parts.count >= 4, parts[2].hasSuffix("%"), let remaining = Double(parts[2].dropLast()),
+                  let reset = iso.date(from: parts[3]) ?? fractional.date(from: parts[3]) else { continue }
+            let group = parts[0], label = parts[1].lowercased()
+            let (period, minutes): (String?, Int) = label.contains("five hour") || label.contains("5 hour") || label.contains("5-hour") ? ("5-hour", 300)
+                : label.contains("weekly") ? ("Weekly", 10_080) : label.contains("daily") ? ("Daily", 1_440) : (nil, 10_080)
+            var name = period.map { "\(group) · \($0)" } ?? "\(group) · \(parts[1])"
+            if windows.contains(where: { $0.name == name }) { name = "\(group) · \(parts[1])" }
+            guard !windows.contains(where: { $0.name == name }) else { continue }
+            windows.append(UsageWindow(name: name, usedPercent: min(100, max(0, 100 - remaining)), windowMinutes: minutes, resetsAt: reset, observedAt: observed))
+        }
+        return windows.isEmpty ? nil : windows
+    }
+
+    public static func tool(_ windows: [UsageWindow]) -> ToolUsage {
+        ToolUsage(tool: toolName, source: .reportedByTool, windows: windows, lastActivity: nil,
+                  note: "Limits are what agy reported when \(Brand.name) last asked (agy --print /usage). agy keeps no token counts on this Mac.",
+                  countsTokens: false)
+    }
+
+    public static func check(runner: any ProcessRunning = SystemProcessRunner(), now: Date = .now) async -> [UsageWindow]? {
+        guard let agy = ExecutableLocator.find("agy"), let result = try? await runner.run(request(agy: agy)), result.ok else { return nil }
         return parse(result.stdout, observed: now)
     }
 }

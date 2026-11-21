@@ -207,6 +207,19 @@ enum Snapshot {
                 if let other = model.products.first(where: { $0.slug != "beacon" && $0.slug != "lumen" }) { model.route = .product(other.id) }
                 model.terminals.isVisible = true
             },
+            // Skills were installed while an agent ran in Lumen: the Skills card offers Restart Agent.
+            Shot(name: "product-skills-restart") { model in
+                model.toast = nil
+                guard let lumen = model.products.first(where: { $0.slug == "lumen" }) else { return }
+                if let launch = TerminalLaunch.command(["/bin/zsh", "-f", "-c", "print 'Suggest Skills · Lumen'; sleep 600"], kind: .agent, title: "Suggest Skills · Lumen",
+                                                       in: model.store.location.directory.path) {
+                    model.terminals.open(launch, productID: lumen.id, checkoutID: lumen.primaryCheckout?.id)
+                }
+                model.skillsChangedAt[lumen.id] = .distantFuture
+                model.terminals.isVisible = false
+                model.route = .product(lumen.id)
+                model.productTab = .development
+            },
         ]
         return shots
     }

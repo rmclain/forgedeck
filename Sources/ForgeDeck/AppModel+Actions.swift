@@ -143,9 +143,9 @@ extension AppModel {
     /// Starts an AI coding agent in the checkout. Nothing is sent anywhere: the agent starts in the folder.
     func openAgent(_ product: Product, checkout wanted: LocalCheckout? = nil) {
         guard let checkout = checkout(for: product, wanted) else { return }
-        let program = portfolio.settings.aiAgentProgram
+        let program = portfolio.agentProgram(for: product)
         guard let url = ExecutableLocator.find(program) else {
-            show("\(program) is not installed. Choose another agent in Settings.", isError: true)
+            show("\(AgentCatalog.name(program)) is not installed. Choose another agent in Settings, or for \(product.name) on its Development tab.", isError: true)
             return
         }
         let bundle: AgentContextBundle
@@ -155,7 +155,7 @@ extension AppModel {
             return show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }
         if terminalsInApp {
-            if runInTerminal(bundle.command(program: url, model: portfolio.settings.model(for: program)), kind: .agent, title: "\(AgentCatalog.name(program)) · \(product.name)", product: product, checkout: checkout, directory: checkout.path,
+            if runInTerminal(bundle.command(program: url, model: portfolio.agentModel(for: product, program: program)), kind: .agent, title: "\(AgentCatalog.name(program)) · \(product.name)", product: product, checkout: checkout, directory: checkout.path,
                             banner: bundle.banner(product: product.name, program: program)) {
                 session(program, product: product, checkout: checkout, command: "ai-agent")
                 record("agent.start", product: product, detail: "agent=\(program) related=\(bundle.relatedNames.joined(separator: ",")) app=ForgeDeck")
@@ -163,7 +163,7 @@ extension AppModel {
             return
         }
         Task {
-            let outcome = await launcher.run(command: bundle.command(program: url, model: portfolio.settings.model(for: program)), in: checkout.path, terminalBundleID: terminalForCommands)
+            let outcome = await launcher.run(command: bundle.command(program: url, model: portfolio.agentModel(for: product, program: program)), in: checkout.path, terminalBundleID: terminalForCommands)
             if outcome.didOpen {
                 session(program, product: product, checkout: checkout, command: "ai-agent")
                 record("agent.start", product: product, detail: "agent=\(program) related=\(bundle.relatedNames.joined(separator: ","))")
@@ -171,6 +171,24 @@ extension AppModel {
             report(outcome, success: bundle.relatedNames.isEmpty ? "Started \(program) in \(checkout.name)"
                                                                  : "Started \(program) with context for \(bundle.relatedNames.joined(separator: ", "))")
         }
+    }
+
+    /// The agent this product starts with. nil follows Settings.
+    func setAgent(_ program: String?, for product: Product) {
+        guard !product.isDemo, product.agentProgram != program else { return }
+        update(product.id) { $0.agentProgram = program }
+        record("agent.choose", product: product, detail: "agent=\(program ?? "settings")")
+    }
+
+    /// The model `agent` starts with in this product. nil follows Settings.
+    func setAgentModel(_ name: String?, agent: String, for product: Product) {
+        guard !product.isDemo, product.agentModels?[agent] != name else { return }
+        update(product.id) { product in
+            var models = product.agentModels ?? [:]
+            models[agent] = name
+            product.agentModels = models.isEmpty ? nil : models
+        }
+        record("agent.model", product: product, detail: "agent=\(agent) model=\(name ?? "settings")")
     }
 
     var contextLocation: ContextLocation { ContextLocation(store: store.location) }
@@ -233,12 +251,12 @@ extension AppModel {
     }
 
     func copyAgentCommand(_ product: Product) {
-        guard let checkout = checkout(for: product), let url = ExecutableLocator.find(portfolio.settings.aiAgentProgram) else {
-            return show("\(portfolio.settings.aiAgentProgram) is not installed.", isError: true)
+        guard let checkout = checkout(for: product), let url = ExecutableLocator.find(portfolio.agentProgram(for: product)) else {
+            return show("\(portfolio.agentProgram(for: product)) is not installed.", isError: true)
         }
         do {
             let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: mcpInfo(product))
-            copy(TerminalLauncher.copyCommand(directory: checkout.path, command: bundle.command(program: url, model: portfolio.settings.model(for: portfolio.settings.aiAgentProgram))), message: "Copied the agent command")
+            copy(TerminalLauncher.copyCommand(directory: checkout.path, command: bundle.command(program: url, model: portfolio.agentModel(for: product))), message: "Copied the agent command")
         } catch {
             show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }

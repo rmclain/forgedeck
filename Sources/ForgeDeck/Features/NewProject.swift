@@ -221,7 +221,7 @@ extension AppModel {
             }
             watchAgentFiles(current) { [weak session] in session?.isRunning == true }
             terminals.select(session)
-            show("Approved. \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) is building \(current.name) with \(stack).")
+            show("Approved. \(AgentCatalog.name(portfolio.agentProgram(for: current))) is building \(current.name) with \(stack).")
             return
         }
         let prompt = GenesisPrompt.build(current, stack: stack, note: note, cli: cliCommand, resuming: resuming)

@@ -373,7 +373,7 @@ struct TerminalDock: View {
             if let product, local {
                 HStack(spacing: Space.sm) {
                     Button("Open Shell") { model.openTerminal(product) }.buttonStyle(.kit(.secondary, compact: true))
-                    Button("Open \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { model.openAgent(product) }
+                    Button("Open \(AgentCatalog.name(model.portfolio.agentProgram(for: product)))") { model.openAgent(product) }
                         .buttonStyle(.kit(.secondary, compact: true))
                 }
             }

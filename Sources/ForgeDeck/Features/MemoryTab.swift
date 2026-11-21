@@ -51,7 +51,7 @@ extension AppModel {
     func applyMemoryFiles(_ inboxes: [ProductMemory.Inbox], to productID: UUID) {
         let inboxes = inboxes.filter { !$0.entries.isEmpty }
         guard !inboxes.isEmpty, let product = product(productID), !product.isDemo else { return }
-        let program = portfolio.settings.aiAgentProgram
+        let program = portfolio.agentProgram(for: product)
         let result = ProductMemory.merge(inboxes.flatMap(\.entries), into: product.memory ?? [], by: program)
         if !result.added.isEmpty {
             update(productID) { $0.memory = result.notes }
@@ -80,7 +80,7 @@ struct MemoryTab: View {
 
     var body: some View {
         let notes = ProductMemory.sorted(product.memory ?? [])
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         VStack(alignment: .leading, spacing: Space.lg) {
             VStack(alignment: .leading, spacing: 0) {
                 CardHeader(title: "Memory", subtitle: "Rules and key facts for \(product.name). Every \(agent) session started from \(Brand.name) reads them first, and adds what it learns.") {

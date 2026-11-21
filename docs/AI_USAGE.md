@@ -10,6 +10,13 @@ Mac have used, and what is left where the tool reports it. `forgedeck usage` pri
 | Codex | `~/.codex/sessions/**/*.jsonl`, the newest `token_count` event | Yes: the 5-hour and weekly windows as Codex reported them, with reset times and plan | Tokens today, 7 days, top models |
 | Claude Code | `~/.claude/projects/*/*.jsonl`, `usage` of each response; limits from Claude Code's account check | Yes: the 5-hour window, the weekly window, and weekly limits for one model (like "Weekly · Fable"), with reset times and plan (from `~/.claude.json`) | Tokens today, 7 days, top models; the 5-hour block comparison when no limits are known |
 | OpenCode | `~/.local/share/opencode/opencode.db`, read-only | No | Tokens and OpenCode's own cost estimate, today and this week |
+| Antigravity (agy) | `agy --print /usage`, at most every 5 minutes while the panel is open | Yes: each model group's 5-hour and weekly windows, with reset times | Nothing else: agy keeps no token counts on this Mac |
+
+## Use it before it resets
+
+A weekly (or longer) window that resets within a day with at least 20% left is flagged: a green note at the
+top of the panel ("75% of Codex left, resets in 18h"), a "Use it" tag on the window, a green dot on the
+toolbar gauge, and "use it" in `forgedeck usage`. 5-hour windows are never flagged; they reset all the time.
 
 A Codex window whose reset time has passed shows as reset, with the last reported number for
 reference ("was 88% used when last seen 5 days ago"), not as current. The Claude Code block bar is

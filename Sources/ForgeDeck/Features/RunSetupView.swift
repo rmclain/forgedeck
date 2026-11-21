@@ -28,7 +28,7 @@ extension AppModel {
     /// Starts the chosen agent with a first message, in ForgeDeck's terminal or the preferred one.
     /// The product is refreshed when an in-app session ends, so proposals it wrote appear at once.
     func startSetupAgent(_ product: Product, checkout: LocalCheckout, prompt: String, title: String, audit: String) {
-        let program = portfolio.settings.aiAgentProgram
+        let program = portfolio.agentProgram(for: product)
         guard let url = ExecutableLocator.find(program) else {
             return show("\(AgentCatalog.name(program)) is not installed. Choose another agent in Settings › Agents.", isError: true)
         }
@@ -38,7 +38,7 @@ extension AppModel {
         } catch {
             return show("Could not write the context file: \(error.localizedDescription)", isError: true)
         }
-        let argv = bundle.command(program: url, model: portfolio.settings.model(for: program), message: prompt)
+        let argv = bundle.command(program: url, model: portfolio.agentModel(for: product, program: program), message: prompt)
         if terminalsInApp {
             guard var launch = TerminalLaunch.command(argv, kind: .agent, title: "\(title) · \(product.name)", in: checkout.path) else {
                 return show("\(AgentCatalog.name(program)) could not be started.", isError: true)
@@ -70,7 +70,7 @@ extension AppModel {
         Task {
             if !product.isDemo { await refresh(product, announce: false) }
             if runProposals(product).isEmpty, runFileErrors(product).isEmpty {
-                show("No \(RunSetup.relativePath) in \(product.name) yet. Use Set Up Run to have \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) write one.", isError: true)
+                show("No \(RunSetup.relativePath) in \(product.name) yet. Use Set Up Run to have \(AgentCatalog.name(portfolio.agentProgram(for: product))) write one.", isError: true)
             } else {
                 sheet = .runSetup(product.id)
             }

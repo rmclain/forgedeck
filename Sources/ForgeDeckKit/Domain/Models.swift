@@ -328,6 +328,10 @@ public struct Product: Codable, Identifiable, Hashable, Sendable {
     /// Set when ForgeDeck started this product with New Project: the idea, the plan's approval, and setup progress.
     /// Optional, so products saved before it load unchanged.
     public var genesis: GenesisRecord?
+    /// The AI agent this product starts with, by program name. nil uses the one in Settings. Optional so older files load.
+    public var agentProgram: String?
+    /// The model each agent starts with in this product, by program name. Missing uses the model in Settings.
+    public var agentModels: [String: String]?
 
     public init() {}
 
@@ -550,6 +554,21 @@ public struct AppSettings: Codable, Hashable, Sendable {
     /// Forge Remote: a Claude Code Remote Control server for every product. nil means never set up.
     public var remote: ForgeRemoteSettings?
     public init() {}
+}
+
+extension Portfolio {
+    /// The agent that starts in this product: its own choice, else the one in Settings.
+    public func agentProgram(for product: Product?) -> String {
+        guard let chosen = product?.agentProgram?.trimmingCharacters(in: .whitespaces), !chosen.isEmpty else { return settings.aiAgentProgram }
+        return chosen
+    }
+
+    /// The model the agent starts with in this product: the product's choice for that agent, else the one in Settings, else the agent's default (nil).
+    public func agentModel(for product: Product?, program: String? = nil) -> String? {
+        let program = program ?? agentProgram(for: product)
+        if let own = product?.agentModels?[program]?.trimmingCharacters(in: .whitespaces), !own.isEmpty { return own }
+        return settings.model(for: program)
+    }
 }
 
 public struct Portfolio: Codable, Sendable {

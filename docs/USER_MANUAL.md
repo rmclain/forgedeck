@@ -361,6 +361,8 @@ Detected packages are only suggestions. Nothing is looked up until you track it,
 
 Link related products under Development > Agent context, then start your agent from there or with `forgedeck agent <product>`. See [AGENT_CONTEXT.md](AGENT_CONTEXT.md) for what the agent receives and what it costs.
 
+**Each product can start its own agent and model.** The Agent row under Development > Agent context picks one (Claude Code, Codex, OpenCode, Gemini CLI, or Antigravity) and a model for it. "Settings" follows the agent and model in Settings; a model chosen for one agent never goes to another. Open with, Set Up Run, Suggest Skills, plans, issues, CI fixes, and `forgedeck agent` all use the product's choice.
+
 In the in-app terminal, the agent starts under a short header that shows the context file, the related products, and where the pointer went (Claude Code gets it in its system prompt, which is otherwise invisible).
 
 CONTEXT.md also lists the product's **variable names** per environment (never values) and the exact `forgedeck exec` line for each terminal profile. An agent that needs a secret runs the command through a profile: the program gets the value in its environment, the agent sees only the redacted output, and a production secret still asks you for Touch ID. Variables never reach the agent's prompt on their own.
@@ -490,6 +492,8 @@ The **Memory** tab keeps rules and key facts for a product, so a new agent sessi
 - Double-click an item to edit it. Use its menu to switch it between Rule and Note, or to delete it. Repeats are skipped, secrets are removed, and a product keeps up to 100 items.
 
 ## Toolbox and agent skills
+
+Skills and plugins load when an agent starts. When you install or choose one while the product's agent runs in the dock (the Suggest Skills session, say), the Skills card shows **Restart Agent**: it closes that session and starts the agent again with the new skills and a fresh context file. The palette has the same command.
 
 The Toolbox lists command-line tools that save AI tokens or check repositories. **Install with Homebrew** (or uv) runs in the background; the card shows Installing… and a failed install opens its output. Tools that run against a repository appear on each product's Overview tab, in the Tools card, with a checkout picker when the product has more than one.
 

@@ -259,6 +259,9 @@ final class AppModel {
     var installedPlugins: Set<String>?
     /// Plugins being installed right now.
     var installingSkills: Set<String> = []
+    /// When a product's skills last changed (installed, or chosen for it). An agent session started before that
+    /// has not loaded them: the Skills card offers to restart it.
+    var skillsChangedAt: [UUID: Date] = [:]
     /// Set to move the cursor to the Issues tab's add field.
     var focusIssueField = false
     var focusMemoryField = false
@@ -322,6 +325,8 @@ final class AppModel {
     /// The last answer from Claude Code's own limit check, and when it was asked.
     @ObservationIgnored var claudeLimits: [UsageWindow]?
     @ObservationIgnored var claudeLimitsCheckedAt: Date?
+    @ObservationIgnored var agyLimits: [UsageWindow]?
+    @ObservationIgnored var agyLimitsCheckedAt: Date?
     /// Open until the person closes it; then it stays closed.
     var usagePanelVisible = !Runtime.isAutomated && (UserDefaults.standard.object(forKey: "usage.panel") as? Bool ?? true)
     var isRefreshingAll = false

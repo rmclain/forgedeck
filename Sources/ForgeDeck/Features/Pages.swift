@@ -280,7 +280,7 @@ struct LeadSourcesCard: View {
 
     var body: some View {
         let products = product.map { [$0] } ?? model.activeProducts
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         VStack(alignment: .leading, spacing: 0) {
             if let product {
                 CardHeader(title: "Sources", subtitle: "Where \(product.name)'s numbers come from") { buttons(product, agent: agent) }

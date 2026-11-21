@@ -47,7 +47,7 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.13.4"
+    public static let version = "0.13.5"
     public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "memory", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
@@ -249,7 +249,7 @@ public struct CLI: Sendable {
         case "links": return links(args)
         case "memory": return memory(args)
         case "ci": return await ci(args)
-        case "usage": return usage()
+        case "usage": return await usage()
         case "link": return link(args)
         default:
             io.err("error: unknown command \"\(command)\". Run `\(Brand.cliName) help`.")
@@ -809,7 +809,7 @@ public struct CLI: Sendable {
                     io.err("error: \(product.name) has no local checkout to fix it in.")
                     return CLIExit.failure
                 }
-                let name = args.flags["agent"] ?? portfolio.settings.aiAgentProgram
+                let name = args.flags["agent"] ?? portfolio.agentProgram(for: product)
                 guard AgentPrograms.known.contains(name), let program = ExecutableLocator.find(name, environment: [:]) else {
                     io.err("error: \(name) is not installed.")
                     return CLIExit.failure
@@ -817,7 +817,7 @@ public struct CLI: Sendable {
                 let cache = store.loadCache()
                 let brief = try CIFixPrompt.write(report, product: product, checkout: checkout, git: cache.git[checkout.id], location: contextLocation)
                 let bundle = try AgentContextBundle.write(for: product, checkout: checkout, portfolio: portfolio, cache: cache, location: contextLocation, mcp: MCPInventory.info(for: product))
-                let command = CIFixPrompt.command(program: program, bundle: bundle, brief: brief, run: run, model: args.flags["model"] ?? portfolio.settings.model(for: name))
+                let command = CIFixPrompt.command(program: program, bundle: bundle, brief: brief, run: run, model: args.flags["model"] ?? portfolio.agentModel(for: product, program: name))
                 if args.switches.contains("print") {
                     io.out(TerminalLauncher.copyCommand(directory: checkout.path, command: command))
                     return CLIExit.ok
@@ -848,10 +848,10 @@ public struct CLI: Sendable {
     }
 
     /// AI tool usage from the logs those tools keep on this Mac. Numbers only.
-    private func usage() -> Int32 {
-        let tools = AIUsageReader.all()
+    private func usage() async -> Int32 {
+        let tools = AIUsageReader.all(agyChecked: await AgyLimitCheck.check())
         guard !tools.isEmpty else {
-            io.out("No Claude Code, Codex, or OpenCode data was found on this Mac.")
+            io.out("No Claude Code, Codex, OpenCode, or agy usage was found on this Mac.")
             return CLIExit.ok
         }
         for tool in tools {
@@ -860,9 +860,11 @@ public struct CLI: Sendable {
                 if window.hasReset() {
                     io.out("  \(window.name): reset \(RelativeTime.short(window.resetsAt)) (was \(Int(window.usedPercent))% used when last seen \(RelativeTime.short(window.observedAt)))")
                 } else {
-                    io.out("  \(window.name): \(Int(window.usedPercent))% used, \(Int(100 - window.usedPercent))% left, resets \(RelativeTime.short(window.resetsAt))")
+                    io.out("  \(window.name): \(Int(window.usedPercent))% used, \(Int(100 - window.usedPercent))% left, resets \(RelativeTime.short(window.resetsAt))"
+                           + (window.isExpiringUnused() ? "  ← use it: unused usage resets soon" : ""))
                 }
             }
+            guard tool.countsTokens else { continue }
             if let block = tool.block, let end = tool.blockEnd {
                 io.out("  This 5-hour block: \(TokenFormat.short(block.fresh)) tokens\(tool.largestBlock.map { " (\(Int(Double(block.fresh) / Double(max(1, $0)) * 100))% of your largest block)" } ?? ""), ends \(RelativeTime.short(end))")
             }
@@ -1032,7 +1034,7 @@ public struct CLI: Sendable {
             io.err("error: \(product.name) is a demo product. It has no folder on this Mac.")
             return CLIExit.failure
         }
-        let name = args.flags["agent"] ?? portfolio.settings.aiAgentProgram
+        let name = args.flags["agent"] ?? portfolio.agentProgram(for: product)
         guard AgentPrograms.known.contains(name) else {
             io.err("error: unknown agent \"\(name)\". Known: \(AgentPrograms.known.joined(separator: ", "))")
             return CLIExit.usage
@@ -1048,7 +1050,7 @@ public struct CLI: Sendable {
             io.err("error: \(error)")
             return CLIExit.failure
         }
-        let command = bundle.command(program: program, model: args.flags["model"] ?? portfolio.settings.model(for: name))
+        let command = bundle.command(program: program, model: args.flags["model"] ?? portfolio.agentModel(for: product, program: name))
         if args.switches.contains("print") {
             io.out(TerminalLauncher.copyCommand(directory: bundle.workingDirectory, command: command))
             return CLIExit.ok

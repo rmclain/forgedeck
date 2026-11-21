@@ -132,7 +132,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut("o").disabled(model.currentProduct == nil)
             Button("Open in Editor") { if let product = model.currentProduct { model.openEditor(product) } }
                 .keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.currentProduct == nil)
-            Button("Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { if let product = model.currentProduct { model.openAgent(product) } }
+            Button("Open with \(AgentCatalog.name(model.portfolio.agentProgram(for: model.currentProduct)))") { if let product = model.currentProduct { model.openAgent(product) } }
                 .keyboardShortcut("o", modifiers: [.command, .option]).disabled(model.currentProduct.map { $0.isDemo || !$0.hasLocal } ?? true)
             Button("Play") { if let product = model.currentProduct { model.play(product) } }
                 .keyboardShortcut("p", modifiers: [.command, .shift]).disabled(model.currentProduct.map { model.playOptions($0).isEmpty } ?? true)

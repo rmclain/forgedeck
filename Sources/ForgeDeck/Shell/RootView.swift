@@ -318,7 +318,7 @@ struct ProductMenu: View {
         Divider()
         Button("Open in Terminal") { model.openTerminal(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Open in External Terminal") { model.openExternalTerminal(product) }.disabled(product.isDemo || !product.hasLocal)
-        Button("Open with \(AgentCatalog.name(model.portfolio.settings.aiAgentProgram))") { model.openAgent(product) }.disabled(product.isDemo || !product.hasLocal)
+        Button("Open with \(AgentCatalog.name(model.portfolio.agentProgram(for: product)))") { model.openAgent(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Open in Editor") { model.openEditor(product) }.disabled(product.isDemo || !product.hasLocal)
         Button("Reveal in Finder") { model.reveal(product) }.disabled(product.isDemo || !product.hasLocal)
         if let repo = product.repositories.first, !product.isDemo {
@@ -473,7 +473,16 @@ struct TopBar: View {
                         .padding(.top, 2).allowsHitTesting(false)
                 }
             }
-            IconButton(.gauge, label: model.usagePanelVisible ? "Hide AI usage (⌘⇧U)" : "Show AI usage (⌘⇧U)", kind: .toolbar) { model.toggleUsagePanel() }
+            let expiring = model.usage.contains { !$0.expiring(now: model.now).isEmpty }
+            IconButton(.gauge, label: (model.usagePanelVisible ? "Hide AI usage (⌘⇧U)" : "Show AI usage (⌘⇧U)") + (expiring ? ". Some paid usage resets within a day unused." : ""), kind: .toolbar) { model.toggleUsagePanel() }
+                .overlay(alignment: .topTrailing) {
+                    if expiring {
+                        Circle().fill(Ink.ok).frame(width: 8, height: 8)
+                            .overlay(Circle().strokeBorder(Ink.window, lineWidth: 2))
+                            .padding(.top, Space.xs).padding(.trailing, Space.xs)
+                            .allowsHitTesting(false)
+                    }
+                }
             IconButton(.bell, label: "\(model.attentionIncidents.count) alerts need attention", kind: .toolbar) { model.go(.activity) }
                 .overlay(alignment: .topTrailing) {
                     if !model.attentionIncidents.isEmpty {

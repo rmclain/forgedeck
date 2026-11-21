@@ -8,7 +8,7 @@ struct AgentContextCard: View {
 
     var body: some View {
         let candidates = model.activeProducts.filter { candidate in candidate.id != product.id && !product.contextLinks.contains { $0.productID == candidate.id } }
-        let agent = model.portfolio.settings.aiAgentProgram
+        let agent = model.portfolio.agentProgram(for: product)
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(title: "Agent context", subtitle: "Related repositories \(AgentCatalog.name(agent)) can read when it starts here") {
                 Menu("Link Product") {
@@ -23,6 +23,7 @@ struct AgentContextCard: View {
                 .buttonStyle(.kit(.primary, compact: true)).disabled(product.isDemo || !product.hasLocal)
             }
             .padding(Space.lg)
+            AgentChoiceRow(product: product)
             if product.contextLinks.isEmpty {
                 Text("No related products yet. Link the ones this product talks to: its API, its plugin, a shared library. The agent then gets a short map of each and can read their real files. Nothing is loaded until it needs it.")
                     .kitType(.label, Ink.text2).fixedSize(horizontal: false, vertical: true)
@@ -69,5 +70,35 @@ struct AgentContextCard: View {
         }
         .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
         .hairlineAbove()
+    }
+}
+
+/// The agent and model this product starts with. "Settings" follows the choice in Settings › General.
+struct AgentChoiceRow: View {
+    @Environment(AppModel.self) private var model
+    let product: Product
+
+    var body: some View {
+        let settings = model.portfolio.settings
+        let agent = model.portfolio.agentProgram(for: product)
+        let inherited = settings.model(for: agent)
+        HStack(spacing: Space.md) {
+            Text("Agent").kitType(.labelMedium)
+            Picker("Agent", selection: Binding(get: { product.agentProgram ?? "" }, set: { model.setAgent($0.isEmpty ? nil : $0, for: product) })) {
+                Text("Settings (\(AgentCatalog.name(settings.aiAgentProgram)))").tag("")
+                Divider()
+                ForEach(AgentCatalog.all) { spec in
+                    Text(ExecutableLocator.find(spec.program) == nil ? "\(spec.name) (not installed)" : spec.name).tag(spec.program)
+                }
+            }
+            .labelsHidden().fixedSize()
+            .help("The AI agent that starts in \(product.name). Settings follows the agent chosen in Settings.")
+            Text("Model").kitType(.labelMedium)
+            AgentModelPicker(agent: agent, current: product.agentModels?[agent] ?? "", set: { model.setAgentModel($0.isEmpty ? nil : $0, agent: agent, for: product) },
+                             defaultLabel: inherited.map { "Settings (\($0))" } ?? "Agent default", labeled: false)
+            Spacer(minLength: 0)
+        }
+        .disabled(product.isDemo)
+        .padding(.horizontal, Space.lg).padding(.bottom, Space.md)
     }
 }

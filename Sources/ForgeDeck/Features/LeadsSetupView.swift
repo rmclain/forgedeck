@@ -71,7 +71,7 @@ struct LeadsSetupSheet: View {
         let environments = product?.environments ?? []
         let environment = environments.first { $0.id == environmentID } ?? product.flatMap(LeadsSetup.target)
         let existing = product.flatMap { product in environment.flatMap { model.leadsToken(product, environment: $0) } }
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         SheetPanel(width: 560) {
             SheetHeader(icon: .leads, tone: .accent, title: "Set Up Leads",
                         message: "\(agent) looks at what \(product?.name ?? "the product") collects (leads, signups, purchases, bookings), tells you, and asks which ones \(Brand.name) should see. It builds the check only after you say yes, in a change you review.")

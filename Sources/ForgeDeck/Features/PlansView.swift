@@ -30,7 +30,7 @@ extension AppModel {
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !product.isDemo, !text.isEmpty else { return nil }
         var plan = FeaturePlan(request: String(text.prefix(ProductIssues.maxNotes)), issueID: issue?.id)
-        plan.startedWith = portfolio.settings.aiAgentProgram
+        plan.startedWith = portfolio.agentProgram(for: product)
         update(product.id) { $0.plans = ($0.plans ?? []) + [plan] }
         record("plan.request", product: product, detail: issue == nil ? "" : "from=issue")
         return plan
@@ -41,7 +41,7 @@ extension AppModel {
         guard let checkout = checkout(for: product) else { return }
         if let issue, let existing = openPlan(for: issue, in: product) {
             if existing.phase == .ready { sheet = .plan(productID: product.id, planID: existing.id) }
-            return show("\u{201C}\(issue.title)\u{201D} already has a plan: \(phaseText(existing)).")
+            return show("\u{201C}\(issue.title)\u{201D} already has a plan: \(phaseText(existing, in: product)).")
         }
         guard let plan = beginPlan(request, issue: issue, in: product) else { return }
         startSetupAgent(product, checkout: checkout, prompt: FeaturePlans.planPrompt(plan, issue: issue, product: product),
@@ -85,7 +85,7 @@ extension AppModel {
         }
         record("plan.progress", product: product, detail: "steps=\(result.stepsDone) finished=\(result.finished.count)")
         if let finished = result.finished.first {
-            show("\(AgentCatalog.name(finished.startedWith ?? portfolio.settings.aiAgentProgram)) finished the plan \u{201C}\(finished.name)\u{201D}. Moved to Done.")
+            show("\(AgentCatalog.name(finished.startedWith ?? portfolio.agentProgram(for: product))) finished the plan \u{201C}\(finished.name)\u{201D}. Moved to Done.")
         } else if let current = result.plans.first(where: { $0.phase == .executing }) {
             show("\(current.progress.done) of \(current.progress.total) steps done in \u{201C}\(current.name)\u{201D}.")
         }
@@ -125,7 +125,7 @@ extension AppModel {
         sendToAgent(product, line: FeaturePlans.executeMessage(plan, note: trimmed.isEmpty ? nil : trimmed),
                     prompt: FeaturePlans.executePrompt(plan, note: trimmed.isEmpty ? nil : trimmed, product: product),
                     title: "Build: " + shortTitle(plan.name), audit: "plan.execute.start",
-                    done: "Sent \(plan.chosenSteps.count) steps to \(AgentCatalog.name(portfolio.settings.aiAgentProgram))."
+                    done: "Sent \(plan.chosenSteps.count) steps to \(AgentCatalog.name(portfolio.agentProgram(for: product)))."
                         + (leftOut > 0 ? " \(leftOut) left-out step\(leftOut == 1 ? " is" : "s are") now open issues." : ""))
         sheet = nil
     }
@@ -148,7 +148,7 @@ extension AppModel {
         sendToAgent(product, line: line,
                     prompt: FeaturePlans.planPrompt(plan, issue: issue, product: product) + "\n\nThis is a revision. " + line,
                     title: "Plan: " + shortTitle(plan.name), audit: "plan.revise",
-                    done: "Asked \(AgentCatalog.name(portfolio.settings.aiAgentProgram)) to revise the plan.")
+                    done: "Asked \(AgentCatalog.name(portfolio.agentProgram(for: product))) to revise the plan.")
         sheet = nil
     }
 
@@ -192,8 +192,8 @@ extension AppModel {
         show("Deleted the plan \u{201C}\(plan.name)\u{201D}.")
     }
 
-    func phaseText(_ plan: FeaturePlan) -> String {
-        let agent = AgentCatalog.name(plan.startedWith ?? portfolio.settings.aiAgentProgram)
+    func phaseText(_ plan: FeaturePlan, in product: Product? = nil) -> String {
+        let agent = AgentCatalog.name(plan.startedWith ?? portfolio.agentProgram(for: product))
         switch plan.phase {
         case .planning: return plan.revisions == nil ? "waiting for \(agent)'s plan" : "waiting for \(agent)'s revision"
         case .ready: return "ready to review"
@@ -276,7 +276,7 @@ struct PlanRows: View {
     }
 
     private func meta(_ plan: FeaturePlan) -> String {
-        let agent = AgentCatalog.name(plan.startedWith ?? model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(plan.startedWith ?? model.portfolio.agentProgram(for: product))
         var parts: [String] = []
         switch plan.phase {
         case .planning:
@@ -311,7 +311,7 @@ struct PlanSheet: View {
     var body: some View {
         let product = model.product(productID)
         let plan = model.plan(planID, in: productID)
-        let agent = AgentCatalog.name(plan?.startedWith ?? model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(plan?.startedWith ?? model.portfolio.agentProgram(for: product))
         let reviewing = plan?.phase == .ready
         let chosen = (plan?.steps ?? []).filter { !skipped.contains($0.id) }.count
         SheetPanel(width: 720) {

@@ -40,7 +40,7 @@ extension AppModel {
         let result = IssueReports.apply(reports, to: issues)
         guard !result.closed.isEmpty else { return }
         update(productID) { $0.issues = result.issues }
-        let agent = AgentCatalog.name(result.closed[0].doneBy ?? portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(result.closed[0].doneBy ?? portfolio.agentProgram(for: product))
         record("issue.done", product: product, detail: "count=\(result.closed.count) by=agent")
         show(result.closed.count == 1
              ? "\(agent) finished \u{201C}\(result.closed[0].title)\u{201D}. Moved to Done in \(product.name)."
@@ -63,7 +63,7 @@ extension AppModel {
         guard issues.count <= ProductIssues.maxPerSession else {
             return show("Select up to \(ProductIssues.maxPerSession) items for one session.", isError: true)
         }
-        let program = portfolio.settings.aiAgentProgram
+        let program = portfolio.agentProgram(for: product)
         let first = issues[0].title
         let title = issues.count > 1 ? "\(issues.count) issues" : (first.count > 32 ? String(first.prefix(31)) + "…" : first)
         startSetupAgent(product, checkout: checkout, prompt: ProductIssues.prompt(for: issues, product: product), title: title, audit: "issue.implement")
@@ -171,7 +171,7 @@ struct IssuesTab: View {
         let open = all.filter { !$0.isDone }
         let done = all.filter(\.isDone)
         let shown = showDone ? done : open
-        let agent = AgentCatalog.name(model.portfolio.settings.aiAgentProgram)
+        let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         VStack(alignment: .leading, spacing: Space.lg) {
             VStack(alignment: .leading, spacing: 0) {
                 CardHeader(title: "Issues", subtitle: "A to-do list for \(product.name). \(agent) asks about an item before it starts, and moves it to Done when it finishes.") {
@@ -316,7 +316,7 @@ struct IssuesTab: View {
             parts.append("done\(by) \(done.formatted(.relative(presentation: .named)))")
         }
         if !issue.isDone, let plan = model.openPlan(for: issue, in: product) {
-            parts.append("plan \(model.phaseText(plan))")
+            parts.append("plan \(model.phaseText(plan, in: product))")
         }
         if let started = issue.startedAt, !issue.isDone {
             parts.append("started with \(AgentCatalog.name(issue.startedWith ?? "")) \(started.formatted(.relative(presentation: .named)))")
