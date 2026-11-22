@@ -35,7 +35,11 @@ extension ObservationCache {
                 guard let product = portfolio.product(id: productID), let repo = product.repository(id: repositoryID) else { continue }
                 let previous = remotes[repositoryID]
                 switch result {
-                case .success(let snapshot), .partial(let snapshot, _):
+                case .success(var snapshot), .partial(var snapshot, _):
+                    // Issues that could not be read this time keep the last list instead of vanishing.
+                    if snapshot.issues == nil, case .partial(_, let missing) = result, missing.contains(where: { $0.hasPrefix("issues") }) {
+                        snapshot.issues = previous?.issues
+                    }
                     remotes[repositoryID] = snapshot
                     touch("github:\(repositoryID.uuidString)", problem: nil, at: now)
                     deriveActivity(from: snapshot, previous: previous, repo: repo, product: product)

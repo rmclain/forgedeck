@@ -555,3 +555,69 @@ private struct CLIHarness {
         #expect(harness.auditLog.read().isEmpty)
     }
 }
+
+@Suite struct CLIIssueTests {
+    @Test func issueAddQueuesTheItemForTheAppAndChangesNoPortfolioFile() async throws {
+        let harness = try CLIHarness()
+        defer { harness.cleanUp() }
+        let location = StoreLocation(directory: harness.directory.appending(path: "data", directoryHint: .isDirectory))
+        let before = try Data(contentsOf: location.portfolioURL)
+        #expect(await harness.cli.run(["issue", "add", harness.slug, "Export", "drops", "the", "last", "row", "--notes", "Seen on Safari."]) == CLIExit.ok)
+        #expect(harness.captured.stdout.contains("Added \u{201C}Export drops the last row\u{201D}"))
+        #expect(try Data(contentsOf: location.portfolioURL) == before)
+
+        let pending = IssueInbox.pending(location).items
+        #expect(pending.count == 1)
+        #expect(pending.first?.entry.productID == harness.world.product.id)
+        #expect(pending.first?.entry.issue.title == "Export drops the last row" && pending.first?.entry.issue.notes == "Seen on Safari.")
+        #expect(harness.auditLog.read().contains { $0.actor == "cli" && $0.action == "issue.add" && $0.product == harness.slug })
+
+        // The same open title again is refused; the list shows the queued item.
+        #expect(await harness.cli.run(["issue", "add", harness.slug, "export drops the last row"]) == CLIExit.failure)
+        #expect(IssueInbox.pending(location).items.count == 1)
+        #expect(await harness.cli.run(["issue", "list", harness.slug]) == CLIExit.ok)
+        #expect(harness.captured.stdout.contains("queued  Export drops the last row"))
+    }
+
+    @Test func issueAddNeedsTextAndARealProduct() async throws {
+        let harness = try CLIHarness()
+        defer { harness.cleanUp() }
+        #expect(await harness.cli.run(["issue", "add", harness.slug]) == CLIExit.usage)
+        #expect(await harness.cli.run(["issue", "add", "no-such-product", "Fix it"]) == CLIExit.failure)
+        #expect(harness.captured.stderr.contains("no product"))
+    }
+
+    @Test func theAppAddsQueuedItemsOnceAndDropsThoseForMissingProducts() throws {
+        let directory = try makeTempDir("inbox")
+        defer { removeTemp(directory) }
+        let location = StoreLocation(directory: directory)
+        var portfolio = Portfolio()
+        var product = Product(name: "Lumen")
+        product.slug = "lumen"
+        product.issues = [ProductIssue(title: "Older", createdAt: Date(timeIntervalSince1970: 1))]
+        var demo = Product(name: "Demo")
+        demo.slug = "demo"
+        demo.isDemo = true
+        portfolio.products = [product, demo]
+
+        let first = try #require(ProductIssues.make(from: "First", now: Date(timeIntervalSince1970: 10)))
+        let second = try #require(ProductIssues.make(from: "Second\nwith notes", now: Date(timeIntervalSince1970: 20)))
+        try IssueInbox.add(second, to: product, location: location)
+        try IssueInbox.add(first, to: product, location: location)
+        try IssueInbox.add(try #require(ProductIssues.make(from: "For the demo")), to: demo, location: location)
+        try Data("not json".utf8).write(to: IssueInbox.directory(location).appending(path: "broken.json"))
+
+        let (pending, unreadable) = IssueInbox.pending(location)
+        #expect(pending.map(\.entry.issue.title) == ["First", "Second", "For the demo"] && unreadable.count == 1)
+        let outcome = IssueInbox.apply(pending, to: &portfolio)
+        #expect(outcome.count == 2 && outcome.dropped.map(\.productSlug) == ["demo"])
+        #expect(portfolio.products[0].issues?.map(\.title) == ["Second", "First", "Older"])
+        #expect(portfolio.products[0].issues?.first?.notes == "with notes" && portfolio.products[0].issues?.first?.id == second.id)
+        #expect(portfolio.products[1].issues == nil)
+
+        // Applied again (the app quit before deleting the files): nothing is added twice.
+        #expect(IssueInbox.apply(pending, to: &portfolio).count == 0)
+        IssueInbox.remove(pending.map(\.url) + unreadable)
+        #expect(IssueInbox.pending(location).items.isEmpty && IssueInbox.pending(location).unreadable.isEmpty)
+    }
+}

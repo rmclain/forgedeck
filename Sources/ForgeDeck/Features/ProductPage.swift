@@ -15,7 +15,7 @@ struct ProductPage: View {
             let n = model.portfolio.variables.filter { $0.scope.productID == product.id }.count
             return n > 0 ? "\(n)" : nil
         case .issues:
-            let n = ProductIssues.openCount(product)
+            let n = ProductIssues.openCount(product, cache: model.cache)
             return n > 0 ? "\(n)" : nil
         case .memory:
             let n = ProductMemory.count(product)

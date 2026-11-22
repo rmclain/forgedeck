@@ -21,6 +21,61 @@ extension AppModel {
         return true
     }
 
+    /// Moves items added with `forgedeck issue add` into their products' lists, saves, then deletes the queued files.
+    func importIssueInbox() {
+        guard loadError == nil else { return }
+        let (pending, unreadable) = IssueInbox.pending(store.location)
+        guard !pending.isEmpty || !unreadable.isEmpty else { return }
+        let outcome = IssueInbox.apply(pending, to: &portfolio)
+        if outcome.count > 0 { saveNow() }
+        IssueInbox.remove(pending.map(\.url) + unreadable)
+        for (id, issues) in outcome.added {
+            record("issue.add", product: product(id), detail: "from=cli count=\(issues.count)")
+        }
+        for entry in outcome.dropped { record("issue.add", detail: "from=cli product=\(entry.productSlug)", outcome: "dropped") }
+        if !unreadable.isEmpty { record("issue.add", detail: "from=cli unreadable=\(unreadable.count)", outcome: "failed") }
+        guard outcome.count > 0 else { return }
+        let names = outcome.added.keys.compactMap { product($0)?.name }.sorted()
+        let first = outcome.added.values.first?.first?.title ?? ""
+        show(outcome.count == 1 ? "Added \u{201C}\(first)\u{201D} to \(names.first ?? "")'s Issues from the command line."
+                                : "Added \(outcome.count) items from the command line to \(ListFormatter.localizedString(byJoining: names)).")
+    }
+
+    /// Checks the inbox folder every two seconds: one stat, and a read only when it changed.
+    func watchIssueInbox() {
+        Task { [weak self] in
+            var last: Date?
+            while !Task.isCancelled {
+                guard let self else { return }
+                let stamp = IssueInbox.stamp(self.store.location)
+                if stamp != last {
+                    last = stamp
+                    if stamp != nil { self.importIssueInbox() }
+                    last = IssueInbox.stamp(self.store.location)
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    /// Brings a GitHub issue into the product's list, linked back to it, so the agent buttons work on it.
+    @discardableResult
+    func addGitHubIssue(_ item: ProductIssues.GitHubItem, to product: Product) -> ProductIssue? {
+        guard !product.isDemo else { show("\(product.name) is a demo product. Its issues are a fixture.", isError: true); return nil }
+        let current = self.product(product.id) ?? product
+        guard !ProductIssues.isLinked(item, in: current.issues ?? []) else { return nil }
+        let issue = ProductIssues.imported(item)
+        update(product.id) { $0.issues = [issue] + ($0.issues ?? []) }
+        record("issue.github.add", product: product, detail: "repo=\(item.repositoryName) number=\(item.issue.number)")
+        return issue
+    }
+
+    /// Adds the GitHub issue to the list and starts the agent on it.
+    func implementGitHubIssue(_ item: ProductIssues.GitHubItem, in product: Product) {
+        guard let issue = addGitHubIssue(item, to: product), let current = self.product(product.id) else { return }
+        implementIssue(issue, in: current)
+    }
+
     func updateIssue(_ id: UUID, in product: Product, _ change: (inout ProductIssue) -> Void) {
         update(product.id) { product in
             guard let index = product.issues?.firstIndex(where: { $0.id == id }) else { return }
@@ -171,12 +226,13 @@ struct IssuesTab: View {
         let open = all.filter { !$0.isDone }
         let done = all.filter(\.isDone)
         let shown = showDone ? done : open
+        let github = ProductIssues.githubIssues(product, cache: model.cache)
         let agent = AgentCatalog.name(model.portfolio.agentProgram(for: product))
         VStack(alignment: .leading, spacing: Space.lg) {
             VStack(alignment: .leading, spacing: 0) {
                 CardHeader(title: "Issues", subtitle: "A to-do list for \(product.name). \(agent) asks about an item before it starts, and moves it to Done when it finishes.") {
                     if product.isDemo { DemoBadge() }
-                    SegmentedPill(options: [(false, "Open \(open.count)"), (true, "Done \(done.count)")], selection: $showDone, compact: true)
+                    SegmentedPill(options: [(false, "Open \(open.count + github.count)"), (true, "Done \(done.count)")], selection: $showDone, compact: true)
                 }
                 .padding(Space.lg)
                 HStack(spacing: Space.sm) {
@@ -196,7 +252,7 @@ struct IssuesTab: View {
                 }
                 .disabled(product.isDemo)
                 .padding(.horizontal, Space.lg).padding(.bottom, Space.lg)
-                if shown.isEmpty {
+                if shown.isEmpty && (showDone || github.isEmpty) {
                     Text(showDone ? "Nothing done yet." : "Nothing open. Add what you want to fix or build; \(agent) asks for the details when you start it.")
                         .kitType(.label, Ink.text2).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -207,6 +263,10 @@ struct IssuesTab: View {
                 if !shown.isEmpty { bulkBar(shown, agent: agent) }
                 ForEach(shown) { issue in
                     if editingID == issue.id { editor(issue) } else { row(issue, agent: agent) }
+                }
+                if !showDone, !github.isEmpty {
+                    githubHeader(github)
+                    ForEach(github) { item in githubRow(item, agent: agent) }
                 }
             }
             .card()
@@ -358,6 +418,53 @@ struct IssuesTab: View {
             }
         }
         .padding(Space.lg)
+        .hairlineAbove()
+    }
+
+    private func githubHeader(_ items: [ProductIssues.GitHubItem]) -> some View {
+        let repos = Set(items.map(\.repositoryName)).sorted()
+        let checked = ProductIssues.githubCheckedAt(product, cache: model.cache)
+        return HStack(spacing: Space.sm) {
+            Icon(.branch, size: 12).foregroundStyle(Ink.text3)
+            Text("On GitHub").kitType(.labelMedium)
+            Text("\(items.count) open in \(repos.joined(separator: ", ")), not in this list yet").kitType(.meta, Ink.text3).lineLimit(1)
+            Spacer(minLength: Space.sm)
+            if let checked { Text("read \(RelativeTime.short(checked, now: max(model.now, checked)))").kitType(.meta, Ink.text3) }
+        }
+        .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
+        .frame(minHeight: 40)
+        .background(Ink.chip.opacity(0.5))
+        .hairlineAbove()
+        .help("Open issues GitHub listed for this product's repositories at the last refresh. Add one to the list to plan or implement it here.")
+    }
+
+    private func githubRow(_ item: ProductIssues.GitHubItem, agent: String) -> some View {
+        let issue = item.issue
+        var meta = ["#\(issue.number) by \(issue.author.isEmpty ? "someone" : issue.author)", "updated \(issue.updatedAt.formatted(.relative(presentation: .named)))"]
+        if issue.comments > 0 { meta.append("\(issue.comments) comment\(issue.comments == 1 ? "" : "s")") }
+        return HStack(alignment: .top, spacing: Space.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Space.xs) {
+                    Text(issue.title).kitType(.labelMedium).fixedSize(horizontal: false, vertical: true)
+                    TagBadge("GitHub", tone: .accent)
+                    ForEach(issue.labels.prefix(3), id: \.self) { TagBadge($0) }
+                    if product.isDemo { DemoBadge() }
+                }
+                if !issue.body.isEmpty { Text(issue.body).kitType(.meta, Ink.text2).lineLimit(2) }
+                Text(meta.joined(separator: " · ")).kitType(.meta, Ink.text3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("#\(issue.number)") { model.openLink(issue.url) }
+                .buttonStyle(.kit(.link)).disabled(issue.url.isEmpty).help("Open issue #\(issue.number) on GitHub")
+            Button("Add to List") { model.addGitHubIssue(item, to: product) }
+                .buttonStyle(.kit(.ghost, compact: true)).fixedSize().disabled(product.isDemo)
+                .help("Adds it to \(product.name)'s list, linked to the GitHub issue, so you can plan it or hand it to \(agent)")
+            Button("Implement with \(agent)") { model.implementGitHubIssue(item, in: product) }
+                .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                .disabled(product.isDemo || !product.hasLocal)
+                .help("Adds it to the list and opens \(agent) in \(product.name) with it. It reads the code and asks you about it first.")
+        }
+        .padding(.horizontal, Space.lg).padding(.vertical, Space.md)
         .hairlineAbove()
     }
 

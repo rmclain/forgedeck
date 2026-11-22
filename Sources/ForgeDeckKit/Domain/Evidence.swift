@@ -163,6 +163,23 @@ public struct PullRequestSummary: Codable, Hashable, Sendable, Identifiable {
     public init() {}
 }
 
+/// An open issue in the repository, as GitHub's REST API listed it. Pull requests are left out.
+public struct GitHubIssueSummary: Codable, Hashable, Sendable, Identifiable {
+    public var number = 0
+    public var title = ""
+    public var author = ""
+    public var labels: [String] = []
+    public var comments = 0
+    public var createdAt = Date.distantPast
+    public var updatedAt = Date.distantPast
+    public var url = ""
+    /// The start of the description, at most `bodyLimit` characters.
+    public var body = ""
+    public var id: Int { number }
+    public static let bodyLimit = 2_000
+    public init() {}
+}
+
 public struct WorkflowRunSummary: Codable, Hashable, Sendable, Identifiable {
     public var id = 0
     public var name = ""
@@ -198,6 +215,8 @@ public struct RemoteSnapshot: Codable, Hashable, Sendable {
     public var headMessage: String?
     public var headDate: Date?
     public var pullRequests: [PullRequestSummary] = []
+    /// Open issues, most recently updated first. nil when not read (older caches, or issues turned off on GitHub).
+    public var issues: [GitHubIssueSummary]?
     public var runs: [WorkflowRunSummary] = []
     public var deployments: [ReportedDeployment] = []
     public var latestReleaseTag: String?

@@ -47,8 +47,8 @@ public enum CLIExit {
 }
 
 public struct CLI: Sendable {
-    public static let version = "0.13.5"
-    public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "memory", "ci", "usage", "help", "version"]
+    public static let version = "0.13.6"
+    public static let commands = ["list", "find", "status", "open", "doctor", "env", "run", "blueprint", "skills", "leads", "actions", "exec", "context", "pack", "agent", "links", "link", "memory", "issue", "ci", "usage", "help", "version"]
 
     public var store: PortfolioStore
     public var io: CLIOutput
@@ -96,6 +96,8 @@ public struct CLI: Sendable {
       \(Brand.cliName) exec --product <product> --environment <name> --profile <name> -- <program> [args...]
       \(Brand.cliName) context <product> [--write]
       \(Brand.cliName) memory <product> [--json]     (rules and key facts agents read first)
+      \(Brand.cliName) issue add <product> <text> [--notes <text>] [--json]  (adds to the product's Issues list; text "-" reads stdin)
+      \(Brand.cliName) issue list <product> [--all] [--json]  (open items, any still waiting for the app, and open GitHub issues not in the list)
       \(Brand.cliName) pack <product> [--related] [--checkout <name>]
       \(Brand.cliName) agent <product> [--agent claude|codex|opencode|gemini|agy] [--model <name>] [--print]
       \(Brand.cliName) usage                      (AI tool usage and limits on this Mac)
@@ -114,6 +116,11 @@ public struct CLI: Sendable {
       Values reach the program through its environment, in memory. They are never printed,
       written to a file, or placed on a command line. The program and anything it starts
       can read them: grant only what the program needs.
+
+    ADDING ISSUES
+      `issue add` queues the item in the data folder's inbox; \(Brand.name) moves it into the product's Issues list
+      within a few seconds while it is open, or when it next starts. The first line of the text is the title, the
+      rest (and --notes) the notes. Nothing goes to GitHub.
 
     PROPOSING ENVIRONMENTS
       A repository can propose its environments in .forgedeck/environments.json:
@@ -223,7 +230,7 @@ public struct CLI: Sendable {
             return CLIExit.ok
         }
         let args = Arguments(Array(arguments.dropFirst()),
-                             valueFlags: ["product", "environment", "profile", "checkout", "terminal", "ssh", "agent", "site", "run", "model"])
+                             valueFlags: ["product", "environment", "profile", "checkout", "terminal", "ssh", "agent", "site", "run", "model", "notes"])
         switch command {
         case "help", "--help", "-h":
             io.out(Self.help)
@@ -248,6 +255,7 @@ public struct CLI: Sendable {
         case "agent": return await agent(args)
         case "links": return links(args)
         case "memory": return memory(args)
+        case "issue": return issue(args)
         case "ci": return await ci(args)
         case "usage": return await usage()
         case "link": return link(args)
@@ -882,6 +890,75 @@ public struct CLI: Sendable {
         public var checkout: String
         public var state: String
         public var tracked: Bool
+    }
+
+    public struct IssueRow: Codable, Sendable {
+        /// nil for a GitHub issue that is not in the list yet.
+        public var id: UUID?
+        public var title: String
+        public var notes: String
+        /// queued, open, done, or github (open on GitHub, not in the list yet).
+        public var state: String
+        public var createdAt: Date
+        public var githubURL: String?
+        public var number: Int? = nil
+        public var repository: String? = nil
+    }
+
+    /// `issue add` queues an item for the app; `issue list` shows the list and anything still queued.
+    private func issue(_ args: Arguments) -> Int32 {
+        var positional = args.positional
+        let action = ["add", "list"].contains(positional.first ?? "") ? positional.removeFirst() : "list"
+        guard let portfolio = loadPortfolio(), let product = product(positional.first, in: portfolio) else { return CLIExit.failure }
+        let queued = IssueInbox.pending(store.location).items.filter { $0.entry.productID == product.id }.map(\.entry.issue)
+        if action == "list" {
+            let saved = ProductIssues.sorted(product.issues ?? []).filter { args.switches.contains("all") || !$0.isDone }
+            let github = ProductIssues.githubIssues(product, cache: store.loadCache())
+            let rows = queued.map { IssueRow(id: $0.id, title: $0.title, notes: $0.notes, state: "queued", createdAt: $0.createdAt, githubURL: nil) }
+                + saved.map { IssueRow(id: $0.id, title: $0.title, notes: $0.notes, state: $0.isDone ? "done" : "open", createdAt: $0.createdAt, githubURL: $0.githubURL) }
+                + github.map { IssueRow(id: nil, title: $0.issue.title, notes: $0.issue.body, state: "github", createdAt: $0.issue.createdAt,
+                                        githubURL: $0.issue.url, number: $0.issue.number, repository: $0.repositoryName) }
+            if args.switches.contains("json") {
+                io.out(json(rows))
+            } else if rows.isEmpty {
+                io.out("No open items in \(product.name)'s Issues or on GitHub.")
+            } else {
+                for row in rows {
+                    io.out("\(row.state.padding(toLength: 6, withPad: " ", startingAt: 0))  \(row.title)" + (row.number.map { "  (\(row.repository ?? "")#\($0))" } ?? ""))
+                }
+            }
+            return CLIExit.ok
+        }
+        guard !product.isDemo else {
+            io.err("error: \(product.name) is a demo product. Its issues are a fixture.")
+            return CLIExit.failure
+        }
+        var text = positional.dropFirst().joined(separator: " ")
+        if text == "-" { text = String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self) }
+        if let notes = args.flags["notes"], !notes.isEmpty { text += "\n" + notes }
+        guard let issue = ProductIssues.make(from: text) else {
+            io.err("usage: \(Brand.cliName) issue add <product> <text> [--notes <text>]")
+            return CLIExit.usage
+        }
+        if queued.contains(where: { $0.title.caseInsensitiveCompare(issue.title) == .orderedSame })
+            || (product.issues ?? []).contains(where: { !$0.isDone && $0.title.caseInsensitiveCompare(issue.title) == .orderedSame }) {
+            io.err("\(product.name) already has an open item \u{201C}\(issue.title)\u{201D}. Nothing was added.")
+            return CLIExit.failure
+        }
+        do {
+            try IssueInbox.add(issue, to: product, location: store.location)
+        } catch {
+            io.err("error: could not queue the item: \(error.localizedDescription)")
+            return CLIExit.failure
+        }
+        exec.audit.record(AuditEvent(actor: "cli", action: "issue.add", product: product.slug))
+        if args.switches.contains("json") {
+            io.out(json(IssueRow(id: issue.id, title: issue.title, notes: issue.notes, state: "queued", createdAt: issue.createdAt, githubURL: nil)))
+        } else {
+            io.out("Added \u{201C}\(issue.title)\u{201D} to \(product.name)'s Issues.")
+            io.err("\(Brand.name) puts it in the list within a few seconds while it is open, or when it next starts.")
+        }
+        return CLIExit.ok
     }
 
     /// The product's memory. Read only: an agent adds to it through `.forgedeck/memory.json`, which the app moves into the list.

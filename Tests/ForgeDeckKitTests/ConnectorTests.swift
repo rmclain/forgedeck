@@ -863,3 +863,93 @@ private func scriptFullRepository(_ http: MockHTTPClient) {
         #expect(runner.requests.first?.arguments == ["logs", "--tail", "1000", "--", "web"])
     }
 }
+
+@Suite struct GitHubIssueTests {
+    @Test func openIssuesAreReadAndPullRequestsLeftOut() async throws {
+        let http = MockHTTPClient()
+        scriptFullRepository(http)
+        http.on("\(repoPath)/issues", json: """
+        [{"number": 51, "title": "Login fails on Safari", "user": {"login": "maya"}, "labels": [{"name": "bug"}], "comments": 2,
+          "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-02T05:00:00Z", "html_url": "https://github.com/acme/app/issues/51",
+          "body": "Steps: open the login page in Safari."},
+         {"number": 42, "title": "Add the thing", "pull_request": {"url": "x"}, "html_url": "https://github.com/acme/app/pull/42"}]
+        """)
+        let result = await GitHubConnector(http: http).snapshot(owner: "acme", name: "app")
+        guard case .success(let snapshot) = result else { Issue.record("expected success, got \(result)"); return }
+        let issues = try #require(snapshot.issues)
+        #expect(issues.map(\.number) == [51])
+        #expect(issues[0].author == "maya" && issues[0].labels == ["bug"] && issues[0].comments == 2)
+        #expect(issues[0].body == "Steps: open the login page in Safari.")
+        let request = try #require(http.requests.first { $0.url?.path == "\(repoPath)/issues" })
+        #expect(request.url?.query?.contains("state=open") == true)
+    }
+
+    @Test func aRepositoryWithIssuesTurnedOffIsNotAsked() async {
+        let http = MockHTTPClient()
+        http.on(repoPath, json: "{\"full_name\": \"acme/app\", \"default_branch\": \"main\", \"has_issues\": false}")
+        http.on("\(repoPath)/branches/main", json: "{\"name\": \"main\", \"commit\": {\"sha\": \"\(shaA)\"}}")
+        _ = await GitHubConnector(http: http).snapshot(owner: "acme", name: "app")
+        #expect(!http.requests.contains { $0.url?.path == "\(repoPath)/issues" })
+    }
+
+    @Test func githubIssuesNotInTheListAreShownAndAddedOnce() throws {
+        var product = Product(name: "App")
+        var repo = Repository()
+        repo.provider = "github"
+        repo.owner = "acme"
+        repo.name = "app"
+        product.repositories = [repo]
+        var cache = ObservationCache()
+        var snapshot = RemoteSnapshot()
+        func issue(_ number: Int, hours: Double) -> GitHubIssueSummary {
+            var issue = GitHubIssueSummary()
+            issue.number = number
+            issue.title = "Issue \(number)"
+            issue.updatedAt = Date(timeIntervalSince1970: hours * 3_600)
+            issue.url = "https://github.com/acme/app/issues/\(number)"
+            issue.labels = ["bug"]
+            issue.body = "Body \(number)"
+            return issue
+        }
+        snapshot.issues = [issue(1, hours: 1), issue(2, hours: 5)]
+        cache.remotes[repo.id] = snapshot
+
+        let items = ProductIssues.githubIssues(product, cache: cache)
+        #expect(items.map(\.issue.number) == [2, 1])
+        #expect(ProductIssues.openCount(product, cache: cache) == 2)
+
+        let local = ProductIssues.imported(items[0])
+        #expect(local.title == "Issue 2" && local.githubNumber == 2 && local.githubURL == "https://github.com/acme/app/issues/2")
+        #expect(local.notes == "GitHub acme/app#2 · bug\n\nBody 2")
+        product.issues = [local]
+        #expect(ProductIssues.githubIssues(product, cache: cache).map(\.issue.number) == [1])
+        #expect(ProductIssues.openCount(product, cache: cache) == 2)
+
+        // An item copied to GitHub from this Mac (same link) is not shown twice.
+        var copied = ProductIssue(title: "Mine")
+        copied.githubNumber = 1
+        copied.githubURL = "https://GitHub.com/acme/app/issues/1"
+        product.issues?.append(copied)
+        #expect(ProductIssues.githubIssues(product, cache: cache).isEmpty)
+    }
+
+    @Test func issuesThatCouldNotBeReadKeepTheLastList() {
+        var product = Product(name: "App")
+        var repo = Repository()
+        repo.provider = "github"
+        product.repositories = [repo]
+        var portfolio = Portfolio()
+        portfolio.products = [product]
+        var cache = ObservationCache()
+        var first = RemoteSnapshot()
+        first.headSHA = shaA
+        var known = GitHubIssueSummary()
+        known.number = 9
+        first.issues = [known]
+        cache.apply([.remote(repository: repo.id, product: product.id, .success(first))], portfolio: portfolio)
+        var second = RemoteSnapshot()
+        second.headSHA = shaB
+        cache.apply([.remote(repository: repo.id, product: product.id, .partial(second, missing: ["issues (Rate limited)"]))], portfolio: portfolio)
+        #expect(cache.remotes[repo.id]?.issues?.map(\.number) == [9] && cache.remotes[repo.id]?.headSHA == shaB)
+    }
+}

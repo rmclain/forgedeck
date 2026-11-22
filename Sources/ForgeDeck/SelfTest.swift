@@ -481,6 +481,40 @@ enum SelfTest {
         current = model.product(product.id) ?? product
         check("a product can go back to the agent in Settings", current.agentProgram == nil && model.portfolio.agentProgram(for: current) == global)
         check("usage that resets within a day unused is flagged", AIUsageReader.sample(now: .now).contains { !$0.expiring().isEmpty })
+
+        // forgedeck issue add queues a file; the app moves it into the list and deletes the file.
+        if let queued = ProductIssues.make(from: "Selftest item from the command line\nwith notes") {
+            _ = try? IssueInbox.add(queued, to: current, location: model.store.location)
+            model.importIssueInbox()
+            let saved = model.product(product.id)?.issues?.first
+            check("an item added from the command line lands in the Issues list", saved?.id == queued.id && saved?.notes == "with notes"
+                  && IssueInbox.pending(model.store.location).items.isEmpty, model.toast?.text ?? "")
+            check("a toast says it came from the command line", model.toast?.text.contains("from the command line") == true, model.toast?.text ?? "")
+        }
+
+        // GitHub issues of the product's repository show beside the list and can be added to it once.
+        var repo = Repository()
+        repo.provider = "github"
+        repo.owner = "selftest"
+        repo.name = "repo"
+        model.update(product.id) { $0.repositories.append(repo) }
+        var remote = RemoteSnapshot()
+        var ghIssue = GitHubIssueSummary()
+        ghIssue.number = 7
+        ghIssue.title = "Selftest GitHub issue"
+        ghIssue.url = "https://github.com/selftest/repo/issues/7"
+        remote.issues = [ghIssue]
+        model.cache.remotes[repo.id] = remote
+        let withRepo = model.product(product.id) ?? product
+        let found = ProductIssues.githubIssues(withRepo, cache: model.cache)
+        check("open GitHub issues of the product's repository are listed", found.map(\.issue.number) == [7])
+        if let item = found.first {
+            let added = model.addGitHubIssue(item, to: withRepo)
+            let again = model.addGitHubIssue(item, to: model.product(product.id) ?? withRepo)
+            let now = model.product(product.id) ?? withRepo
+            check("a GitHub issue is added to the list once, linked back", added?.githubNumber == 7 && again == nil
+                  && now.issues?.first?.githubURL == ghIssue.url && ProductIssues.githubIssues(now, cache: model.cache).isEmpty)
+        }
     }
 
     /// Memory: the person's items and the agent's file both land in the list, every session's prompt carries them, and delete works.

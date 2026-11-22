@@ -375,6 +375,7 @@ final class AppModel {
         // A skill this app wrote earlier is brought up to date, so a new version's commands (/products, /product) appear.
         if isSkillInstalled { _ = try? ForgeDeckSkill.install(in: ForgeDeckSkill.claudeSkills, cli: cliCommand) }
         if remoteSettings.enabled { startRemote(showTerminal: false) }
+        watchIssueInbox()
         pollTask = Task { [weak self] in
             // Local Git state first: it is cheap and works offline.
             await self?.refreshLocal()

@@ -52,7 +52,7 @@ The app binary is also the `forgedeck` command line tool.
 - Every remote fact carries a `Provenance`. Production is never inferred from `main`, a green CI run, or a release tag. With no evidence, show Unknown and the reason.
 - Validate every URL with `URLPolicy.validate`. SSH runs only commands from `SSHProbeCommand.catalog`, always with `SSHInspector.options`.
 - Demo data stays labeled: `isDemo` on products and `Provenance.isDemo` on observations. Demo products are never refreshed.
-- The app is the only writer of `portfolio.json` and `cache.json`. The CLI reads them and appends to `audit.jsonl`.
+- The app is the only writer of `portfolio.json` and `cache.json`. The CLI reads them, appends to `audit.jsonl`, and queues new issues as files in `inbox/issues` (`IssueInbox`), which the app imports.
 - A schema change raises `Portfolio.currentSchemaVersion` and adds a step to `PortfolioMigrator` with a test.
 - Record user-visible changes and grants with `AppModel.record` or an `AuditSink`. Details hold names, never values.
 - Every new story gets a self-test check in `SelfTest.swift` or a kit test. Logic belongs in the kit, where it can be tested.

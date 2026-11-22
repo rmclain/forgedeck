@@ -36,7 +36,7 @@ public enum ConnectorResult<Value: Sendable>: Sendable {
 }
 
 public enum ConnectorCapability: String, Sendable, CaseIterable {
-    case repositories, branches, pullRequests, workflowRuns, releases, reportedDeployments
+    case repositories, branches, pullRequests, issues, workflowRuns, releases, reportedDeployments
     case runtimeStatus, health, metrics, leadEvents, logs, containerStatus, hostStatus
 }
 

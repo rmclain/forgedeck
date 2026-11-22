@@ -219,6 +219,7 @@ public enum DemoFixtures {
                 run.createdAt = now.addingTimeInterval(-3_600 * (spec.ciFailing ? 1 : 5))
                 remote.runs = [run]
                 remote.latestReleaseTag = spec.version
+                remote.issues = spec.id == "lumen" ? demoGitHubIssues(owner: repo.owner, name: repo.name, now: now) : []
                 cache.remotes[repo.id] = remote
                 if headSHA != productionSHA { cache.comparisons[DriftAnalyzer.comparisonKey(headSHA, productionSHA)] = .ahead(spec.drift ?? 14) }
             }
@@ -410,4 +411,27 @@ public enum DemoFixtures {
         for product in portfolio.products where product.isDemo { cache.remove(product: product) }
         portfolio.products.removeAll(where: \.isDemo)
     }
+}
+
+/// Open GitHub issues for the demo's Lumen repository. Fixture text, never fetched.
+func demoGitHubIssues(owner: String, name: String, now: Date) -> [GitHubIssueSummary] {
+    func issue(_ number: Int, _ title: String, by author: String, labels: [String], comments: Int, hoursAgo: Double, body: String) -> GitHubIssueSummary {
+        var issue = GitHubIssueSummary()
+        issue.number = number
+        issue.title = title
+        issue.author = author
+        issue.labels = labels
+        issue.comments = comments
+        issue.createdAt = now.addingTimeInterval(-3_600 * (hoursAgo + 48))
+        issue.updatedAt = now.addingTimeInterval(-3_600 * hoursAgo)
+        issue.url = "https://github.com/\(owner)/\(name)/issues/\(number)"
+        issue.body = body
+        return issue
+    }
+    return [
+        issue(318, "Retention chart is empty for workspaces created today", by: "maya", labels: ["bug"], comments: 3, hoursAgo: 3,
+              body: "The cohort query skips the first day, so a brand-new workspace sees an empty chart instead of one point."),
+        issue(305, "Export funnels as CSV", by: "dev-jordan", labels: ["enhancement"], comments: 1, hoursAgo: 30,
+              body: "Customers want to paste funnel steps into a spreadsheet. A CSV with step, users, and conversion would do."),
+    ]
 }

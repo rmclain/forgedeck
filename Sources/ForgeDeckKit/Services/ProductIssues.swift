@@ -64,6 +64,54 @@ public enum ProductIssues {
         product.repositories.first { $0.provider == "github" && !$0.owner.isEmpty && !$0.name.isEmpty }
     }
 
+    /// An open issue in one of the product's GitHub repositories.
+    public struct GitHubItem: Hashable, Sendable, Identifiable {
+        public var repository: Repository
+        public var issue: GitHubIssueSummary
+        public var id: String { issue.url.isEmpty ? "\(repository.owner)/\(repository.name)#\(issue.number)" : issue.url }
+        public var repositoryName: String { "\(repository.owner)/\(repository.name)" }
+    }
+
+    /// True when a local item already stands for this GitHub issue: same link, or same number in that repository.
+    public static func isLinked(_ item: GitHubItem, in issues: [ProductIssue]) -> Bool {
+        issues.contains { local in
+            if let url = local.githubURL, !url.isEmpty, !item.issue.url.isEmpty { return url.lowercased() == item.issue.url.lowercased() }
+            return local.githubNumber == item.issue.number && local.githubURL == nil
+        }
+    }
+
+    /// Open issues from every GitHub repository of the product that are not in its list yet, most recently updated first.
+    public static func githubIssues(_ product: Product, cache: ObservationCache) -> [GitHubItem] {
+        let local = product.issues ?? []
+        var seen = Set<String>()
+        return product.repositories.filter { $0.provider == "github" }
+            .flatMap { repo in (cache.remotes[repo.id]?.issues ?? []).map { GitHubItem(repository: repo, issue: $0) } }
+            .filter { seen.insert($0.id).inserted && !isLinked($0, in: local) }
+            .sorted { $0.issue.updatedAt > $1.issue.updatedAt }
+    }
+
+    /// When the product's GitHub issues were last read, or nil when none of its repositories have been.
+    public static func githubCheckedAt(_ product: Product, cache: ObservationCache) -> Date? {
+        product.repositories.filter { $0.provider == "github" }
+            .compactMap { cache.remotes[$0.id].flatMap { $0.issues == nil ? nil : $0.provenance.observedAt } }.max()
+    }
+
+    /// The local item for a GitHub issue: its title, the start of its description, and the link back.
+    public static func imported(_ item: GitHubItem, now: Date = .now) -> ProductIssue {
+        var issue = ProductIssue(title: String(item.issue.title.prefix(maxTitle)), createdAt: now)
+        let header = "GitHub \(item.repositoryName)#\(item.issue.number)" + (item.issue.labels.isEmpty ? "" : " · " + item.issue.labels.joined(separator: ", "))
+        issue.notes = String([header, item.issue.body.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty }
+            .joined(separator: "\n\n").prefix(maxNotes))
+        issue.githubNumber = item.issue.number
+        issue.githubURL = item.issue.url.isEmpty ? nil : item.issue.url
+        return issue
+    }
+
+    /// Open items for the tab's badge: the list's open items plus GitHub issues not in it yet.
+    public static func openCount(_ product: Product, cache: ObservationCache) -> Int {
+        openCount(product) + githubIssues(product, cache: cache).count
+    }
+
     /// The most items one agent session takes at once.
     public static let maxPerSession = 10
 

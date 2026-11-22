@@ -110,6 +110,8 @@ public enum ForgeDeckSkill {
         - The context file starts with the product's Memory (`\(tool) memory <slug>` prints it too): rules and key facts from the person \
         and earlier sessions. Follow the rules. When you learn something lasting the next session would need, add it to \
         `\(ProductMemory.relativePath)` in the product's folder, as the context file shows.
+        - To note a follow-up for the person (a bug you saw, work left for later), add it to the product's Issues list with \
+        `\(tool) issue add <slug> "<one-line title>" --notes "<details>"`. `\(tool) issue list <slug>` shows what is already there.
         - `exec` runs no shell: `$NAME` in an argument stays literal. The program reads the value from its environment.
         - Production secrets need Touch ID at the Mac. If the person is not at the Mac, say so and stop.
         - Never deploy, push to a shared branch, publish, or change remote or production data unless the person asks.
@@ -125,7 +127,7 @@ public enum ForgeDeckSkill {
     public static func allowedCommands(cli: String) -> [String] {
         let tool = cli.contains(" ") ? "\"\(cli)\"" : cli
         let bare = ["find", "list", "usage"].map { "\(tool) \($0)" }
-        let withArguments = ["find", "list", "context", "memory", "status", "links", "leads", "skills", "env check", "run check", "blueprint check"]
+        let withArguments = ["find", "list", "context", "memory", "status", "links", "leads", "skills", "issue list", "env check", "run check", "blueprint check"]
             .map { "\(tool) \($0) *" }
         return (bare + withArguments + ["\(tool) ci * --brief"]).sorted()
     }

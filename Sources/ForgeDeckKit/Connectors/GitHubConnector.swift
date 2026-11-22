@@ -5,7 +5,7 @@ import Foundation
 /// Authorization header to api.github.com.
 public struct GitHubConnector: RepositoryProvider {
     public static let provider = ProviderKind.github
-    public static let capabilities: [ConnectorCapability] = [.repositories, .branches, .pullRequests, .workflowRuns, .releases, .reportedDeployments]
+    public static let capabilities: [ConnectorCapability] = [.repositories, .branches, .pullRequests, .issues, .workflowRuns, .releases, .reportedDeployments]
 
     public let http: any HTTPClient
     public let token: String?
@@ -131,6 +131,22 @@ public struct GitHubConnector: RepositoryProvider {
         return .success(Array(all.prefix(limit)))
     }
 
+    /// One entry of `/repos/{owner}/{repo}/issues`. GitHub lists pull requests there too; those return nil.
+    static func issue(_ json: [String: Any]) -> GitHubIssueSummary? {
+        guard json["pull_request"] == nil, let number = json["number"] as? Int else { return nil }
+        var issue = GitHubIssueSummary()
+        issue.number = number
+        issue.title = json["title"] as? String ?? ""
+        issue.author = (json["user"] as? [String: Any])?["login"] as? String ?? ""
+        issue.labels = (json["labels"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        issue.comments = json["comments"] as? Int ?? 0
+        issue.createdAt = FlexibleDate.parse(json["created_at"] as? String) ?? .distantPast
+        issue.updatedAt = FlexibleDate.parse(json["updated_at"] as? String) ?? .distantPast
+        issue.url = json["html_url"] as? String ?? ""
+        issue.body = String((json["body"] as? String ?? "").prefix(GitHubIssueSummary.bodyLimit))
+        return issue
+    }
+
     static func listing(_ json: [String: Any]) -> RepositoryListing? {
         guard let id = json["id"] as? Int, let name = json["name"] as? String,
               let owner = (json["owner"] as? [String: Any])?["login"] as? String else { return nil }
@@ -150,9 +166,11 @@ public struct GitHubConnector: RepositoryProvider {
         let repoPath = "/repos/\(owner)/\(name)"
         var snapshot = RemoteSnapshot()
         var missing: [String] = []
+        var hasIssues = true
         switch await object(repoPath) {
         case .ok(let repo):
             snapshot.defaultBranch = repo["default_branch"] as? String ?? "main"
+            hasIssues = repo["has_issues"] as? Bool ?? true
         case .fail(let problem, let detail, let retry):
             return .failure(problem, detail: detail, retryAfter: retry)
         }
@@ -182,6 +200,13 @@ public struct GitHubConnector: RepositoryProvider {
                 return pr
             }
         case .fail(let problem, _, _): missing.append("pull requests (\(problem.title))")
+        }
+
+        if hasIssues {
+            switch await array("\(repoPath)/issues", query: ["state": "open", "sort": "updated", "per_page": "50"]) {
+            case .ok(let items): snapshot.issues = items.compactMap(Self.issue)
+            case .fail(let problem, _, _): if problem != .notFound { missing.append("issues (\(problem.title))") }
+            }
         }
 
         switch await object("\(repoPath)/actions/runs", query: ["per_page": "15"]) {
