@@ -515,6 +515,31 @@ enum SelfTest {
             check("a GitHub issue is added to the list once, linked back", added?.githubNumber == 7 && again == nil
                   && now.issues?.first?.githubURL == ghIssue.url && ProductIssues.githubIssues(now, cache: model.cache).isEmpty)
         }
+
+        // More than ten selected items go to one plan, and every one of them points at it.
+        for n in 1...12 { _ = model.addIssue("Selftest bulk item \(n)", to: model.product(product.id) ?? product) }
+        let many = Array((model.product(product.id)?.issues ?? []).filter { $0.title.hasPrefix("Selftest bulk item") })
+        let bulk = model.beginPlan(FeaturePlans.request(for: many), issues: many, in: model.product(product.id) ?? product)
+        let afterPlan = model.product(product.id) ?? product
+        check("one plan covers all twelve selected items", many.count == 12 && bulk?.linkedIssueIDs.count == 12
+              && many.allSatisfy { model.openPlan(for: $0, in: afterPlan)?.id == bulk?.id })
+
+        // The agent goes ahead from the planning terminal (no Execute): its step reports still count.
+        if let bulk {
+            model.updatePlan(bulk.id, in: product.id) {
+                $0.phase = .ready
+                $0.steps = [.init(id: "1", title: "First half"), .init(id: "2", title: "Second half")]
+            }
+            let report = IssueReports.Report(entries: [], steps: [.init(plan: bulk.id.uuidString, step: "1")], written: .now.addingTimeInterval(1))
+            model.applyPlanProgress([report], to: product.id)
+            let progressed = model.plan(bulk.id, in: product.id)
+            check("a step reported on a plan nobody pressed Execute on still ticks off", progressed?.phase == .executing && progressed?.progress.done == 1)
+            // Mark Done by hand moves every item the plan covers to Done.
+            if let progressed { model.setPlanDone(progressed, true, in: model.product(product.id) ?? product) }
+            let closed = (model.product(product.id)?.issues ?? []).filter { bulk.linkedIssueIDs.contains($0.id) }
+            check("marking a plan done moves all twelve of its items to Done", closed.count == 12 && closed.allSatisfy(\.isDone)
+                  && model.plan(bulk.id, in: product.id)?.phase == .done)
+        }
     }
 
     /// Memory: the person's items and the agent's file both land in the list, every session's prompt carries them, and delete works.

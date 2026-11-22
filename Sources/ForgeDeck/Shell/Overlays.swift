@@ -65,6 +65,13 @@ extension AppModel {
                         self.newIssue(product)
                     })
                 }
+                let stillOpen = ProductIssues.openOnGitHub(product, cache: self.cache)
+                if !stillOpen.isEmpty {
+                    commands.append(PaletteCommand(id: "issue-github-close-\(product.id)", label: "Close Done Issues on GitHub · \(product.name)", group: "Issues", icon: .branch) {
+                        self.paletteOpen = false
+                        self.closeOnGitHub(stillOpen, in: product)
+                    })
+                }
                 for plan in product.plans ?? [] where plan.phase == .ready {
                     commands.append(PaletteCommand(id: "plan-review-\(plan.id)", label: "Review Plan: \(plan.name) · \(product.name)", group: "Issues", icon: .checklist) {
                         self.paletteOpen = false

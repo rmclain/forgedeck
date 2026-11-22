@@ -85,19 +85,29 @@ struct ForgeDeckApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
 
-    /// Running terminals end when the app quits, so ask first.
+    /// Running terminals end when the app quits, so ask first, but only about sessions the person started that are
+    /// doing something. Forge Remote and idle shells just end. A logout, restart, or shutdown never asks.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model, !Runtime.isAutomated, !model.skipQuitConfirmation else { return .terminateNow }
-        let running = model.terminals.running
-        guard !running.isEmpty else { return .terminateNow }
+        guard let model, !Runtime.isAutomated, !model.skipQuitConfirmation, !Self.isSystemQuit else { return .terminateNow }
+        let busy = model.terminals.running.filter { $0.isBusy && $0.id != model.remoteSessionID }
+        guard !busy.isEmpty else { return .terminateNow }
+        // Quitting from the Dock or the menu bar with no window in front would leave the alert behind other apps.
+        NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = "\(running.count) terminal session\(running.count == 1 ? " is" : "s are") still running"
-        alert.informativeText = "Quitting ends: " + running.map { "\($0.title) (\($0.activity))" }.joined(separator: ", ") + "."
+        alert.messageText = "\(busy.count) terminal session\(busy.count == 1 ? " is" : "s are") still running"
+        alert.informativeText = "Quitting ends: " + busy.map { "\($0.title) (\($0.activity))" }.joined(separator: ", ") + "."
         alert.addButton(withTitle: "Quit and End Sessions")
         alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
-        model.terminals.terminateAll()
-        return .terminateNow
+        alert.window.level = .modalPanel
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
+    /// The quit came from logging out, restarting, or shutting down.
+    private static var isSystemQuit: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              event.eventClass == kCoreEventClass, event.eventID == kAEQuitApplication,
+              let reason = event.attributeDescriptor(forKeyword: kAEQuitReason)?.enumCodeValue else { return false }
+        return [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown].contains(reason)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -112,7 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Saves, then ends every terminal and what it started, so nothing keeps running after the app is gone.
     func applicationWillTerminate(_ notification: Notification) {
+        model?.shutDown()
         if SelfTest.requested { exit(SelfTest.exitCode) }
     }
 }

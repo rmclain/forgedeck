@@ -267,6 +267,8 @@ final class AppModel {
     var focusMemoryField = false
     /// Items checked in the Issues tab, for its bulk actions.
     var selectedIssues: Set<UUID> = []
+    /// GitHub issues checked in the Issues tab (not in the list yet), by link.
+    var selectedGitHubIssues: Set<String> = []
     /// The Forge Remote terminal session, while it exists.
     var remoteSessionID: UUID?
     /// Bumped when the forgedeck skill is installed or removed, so Settings reads the folder again.
@@ -340,7 +342,7 @@ final class AppModel {
     var revealed: [UUID: String] = [:]
     var now = Date.now
 
-    private var saveTask: Task<Void, Never>?
+    var saveTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private let monitor = NWPathMonitor()
 

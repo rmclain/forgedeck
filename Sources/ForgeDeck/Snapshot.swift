@@ -28,12 +28,14 @@ enum Snapshot {
                 model.route = .product(product.id)
                 model.productTab = .issues
                 model.selectedIssues = Set((product.issues ?? []).filter { !$0.isDone }.prefix(2).map(\.id))
+                model.selectedGitHubIssues = Set(ProductIssues.githubIssues(product, cache: model.cache).prefix(1).map(\.id))
             })
             shots.append(Shot(name: "product-issues-done") { model in
                 IssuesTab.startsOnDone = true
                 model.route = .product(product.id)
                 model.productTab = .issues
                 model.selectedIssues = []
+                model.selectedGitHubIssues = []
             })
         }
         if let orbit = model.products.first(where: { $0.slug == "orbit-crm" }) {

@@ -37,6 +37,8 @@ public struct FeaturePlan: Codable, Identifiable, Hashable, Sendable {
     /// What the person asked for: a typed feature or an issue's title and notes.
     public var request: String
     public var issueID: UUID?
+    /// Set when one plan covers several items from the Issues list. Optional, so plans saved before it load unchanged.
+    public var issueIDs: [UUID]?
     public var phase: Phase = .planning
     public var createdAt = Date.now
     /// When the agent was last asked for a plan (first time or a revision). Only a file written after it counts.
@@ -58,6 +60,9 @@ public struct FeaturePlan: Codable, Identifiable, Hashable, Sendable {
         self.createdAt = createdAt
         self.requestedAt = createdAt
     }
+
+    /// Every item from the Issues list this plan is for: the several it was made from, or the one.
+    public var linkedIssueIDs: [UUID] { issueIDs ?? issueID.map { [$0] } ?? [] }
 
     /// The agent's title once it wrote one, otherwise the first line of the request.
     public var name: String {
@@ -207,6 +212,8 @@ public enum FeaturePlans {
     }
 
     /// Marks steps the agent reported done. A plan whose chosen steps are all done moves to done.
+    /// A ready plan counts too: the person often tells the agent to go ahead in its terminal instead of pressing
+    /// Execute. Its first reported step (written after the plan was asked for) moves it to executing.
     public static func applyProgress(_ reports: [IssueReports.Report], to plans: [FeaturePlan], now: Date = .now)
         -> (plans: [FeaturePlan], stepsDone: Int, finished: [FeaturePlan]) {
         var plans = plans
@@ -216,10 +223,14 @@ public enum FeaturePlans {
         for report in reports {
             for entry in report.steps {
                 guard let planID = UUID(uuidString: entry.plan.trimmingCharacters(in: .whitespaces)),
-                      let p = plans.firstIndex(where: { $0.id == planID && $0.phase == .executing }),
-                      let executed = plans[p].executedAt, report.written >= executed,
+                      let p = plans.firstIndex(where: { $0.id == planID && ($0.phase == .executing || $0.phase == .ready) }),
+                      report.written >= (plans[p].executedAt ?? plans[p].requestedAt),
                       let s = plans[p].steps.firstIndex(where: { $0.id == entry.step.trimmingCharacters(in: .whitespaces) }),
                       !plans[p].steps[s].isSkipped, !plans[p].steps[s].isDone else { continue }
+                if plans[p].phase == .ready {
+                    plans[p].phase = .executing
+                    plans[p].executedAt = plans[p].executedAt ?? now
+                }
                 let summary = redactor.redact(entry.summary ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
                     .trimmingCharacters(in: .whitespaces)
                 plans[p].steps[s].doneAt = now
@@ -247,14 +258,31 @@ public enum FeaturePlans {
 
     /// The agent's first message: plan only, change nothing.
     public static func planPrompt(_ plan: FeaturePlan, issue: ProductIssue?, product: Product) -> String {
+        planPrompt(plan, issues: issue.map { [$0] } ?? [], product: product)
+    }
+
+    /// The request for several items at once: one plan that covers them all.
+    public static func request(for issues: [ProductIssue]) -> String {
+        "\(issues.count) items from the Issues list, as one plan: " + issues.map(\.title).joined(separator: "; ")
+    }
+
+    public static func planPrompt(_ plan: FeaturePlan, issues: [ProductIssue], product: Product) -> String {
         let redactor = Redactor()
-        var lines = ["\(Brand.name) asks for a plan for \(product.name), before anything is built:",
+        var lines: [String]
+        if issues.count > 1 {
+            let limit = ProductIssues.notesLimit(count: issues.count)
+            lines = ["\(Brand.name) asks for one plan for \(product.name) that covers these \(issues.count) items from its Issues list, before anything is built:"]
+            for (index, issue) in issues.enumerated() { lines += ["", "\(index + 1). " + ProductIssues.describe(issue, product: product, notesLimit: limit)] }
+            lines += ["", "Group related items into shared steps where that makes sense, and name the items each step covers in its detail."]
+        } else {
+            lines = ["\(Brand.name) asks for a plan for \(product.name), before anything is built:",
                      "\"" + redactor.redact(plan.request).trimmingCharacters(in: .whitespacesAndNewlines) + "\""]
-        if let issue {
+        }
+        if issues.count == 1, let issue = issues.first {
             let notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
             if !notes.isEmpty, !plan.request.contains(notes) { lines += ["Notes: " + notes] }
-            if let number = issue.githubNumber, let repo = ProductIssues.repository(product) {
-                lines += ["It is GitHub issue #\(number). Read it with `gh issue view \(number) --repo \(repo.owner)/\(repo.name) --comments` if it helps."]
+            if let number = issue.githubNumber, let repo = ProductIssues.githubRepository(issue, product: product) {
+                lines += ["It is GitHub issue #\(number). Read it with `gh issue view \(number) --repo \(repo) --comments` if it helps."]
             }
         }
         lines += ["Plan ID: \(plan.id.uuidString)",
@@ -270,7 +298,8 @@ public enum FeaturePlans {
                   "   Steps go in the order you would do them, each small enough to finish and test on its own, usually 3 to 12. "
                       + "Ids are \"1\", \"2\", and so on. Files are paths relative to this folder. Mark a step optional when the feature works without it.",
                   "   The person reviews it in \(Brand.name), unticks steps they don't want, and adds notes.",
-                  "4. Then say the plan is ready in \(Brand.name) and stop. Until \(Brand.name) sends the go-ahead, change no code and no file other than `\(relativePath)`.",
+                  "4. Then say the plan is ready in \(Brand.name) and stop. Until \(Brand.name) or the person gives the go-ahead, change no code and no file other than `\(relativePath)`.",
+                  "5. If the person tells you here to go ahead, do the steps in order. " + progressInstruction(plan),
                   "Do not push, deploy, or open, close, or comment on GitHub issues."]
         return lines.joined(separator: "\n")
     }

@@ -97,6 +97,8 @@ final class TerminalSession: Identifiable {
         view.terminate()
     }
 
+    func stopPolling() { poll?.invalidate() }
+
     fileprivate func finished(_ code: Int32?) {
         poll?.invalidate()
         foreground = nil
@@ -186,6 +188,16 @@ final class TerminalHost {
     }
 
     func terminateAll() { for session in sessions { session.terminate() } }
+
+    /// At quit: every session's shell and everything started under it, found before anything is signalled,
+    /// so a dev server or an agent's helper in its own process group does not outlive the app.
+    func shutDown(grace: TimeInterval = 1.5) {
+        let shells = sessions.filter(\.isRunning).compactMap { $0.view.process?.shellPid }.filter { $0 > 0 }
+        let tree = shells.flatMap { [$0] + ProcessInspector.descendants(of: $0) }
+        for session in sessions { session.stopPolling() }
+        ProcessInspector.end(tree, grace: grace)
+        terminateAll()
+    }
 }
 
 // MARK: Views

@@ -112,8 +112,21 @@ public enum ProductIssues {
         openCount(product) + githubIssues(product, cache: cache).count
     }
 
-    /// The most items one agent session takes at once.
-    public static let maxPerSession = 10
+    /// Every item's notes together stay under this in one prompt, so a long selection still fits on the agent's command line.
+    /// Each item gets an equal share (at least `minNotesPerItem`); shortened notes say where the full text is.
+    public static let promptNotesBudget = 24_000
+    public static let minNotesPerItem = 300
+
+    static func notesLimit(count: Int) -> Int { max(minNotesPerItem, promptNotesBudget / max(1, count)) }
+
+    /// `owner/name` of the GitHub issue an item links to: from its link, else the product's first GitHub repository.
+    static func githubRepository(_ issue: ProductIssue, product: Product) -> String? {
+        if let url = issue.githubURL, let parsed = URL(string: url), parsed.host?.lowercased() == "github.com" {
+            let parts = parsed.path.split(separator: "/")
+            if parts.count >= 2 { return "\(parts[0])/\(parts[1])" }
+        }
+        return repository(product).map { "\($0.owner)/\($0.name)" }
+    }
 
     /// The agent's first message. The item is usually a short note, so the agent looks at the code, says what
     /// it thinks the item means, and asks before it changes anything.
@@ -123,10 +136,10 @@ public enum ProductIssues {
 
     /// One session for several items: the agent asks about all of them in one message, then works through them in turn.
     public static func prompt(for issues: [ProductIssue], product: Product) -> String {
-        let issues = Array(issues.prefix(maxPerSession))
         guard issues.count > 1 else { return single(issues.first ?? ProductIssue(title: ""), product: product) }
+        let limit = notesLimit(count: issues.count)
         var lines = ["From the Issues list \(Brand.name) keeps for \(product.name), \(issues.count) items:"]
-        for (index, issue) in issues.enumerated() { lines += ["", "\(index + 1). " + describe(issue, product: product)] }
+        for (index, issue) in issues.enumerated() { lines += ["", "\(index + 1). " + describe(issue, product: product, notesLimit: limit)] }
         lines += ["",
                   "These are short notes the person wrote for themselves, not full requests. Before you change anything:",
                   "1. Look at the code each item most likely touches.",
@@ -141,12 +154,15 @@ public enum ProductIssues {
     }
 
     /// Title, ID, notes, and the GitHub issue when there is one.
-    private static func describe(_ issue: ProductIssue, product: Product) -> String {
+    static func describe(_ issue: ProductIssue, product: Product, notesLimit: Int = maxNotes) -> String {
         let redactor = Redactor()
-        let notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
+        var notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
+        if notes.count > notesLimit {
+            notes = String(notes.prefix(notesLimit)) + "… (shortened; `\(Brand.cliName) issue list \(product.slug) --json` has the full notes)"
+        }
         var text = "\"\(redactor.redact(issue.title))\"\nID: \(issue.id.uuidString)\n" + (notes.isEmpty ? "Notes: none." : "Notes:\n\(notes)")
-        if let number = issue.githubNumber, let repo = repository(product) {
-            text += "\nIt is GitHub issue #\(number) in \(repo.owner)/\(repo.name). Read the discussion with `gh issue view \(number) --repo \(repo.owner)/\(repo.name) --comments` if it helps."
+        if let number = issue.githubNumber, let repo = githubRepository(issue, product: product) {
+            text += "\nIt is GitHub issue #\(number) in \(repo). Read the discussion with `gh issue view \(number) --repo \(repo) --comments` if it helps."
         }
         return text
     }
@@ -171,6 +187,23 @@ public enum ProductIssues {
         let notes = redactor.redact(issue.notes).trimmingCharacters(in: .whitespacesAndNewlines)
         let body = [notes, "Added from \(Brand.name)."].filter { !$0.isEmpty }.joined(separator: "\n\n")
         return ["issue", "create", "--repo", "\(repository.owner)/\(repository.name)", "--title", redactor.redact(issue.title), "--body", body]
+    }
+
+    /// Done items whose GitHub issue is still in the open list from the last refresh.
+    public static func openOnGitHub(_ product: Product, cache: ObservationCache) -> [ProductIssue] {
+        let open = product.repositories.filter { $0.provider == "github" }
+            .flatMap { repo in (cache.remotes[repo.id]?.issues ?? []).map { GitHubItem(repository: repo, issue: $0) } }
+        return (product.issues ?? []).filter { issue in
+            issue.isDone && issue.githubNumber != nil && open.contains { isLinked($0, in: [issue]) }
+        }
+    }
+
+    /// `gh issue close` arguments: closed as completed, with the done note as the comment when there is one.
+    public static func githubCloseArguments(_ issue: ProductIssue, product: Product) -> [String]? {
+        guard let number = issue.githubNumber, let repo = githubRepository(issue, product: product) else { return nil }
+        let summary = Redactor().redact(issue.doneSummary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let comment = (summary.isEmpty ? "Done." : summary) + "\n\nClosed from \(Brand.name)."
+        return ["issue", "close", String(number), "--repo", repo, "--reason", "completed", "--comment", comment]
     }
 
     /// The issue URL and number from `gh issue create` output: its last github.com issue link.

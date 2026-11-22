@@ -96,6 +96,8 @@ extension DemoFixtures {
         done.doneAt = now.addingTimeInterval(-86_400)
         done.doneBy = "claude"
         done.doneSummary = "Billing pages, emails, and the plan table now say Members; tests updated."
+        done.githubNumber = 296
+        done.githubURL = "https://github.com/northwind-demo/lumen/issues/296"
         return [ProductIssue(title: "onboarding email feels long", createdAt: now.addingTimeInterval(-3_600)), exportBug, started, done]
     }
 }

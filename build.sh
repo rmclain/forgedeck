@@ -59,6 +59,11 @@ fi
 
 if [[ " $* " == *" --open "* ]]; then
   osascript -e "quit app \"$name\"" 2>/dev/null || true
-  sleep 0.5
+  # Wait for the old copy to exit: it may be asking about running sessions. Opening while it runs would only bring it forward.
+  for _ in $(seq 1 60); do pgrep -x "$name" >/dev/null || break; sleep 0.5; done
+  if pgrep -x "$name" >/dev/null; then
+    echo "error: the running $name did not quit (answer its alert, or quit it), then run: open \"$app\"" >&2
+    exit 1
+  fi
   open "$app"
 fi

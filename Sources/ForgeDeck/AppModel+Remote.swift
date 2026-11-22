@@ -103,6 +103,15 @@ extension AppModel {
         record("remote.start", detail: "agent=claude mode=\(settings.mode.rawValue) products=\(ForgeRemote.products(in: portfolio).count)")
     }
 
+    /// At quit: save what is pending, stop Forge Remote without recording a stop, and end every terminal's processes.
+    func shutDown() {
+        saveTask?.cancel()
+        if !Runtime.isAutomated { saveNow() }
+        remoteStopping = true
+        endRemoteActivity()
+        terminals.shutDown()
+    }
+
     func stopRemote() {
         remoteStopping = true
         remoteWaiting = false

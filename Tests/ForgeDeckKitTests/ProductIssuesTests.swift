@@ -53,10 +53,10 @@ import Testing
     @Test func severalItemsShareOneSessionAndOneRoundOfQuestions() {
         let issues = (1...12).map { ProductIssue(title: "item \($0)", notes: $0 == 2 ? "only on mobile" : "") }
         let prompt = ProductIssues.prompt(for: issues, product: product())
-        #expect(prompt.contains("10 items:"))
+        #expect(prompt.contains("12 items:"))
         #expect(prompt.contains("1. \"item 1\"\nID: \(issues[0].id.uuidString)\nNotes: none.")
                 && prompt.contains("2. \"item 2\"\nID: \(issues[1].id.uuidString)\nNotes:\nonly on mobile"))
-        #expect(prompt.contains("10. \"item 10\"") && !prompt.contains("item 11"))
+        #expect(prompt.contains("10. \"item 10\"") && prompt.contains("12. \"item 12\""))
         #expect(prompt.contains("grouped under each item's number") && prompt.contains("all in one message"))
         #expect(prompt.contains("one at a time") && prompt.contains("Do not push, deploy"))
         #expect(prompt.contains("keeping the items already there") && prompt.contains("ID: \(issues[9].id.uuidString)"))

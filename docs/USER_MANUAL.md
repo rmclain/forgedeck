@@ -90,6 +90,8 @@ Choose the default terminal, editor, and AI agent in Settings > Launching. Termi
 
 If the terminal could not be opened, the toast says why and a safe `cd` command is on your clipboard.
 
+**Quitting.** Quitting ends every terminal inside ForgeDeck and everything started in it, including dev servers and agent helpers in their own process groups; whatever ignores the hang-up is stopped after a second and a half. ForgeDeck asks first only when a session you started is busy (an agent or a running command). Idle shells and Forge Remote just end, and a logout, restart, or shutdown never asks.
+
 Drop a file, folder, or image on a built-in terminal to type its path, escaped the way Terminal.app escapes it. Claude Code attaches a dropped image. An image with no file behind it (from a browser or a screenshot preview) is saved to a temporary file first.
 
 ## Read what is deployed
@@ -434,7 +436,7 @@ A recipe that is not approved opens for review first. Saving approves it, and Pl
 
 The **Issues** tab is a to-do list for the product, kept on this Mac. Type a short note and press Return; the first line is the title and any further lines are notes. File › New Issue (⌘⇧I) jumps to the field.
 
-**GitHub issues.** Open issues in the product's GitHub repositories show under **On GitHub** at the bottom of the Open list, and count in the tab's number. They are read with the rest of the repository at each refresh (pull requests are left out; a repository with issues turned off is not asked). **Add to List** brings one into the list with its description and a link back (`#318`), so Plan, Implement, and the agent's done report work on it; **Implement with** adds it and starts the agent at once. Once in the list it is not shown under On GitHub again. Nothing is written to GitHub: closing the issue there is up to you.
+**GitHub issues.** Open issues in the product's GitHub repositories show under **On GitHub** at the bottom of the Open list, and count in the tab's number. They are read with the rest of the repository at each refresh (pull requests are left out; a repository with issues turned off is not asked). **Add to List** brings one into the list with its description and a link back (`#318`), so Plan, Implement, and the agent's done report work on it; **Implement with** adds it and starts the agent at once. Once in the list it is not shown under On GitHub again. The agent never writes to GitHub. When a done item's GitHub issue is still open, the Done list says so and offers **Close on GitHub…**: after you confirm (press and hold), ForgeDeck runs `gh issue close` with your gh login for each one, as completed, with the item's done note as the comment. The palette has **Close Done Issues on GitHub** too.
 
 From a terminal: `forgedeck issue add <product> "Export drops the last row" --notes "Seen on Safari."` adds an item (text `-` reads it from stdin), and `forgedeck issue list <product>` shows the open items and the GitHub issues not in the list yet (`--all` includes done ones, `--json` for scripts). The CLI never writes ForgeDeck's data file: it queues the item in the data folder's `inbox/issues`, and ForgeDeck moves it into the list within a few seconds while it is open, or when it next starts. Until then `issue list` shows it as `queued`. An open item with the same title is not added twice. The forgedeck skill tells agents to note follow-ups this way.
 
@@ -447,11 +449,11 @@ When the agent finishes an item and its tests pass, it writes the item's ID and 
 - Untick steps you don't want, and use **Note** to add a note to any step. There is also a note field for the whole plan.
 - **Execute Plan** sends the ticked steps and your notes to the agent. If its terminal is still open, ForgeDeck types the go-ahead there; otherwise it starts a new session with the whole plan. Steps you unticked become open issues, so they aren't lost.
 - **Revise** sends your notes back and waits for a new version. **Discard Plan** deletes it.
-- As the agent finishes each step, it reports it in `.forgedeck/issues-done.json` and the step ticks off. When the last one is done, the plan, and the issue it came from, move to Done. Each plan's menu also has **Mark Done** and **Delete**.
+- As the agent finishes each step, it reports it in `.forgedeck/issues-done.json` and the step ticks off. When the last one is done, the plan, and the issue it came from, move to Done. If you tell the agent to go ahead in its terminal instead of pressing Execute, it still reports each step, and the plan moves to executing on the first one. Each plan's menu also has **Mark Done**, which moves every item the plan covers to Done as well, and **Delete**.
 
 ForgeDeck checks the plan file before showing it: at most 30 steps, file paths inside the project, nothing that looks like a secret, and the plan ID it sent. If the file has a problem, the plan's row says what it is.
 
-The checkbox on each item selects it. With items selected, the bar above the list offers **Implement with Claude Code** (one session for up to 10 items: the agent asks about all of them first, then does them one at a time), **Mark Done**, and **Delete**. In the Done list, **Reopen** moves items back.
+The checkbox on each item selects it, GitHub issues under On GitHub included; **Select all** takes everything in the Open list. With items selected, the bar above the list offers **Plan with Claude Code** (one plan covering every selected item, which you review before anything changes; items that already have a plan are left out), **Implement with Claude Code** (one session for every selected item: the agent asks about all of them first, then does them one at a time), **Mark Done**, and **Delete**. There is no limit on how many you select. Selected GitHub issues are added to the list first, so the agent can report them done. With many items, each one's notes are shortened in the agent's first message to keep it a workable size, and the agent is told where to read them in full. When a plan made from several items finishes, they all move to Done. In the Done list, **Reopen** moves items back.
 
 Double-click an item, or use its ••• menu, to edit the title and notes. Notes help, but they are optional.
 

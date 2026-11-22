@@ -90,6 +90,67 @@ public enum ProcessInspector {
 
     public static func isAlive(_ pid: pid_t) -> Bool { pid > 0 && kill(pid, 0) == 0 }
 
+    /// Alive and not a zombie waiting to be reaped: a zombie has already ended.
+    public static func isRunning(_ pid: pid_t) -> Bool {
+        guard isAlive(pid) else { return false }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return true }
+        return info.pbi_status != UInt32(SZOMB)
+    }
+
+    /// The direct children of a process.
+    public static func children(of pid: pid_t) -> [pid_t] {
+        guard pid > 0 else { return [] }
+        let bytes = proc_listpids(UInt32(PROC_PPID_ONLY), UInt32(pid), nil, 0)
+        guard bytes > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(bytes) / MemoryLayout<pid_t>.size + 16)
+        let filled = proc_listpids(UInt32(PROC_PPID_ONLY), UInt32(pid), &pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        return Array(pids.prefix(max(0, Int(filled) / MemoryLayout<pid_t>.size))).filter { $0 > 0 && $0 != pid }
+    }
+
+    /// Every process started under this one, children first. Read before signalling anything:
+    /// once a parent ends, its children move to launchd and can no longer be found this way.
+    public static func descendants(of pid: pid_t) -> [pid_t] {
+        var found: [pid_t] = []
+        var seen: Set<pid_t> = [pid]
+        var queue = [pid]
+        while !queue.isEmpty, found.count < 2_000 {
+            let next = queue.removeFirst()
+            for child in children(of: next) where seen.insert(child).inserted {
+                found.append(child)
+                queue.append(child)
+            }
+        }
+        return found
+    }
+
+    /// Ends these processes and their process groups the way closing a terminal window does (hang up, then terminate),
+    /// waits up to `grace` for them to go, then kills what is left. Returns how many had to be killed.
+    @discardableResult
+    public static func end(_ pids: [pid_t], grace: TimeInterval) -> Int {
+        let own = getpid()
+        let targets = Array(Set(pids.filter { $0 > 1 && $0 != own }))
+        guard !targets.isEmpty else { return 0 }
+        let ownGroup = getpgrp()
+        let groups = Set(targets.map { getpgid($0) }.filter { $0 > 1 && $0 != ownGroup })
+        for group in groups { kill(-group, SIGHUP) }
+        for pid in targets {
+            kill(pid, SIGHUP)
+            kill(pid, SIGTERM)
+            kill(pid, SIGCONT)
+        }
+        let deadline = Date.now.addingTimeInterval(grace)
+        var left = targets.filter(isRunning)
+        while !left.isEmpty, Date.now < deadline {
+            usleep(50_000)
+            left = left.filter(isRunning)
+        }
+        for group in groups where left.contains(where: { getpgid($0) == group }) { kill(-group, SIGKILL) }
+        for pid in left { kill(pid, SIGKILL) }
+        return left.count
+    }
+
     /// Every process ID this user can see.
     public static func allPIDs() -> [pid_t] {
         let count = proc_listallpids(nil, 0)

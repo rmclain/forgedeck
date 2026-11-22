@@ -433,5 +433,8 @@ func demoGitHubIssues(owner: String, name: String, now: Date) -> [GitHubIssueSum
               body: "The cohort query skips the first day, so a brand-new workspace sees an empty chart instead of one point."),
         issue(305, "Export funnels as CSV", by: "dev-jordan", labels: ["enhancement"], comments: 1, hoursAgo: 30,
               body: "Customers want to paste funnel steps into a spreadsheet. A CSV with step, users, and conversion would do."),
+        // Done in the demo's Issues list but still open here, so the Done list offers Close on GitHub.
+        issue(296, "Say Members instead of Seats in billing", by: "maya", labels: ["copy"], comments: 0, hoursAgo: 220,
+              body: "Customers read Seats as a hardware limit."),
     ]
 }

@@ -70,6 +70,14 @@ extension AppModel {
         return issue
     }
 
+    /// The checked items, with checked GitHub issues added to the list first so the agent can report them done.
+    func pickedIssues(_ local: [ProductIssue], github: [ProductIssues.GitHubItem], in product: Product) -> [ProductIssue] {
+        let added = github.compactMap { addGitHubIssue($0, to: product) }
+        selectedIssues = []
+        selectedGitHubIssues = []
+        return local + added
+    }
+
     /// Adds the GitHub issue to the list and starts the agent on it.
     func implementGitHubIssue(_ item: ProductIssues.GitHubItem, in product: Product) {
         guard let issue = addGitHubIssue(item, to: product), let current = self.product(product.id) else { return }
@@ -97,9 +105,16 @@ extension AppModel {
         update(productID) { $0.issues = result.issues }
         let agent = AgentCatalog.name(result.closed[0].doneBy ?? portfolio.agentProgram(for: product))
         record("issue.done", product: product, detail: "count=\(result.closed.count) by=agent")
-        show(result.closed.count == 1
+        show((result.closed.count == 1
              ? "\(agent) finished \u{201C}\(result.closed[0].title)\u{201D}. Moved to Done in \(product.name)."
              : "\(agent) finished \(result.closed.count) issues. Moved to Done in \(product.name).")
+             + gitHubHint(result.closed))
+    }
+
+    /// A line for the done toast when some of the items are GitHub issues, which stay open until closed.
+    func gitHubHint(_ issues: [ProductIssue]) -> String {
+        let count = issues.filter { $0.githubNumber != nil }.count
+        return count == 0 ? "" : " \(count == 1 ? "Its GitHub issue stays" : "\(count) GitHub issues stay") open until you close \(count == 1 ? "it" : "them") from the Done list."
     }
 
     /// Removes it from this Mac. A GitHub issue made from it stays on GitHub.
@@ -115,9 +130,6 @@ extension AppModel {
     /// One agent session for the selected items: it asks about all of them first, then does them in turn.
     func implementIssues(_ issues: [ProductIssue], in product: Product) {
         guard !issues.isEmpty, let checkout = checkout(for: product) else { return }
-        guard issues.count <= ProductIssues.maxPerSession else {
-            return show("Select up to \(ProductIssues.maxPerSession) items for one session.", isError: true)
-        }
         let program = portfolio.agentProgram(for: product)
         let first = issues[0].title
         let title = issues.count > 1 ? "\(issues.count) issues" : (first.count > 32 ? String(first.prefix(31)) + "…" : first)
@@ -207,6 +219,49 @@ extension AppModel {
         record("issue.github", product: product, detail: "repo=\(repo.owner)/\(repo.name) number=\(created.number)")
         show("Added as issue #\(created.number) in \(repo.owner)/\(repo.name).")
     }
+
+    /// Done items whose GitHub issue is still open. A remote write, so it asks first with press and hold,
+    /// then runs `gh issue close` for each with the person's own gh login and the done note as the comment.
+    func closeOnGitHub(_ issues: [ProductIssue], in product: Product) {
+        guard !product.isDemo else { return show("\(product.name) is a demo product. Nothing goes to GitHub.", isError: true) }
+        let closable = issues.filter { ProductIssues.githubCloseArguments($0, product: product) != nil }
+        guard !closable.isEmpty else { return }
+        guard ExecutableLocator.find("gh") != nil else {
+            return show("The GitHub CLI (gh) is not installed. Install it and run gh auth login, then try again.", isError: true)
+        }
+        let numbers = closable.compactMap(\.githubNumber).map { "#\($0)" }
+        sheet = .confirm(ConfirmRequest(
+            title: closable.count == 1 ? "Close issue \(numbers[0]) on GitHub?" : "Close \(closable.count) issues on GitHub?",
+            message: "Closes them as completed, as your GitHub account, with each item's done note as a comment. They are done in \(product.name) on this Mac.",
+            checks: [.init(label: "Issues", meta: numbers.count > 12 ? numbers.prefix(12).joined(separator: " ") + " …" : numbers.joined(separator: " "), ok: true)],
+            footnote: "Uses gh issue close with your gh login. ForgeDeck's own GitHub token stays read-only.",
+            confirmLabel: closable.count == 1 ? "Close Issue" : "Close \(closable.count) Issues", requiresHold: true, icon: .branch,
+            action: { [weak self] in await self?.runGitHubClose(closable, in: product) }))
+    }
+
+    private func runGitHubClose(_ issues: [ProductIssue], in product: Product) async {
+        guard let gh = ExecutableLocator.find("gh") else { return }
+        var closed = 0
+        var failure: String?
+        for issue in issues {
+            guard let arguments = ProductIssues.githubCloseArguments(issue, product: product) else { continue }
+            let result = try? await SystemProcessRunner().run(ProcessRequest(executable: gh, arguments: arguments, workingDirectory: agentHomeURL,
+                                                                             timeout: 60, stdin: Data()))
+            if let result, result.ok {
+                closed += 1
+            } else if failure == nil {
+                let text = ((result?.stderr ?? "") + "\n" + (result?.stdout ?? "")).trimmingCharacters(in: .whitespacesAndNewlines)
+                failure = text.split(separator: "\n").first.map(String.init) ?? "gh did not finish"
+            }
+        }
+        record("issue.github.close", product: product, detail: "count=\(closed) failed=\(issues.count - closed)", outcome: failure == nil ? "ok" : "failed")
+        if let current = self.product(product.id) { await refresh(current, announce: false) }
+        if let failure {
+            show("Closed \(closed) of \(issues.count) on GitHub. \(failure)", isError: true)
+        } else {
+            show(closed == 1 ? "Closed issue #\(issues[0].githubNumber ?? 0) on GitHub." : "Closed \(closed) issues on GitHub.")
+        }
+    }
 }
 
 struct IssuesTab: View {
@@ -258,9 +313,11 @@ struct IssuesTab: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Space.lg).padding(.vertical, Space.md).hairlineAbove()
                 }
+                let stillOpen = ProductIssues.openOnGitHub(product, cache: model.cache)
+                if showDone, !stillOpen.isEmpty { closeOnGitHubRow(stillOpen) }
                 let plans = (product.plans ?? []).filter { ($0.phase == .done) == showDone }
                 if !plans.isEmpty { PlanRows(product: product, plans: showDone ? plans.reversed() : plans) }
-                if !shown.isEmpty { bulkBar(shown, agent: agent) }
+                if !shown.isEmpty || (!showDone && !github.isEmpty) { bulkBar(shown, github: showDone ? [] : github, agent: agent) }
                 ForEach(shown) { issue in
                     if editingID == issue.id { editor(issue) } else { row(issue, agent: agent) }
                 }
@@ -272,10 +329,25 @@ struct IssuesTab: View {
             .card()
             githubCard
         }
-        .onChange(of: showDone) { model.selectedIssues = [] }
+        .onChange(of: showDone) { model.selectedIssues = []; model.selectedGitHubIssues = [] }
         .onChange(of: model.focusIssueField) { _, wanted in
             if wanted { addFocused = true; model.focusIssueField = false }
         }
+    }
+
+    private func closeOnGitHubRow(_ issues: [ProductIssue]) -> some View {
+        HStack(spacing: Space.md) {
+            Icon(.branch, size: 13).foregroundStyle(Ink.accent)
+            Text(issues.count == 1 ? "1 done item is still open on GitHub." : "\(issues.count) done items are still open on GitHub.")
+                .kitType(.label, Ink.text2)
+            Spacer(minLength: Space.sm)
+            Button(issues.count == 1 ? "Close on GitHub…" : "Close \(issues.count) on GitHub…") { model.closeOnGitHub(issues, in: product) }
+                .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                .disabled(product.isDemo)
+                .help("Closes their GitHub issues as completed, with each done note as a comment. Asks first.")
+        }
+        .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
+        .hairlineAbove()
     }
 
     private func add() {
@@ -335,33 +407,50 @@ struct IssuesTab: View {
     }
 
     /// Select all, and what to do with the selection. The actions show only once something is selected.
-    private func bulkBar(_ shown: [ProductIssue], agent: String) -> some View {
+    /// GitHub issues in the Open list count too: acting on them adds them to the list first.
+    private func bulkBar(_ shown: [ProductIssue], github: [ProductIssues.GitHubItem], agent: String) -> some View {
         let picked = shown.filter { model.selectedIssues.contains($0.id) }
-        let all = !picked.isEmpty && picked.count == shown.count
+        let pickedGitHub = github.filter { model.selectedGitHubIssues.contains($0.id) }
+        let count = picked.count + pickedGitHub.count
+        let total = shown.count + github.count
+        let all = count > 0 && count == total
         return HStack(spacing: Space.md) {
-            Toggle(isOn: Binding(get: { all }, set: { on in model.selectedIssues = on ? Set(shown.map(\.id)) : [] })) {
-                Text(picked.isEmpty ? "Select all" : "\(picked.count) selected").kitType(.label, picked.isEmpty ? Ink.text3 : Ink.text)
+            Toggle(isOn: Binding(get: { all }, set: { on in
+                model.selectedIssues = on ? Set(shown.map(\.id)) : []
+                model.selectedGitHubIssues = on ? Set(github.map(\.id)) : []
+            })) {
+                Text(count == 0 ? "Select all" : "\(count) selected").kitType(.label, count == 0 ? Ink.text3 : Ink.text)
             }
             .toggleStyle(.checkbox).disabled(product.isDemo)
-            .help(all ? "Clear the selection" : "Select every item in this list")
+            .help(all ? "Clear the selection" : "Select every item in this list\(github.isEmpty ? "" : ", GitHub issues included")")
             Spacer(minLength: Space.sm)
-            if !picked.isEmpty {
+            if count > 0 {
                 if !showDone {
-                    Button("Implement with \(agent)") { model.implementIssues(picked, in: product); model.selectedIssues = [] }
-                        .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
-                        .disabled(!product.hasLocal || picked.count > ProductIssues.maxPerSession)
-                        .help(picked.count > ProductIssues.maxPerSession ? "Select up to \(ProductIssues.maxPerSession) items for one session"
-                              : "One \(agent) session for the selected items. It asks about all of them first, then does them one at a time.")
-                }
-                Button(showDone ? "Reopen" : "Mark Done") {
-                    model.setIssuesDone(Set(picked.map(\.id)), !showDone, in: product)
-                    model.selectedIssues = []
-                }
-                .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
-                .help(showDone ? "Move the selected items back to Open" : "Move the selected items to Done")
-                Button(picked.count == 1 ? "Delete" : "Delete…") { model.deleteIssues(picked, from: product) { model.selectedIssues = [] } }
+                    Button("Plan with \(agent)") {
+                        model.planIssues(model.pickedIssues(picked, github: pickedGitHub, in: product), in: product)
+                    }
                     .buttonStyle(.kit(.ghost, compact: true)).fixedSize()
-                    .help("Remove the selected items from this Mac. Issues on GitHub stay there.")
+                    .disabled(product.isDemo || !product.hasLocal)
+                    .help(count == 1 ? "Ask \(agent) for a step-by-step plan for this item. You review it here before anything changes."
+                          : "Ask \(agent) for one step-by-step plan that covers the \(count) selected items. You review it here before anything changes.")
+                    Button("Implement with \(agent)") {
+                        model.implementIssues(model.pickedIssues(picked, github: pickedGitHub, in: product), in: product)
+                    }
+                    .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                    .disabled(product.isDemo || !product.hasLocal)
+                    .help("One \(agent) session for the \(count) selected item\(count == 1 ? "" : "s"). It asks about them first, then does them one at a time.")
+                }
+                if !picked.isEmpty {
+                    Button(showDone ? "Reopen" : "Mark Done") {
+                        model.setIssuesDone(Set(picked.map(\.id)), !showDone, in: product)
+                        model.selectedIssues = []
+                    }
+                    .buttonStyle(.kit(.secondary, compact: true)).fixedSize()
+                    .help(showDone ? "Move the selected items back to Open" : "Move the selected items to Done. GitHub issues stay open on GitHub.")
+                    Button(picked.count == 1 ? "Delete" : "Delete…") { model.deleteIssues(picked, from: product) { model.selectedIssues = [] } }
+                        .buttonStyle(.kit(.ghost, compact: true)).fixedSize()
+                        .help("Remove the selected items from this Mac. Issues on GitHub stay there.")
+                }
             }
         }
         .padding(.horizontal, Space.lg).padding(.vertical, Space.sm)
@@ -443,6 +532,11 @@ struct IssuesTab: View {
         var meta = ["#\(issue.number) by \(issue.author.isEmpty ? "someone" : issue.author)", "updated \(issue.updatedAt.formatted(.relative(presentation: .named)))"]
         if issue.comments > 0 { meta.append("\(issue.comments) comment\(issue.comments == 1 ? "" : "s")") }
         return HStack(alignment: .top, spacing: Space.md) {
+            Toggle(isOn: Binding(get: { model.selectedGitHubIssues.contains(item.id) },
+                                 set: { on in if on { model.selectedGitHubIssues.insert(item.id) } else { model.selectedGitHubIssues.remove(item.id) } })) { EmptyView() }
+                .toggleStyle(.checkbox).labelsHidden().disabled(product.isDemo)
+                .accessibilityLabel("Select GitHub issue \(issue.title)")
+                .help("Select, for the actions above the list. Acting on it adds it to this list first.")
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: Space.xs) {
                     Text(issue.title).kitType(.labelMedium).fixedSize(horizontal: false, vertical: true)

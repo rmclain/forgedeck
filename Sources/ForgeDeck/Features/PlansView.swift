@@ -14,7 +14,7 @@ extension AppModel {
 
     /// The plan made from an issue that is not finished yet, if any.
     func openPlan(for issue: ProductIssue, in product: Product) -> FeaturePlan? {
-        plans(product).last { $0.issueID == issue.id && $0.phase != .done }
+        plans(product).last { $0.linkedIssueIDs.contains(issue.id) && $0.phase != .done }
     }
 
     func updatePlan(_ id: UUID, in productID: UUID, _ change: (inout FeaturePlan) -> Void) {
@@ -27,16 +27,46 @@ extension AppModel {
     /// Records a new plan waiting for the agent. Separate from starting the agent so the self-test can use it.
     @discardableResult
     func beginPlan(_ request: String, issue: ProductIssue?, in product: Product) -> FeaturePlan? {
+        beginPlan(request, issues: issue.map { [$0] } ?? [], in: product)
+    }
+
+    @discardableResult
+    func beginPlan(_ request: String, issues: [ProductIssue], in product: Product) -> FeaturePlan? {
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !product.isDemo, !text.isEmpty else { return nil }
-        var plan = FeaturePlan(request: String(text.prefix(ProductIssues.maxNotes)), issueID: issue?.id)
+        var plan = FeaturePlan(request: String(text.prefix(ProductIssues.maxNotes)), issueID: issues.count == 1 ? issues.first?.id : nil)
+        if issues.count > 1 { plan.issueIDs = issues.map(\.id) }
         plan.startedWith = portfolio.agentProgram(for: product)
         update(product.id) { $0.plans = ($0.plans ?? []) + [plan] }
-        record("plan.request", product: product, detail: issue == nil ? "" : "from=issue")
+        record("plan.request", product: product, detail: issues.isEmpty ? "" : "from=issue count=\(issues.count)")
         return plan
     }
 
     /// Plan with the agent: it reads the code, may ask questions, and writes the plan. It changes nothing else.
+    /// One plan for several selected items. Items that already have an open plan are left out and named.
+    func planIssues(_ issues: [ProductIssue], in product: Product) {
+        guard !issues.isEmpty else { return }
+        if issues.count == 1, let issue = issues.first {
+            return planFeature(issue.notes.isEmpty ? issue.title : issue.title + "\n" + issue.notes, issue: issue, in: product)
+        }
+        guard let checkout = checkout(for: product) else { return }
+        let planned = issues.filter { openPlan(for: $0, in: product) != nil }
+        let fresh = issues.filter { openPlan(for: $0, in: product) == nil }
+        guard !fresh.isEmpty else { return show("Every selected item already has a plan. Review them under Plans.") }
+        if fresh.count == 1, let issue = fresh.first {
+            planFeature(issue.notes.isEmpty ? issue.title : issue.title + "\n" + issue.notes, issue: issue, in: product)
+        } else {
+            guard let plan = beginPlan(FeaturePlans.request(for: fresh), issues: fresh, in: product) else { return }
+            startSetupAgent(product, checkout: checkout, prompt: FeaturePlans.planPrompt(plan, issues: fresh, product: product),
+                            title: "Plan: \(fresh.count) issues", audit: "plan.start")
+            route = .product(product.id)
+            productTab = .issues
+        }
+        if !planned.isEmpty {
+            show("Left out \(planned.count) item\(planned.count == 1 ? "" : "s") that already \(planned.count == 1 ? "has a plan" : "have plans").")
+        }
+    }
+
     func planFeature(_ request: String, issue: ProductIssue? = nil, in product: Product) {
         guard let checkout = checkout(for: product) else { return }
         if let issue, let existing = openPlan(for: issue, in: product) {
@@ -69,14 +99,14 @@ extension AppModel {
     /// Ticks off the steps the agent reported. A finished plan moves to Done, with the issue it came from.
     func applyPlanProgress(_ reports: [IssueReports.Report], to productID: UUID) {
         guard reports.contains(where: { !$0.steps.isEmpty }), let product = product(productID), !product.isDemo,
-              let plans = product.plans, plans.contains(where: { $0.phase == .executing }) else { return }
+              let plans = product.plans, plans.contains(where: { $0.phase == .executing || $0.phase == .ready }) else { return }
         let result = FeaturePlans.applyProgress(reports, to: plans)
         guard result.stepsDone > 0 else { return }
-        let finishedIssues = Set(result.finished.compactMap(\.issueID))
+        let finishedIssues = Set(result.finished.flatMap(\.linkedIssueIDs))
         update(productID) { product in
             product.plans = result.plans
             for index in (product.issues ?? []).indices where finishedIssues.contains(product.issues![index].id) && !product.issues![index].isDone {
-                let plan = result.finished.first { $0.issueID == product.issues![index].id }
+                let plan = result.finished.first { $0.linkedIssueIDs.contains(product.issues![index].id) }
                 product.issues![index].isDone = true
                 product.issues![index].doneAt = .now
                 product.issues![index].doneBy = plan?.startedWith
@@ -85,7 +115,8 @@ extension AppModel {
         }
         record("plan.progress", product: product, detail: "steps=\(result.stepsDone) finished=\(result.finished.count)")
         if let finished = result.finished.first {
-            show("\(AgentCatalog.name(finished.startedWith ?? portfolio.agentProgram(for: product))) finished the plan \u{201C}\(finished.name)\u{201D}. Moved to Done.")
+            show("\(AgentCatalog.name(finished.startedWith ?? portfolio.agentProgram(for: product))) finished the plan \u{201C}\(finished.name)\u{201D}. Moved to Done."
+                 + gitHubHint(finished.linkedIssueIDs.compactMap { id in product.issues?.first { $0.id == id } }))
         } else if let current = result.plans.first(where: { $0.phase == .executing }) {
             show("\(current.progress.done) of \(current.progress.total) steps done in \u{201C}\(current.name)\u{201D}.")
         }
@@ -144,9 +175,9 @@ extension AppModel {
             $0.requestedAt = .now
             $0.revisions = ($0.revisions ?? 0) + 1
         }
-        let issue = plan.issueID.flatMap { id in product.issues?.first { $0.id == id } }
+        let issues = plan.linkedIssueIDs.compactMap { id in product.issues?.first { $0.id == id } }
         sendToAgent(product, line: line,
-                    prompt: FeaturePlans.planPrompt(plan, issue: issue, product: product) + "\n\nThis is a revision. " + line,
+                    prompt: FeaturePlans.planPrompt(plan, issues: issues, product: product) + "\n\nThis is a revision. " + line,
                     title: "Plan: " + shortTitle(plan.name), audit: "plan.revise",
                     done: "Asked \(AgentCatalog.name(portfolio.agentProgram(for: product))) to revise the plan.")
         sheet = nil
@@ -170,7 +201,19 @@ extension AppModel {
         startSetupAgent(current, checkout: checkout, prompt: prompt, title: title, audit: audit)
     }
 
+    /// Mark Done also moves the plan's open items to Done; Mark Open leaves them as they are.
     func setPlanDone(_ plan: FeaturePlan, _ done: Bool, in product: Product) {
+        let linked = Set(plan.linkedIssueIDs)
+        let summary = "Done with the plan \u{201C}\(plan.name)\u{201D}."
+        update(product.id) { product in
+            guard done else { return }
+            for index in (product.issues ?? []).indices where linked.contains(product.issues![index].id) && !product.issues![index].isDone {
+                product.issues![index].isDone = true
+                product.issues![index].doneAt = .now
+                product.issues![index].doneBy = nil
+                product.issues![index].doneSummary = summary
+            }
+        }
         updatePlan(plan.id, in: product.id) {
             if done {
                 $0.phase = .done
@@ -290,7 +333,9 @@ struct PlanRows: View {
         case .done:
             parts.append("Done \((plan.doneAt ?? plan.createdAt).formatted(.relative(presentation: .named))) · \(plan.progress.total) steps")
         }
-        if let issueID = plan.issueID, let issue = product.issues?.first(where: { $0.id == issueID }) {
+        if plan.linkedIssueIDs.count > 1 {
+            parts.append("from \(plan.linkedIssueIDs.count) issues")
+        } else if let issueID = plan.issueID, let issue = product.issues?.first(where: { $0.id == issueID }) {
             parts.append("from \u{201C}\(issue.title)\u{201D}")
         }
         return parts.joined(separator: " · ")
@@ -369,7 +414,11 @@ struct PlanSheet: View {
             HStack(spacing: Space.sm) {
                 TagBadge(phaseLabel(plan), tone: plan.phase == .done ? .ok : .accent)
                 if product.isDemo { DemoBadge() }
-                if let issueID = plan.issueID, let issue = product.issues?.first(where: { $0.id == issueID }) {
+                if plan.linkedIssueIDs.count > 1 {
+                    let titles = plan.linkedIssueIDs.compactMap { id in product.issues?.first { $0.id == id }?.title }
+                    Text("From \(plan.linkedIssueIDs.count) issues: " + titles.map { "\u{201C}\($0)\u{201D}" }.joined(separator: ", "))
+                        .kitType(.meta, Ink.text3).lineLimit(2).help(titles.joined(separator: "\n"))
+                } else if let issueID = plan.issueID, let issue = product.issues?.first(where: { $0.id == issueID }) {
                     Text("From the issue \u{201C}\(issue.title)\u{201D}").kitType(.meta, Ink.text3).lineLimit(1)
                 }
             }
