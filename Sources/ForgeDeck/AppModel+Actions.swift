@@ -304,7 +304,7 @@ extension AppModel {
         repo.owner = url.owner
         repo.name = url.name
         repo.webURL = url.webURL
-        repo.cloneURL = original.contains("@") || original.contains("://") ? Redactor().redact(original) : "git@\(url.host):\(url.owner)/\(url.name).git"
+        repo.cloneURL = Repository.cloneURL(for: url, typed: original)
         if let existing, let index = portfolio.products.firstIndex(where: { $0.id == existing }) {
             if !portfolio.products[index].repositories.contains(where: { ImportPlannerBridge.same($0, url) }) {
                 portfolio.products[index].repositories.append(repo)
@@ -394,6 +394,44 @@ extension AppModel {
         } catch {
             show(String(describing: error), isError: true)
         }
+    }
+
+    /// Points a product's repository at another one (xyz/repo1 to abc/repo1). The old repository's GitHub data is
+    /// dropped, and with `updateOrigins` each local folder whose `origin` pointed at the old repository follows it.
+    /// Returns an error message, or nil when it worked.
+    @discardableResult
+    func changeRepository(_ repositoryID: UUID, of productID: UUID, to typed: String, updateOrigins: Bool) async -> String? {
+        guard var product = product(productID), !product.isDemo,
+              let old = product.repository(id: repositoryID) else { return "That repository is no longer linked." }
+        let outcome: RepositoryChange.Outcome
+        switch RepositoryChange.apply(typed, repositoryID: repositoryID, in: &product) {
+        case .failure(let problem): return problem.description
+        case .success(let value): outcome = value
+        }
+        update(productID) { $0 = product }
+        cache.remotes[repositoryID] = nil
+        save()
+        record("repository.change", product: product, detail: "from=\(outcome.from) to=\(outcome.to)")
+
+        var moved: [String] = [], failed: [String] = []
+        if updateOrigins, let target = RepositoryURL.parse(typed) {
+            for checkout in product.checkouts where !checkout.path.isEmpty {
+                guard let current = await engine.git.origin(path: checkout.path),
+                      let origin = RepositoryChange.originURL(current: current, old: old, new: target) else { continue }
+                if await engine.git.setOrigin(path: checkout.path, url: origin) {
+                    moved.append(checkout.name)
+                    record("checkout.origin", product: product, detail: "folder=\(checkout.name) repo=\(outcome.to)")
+                } else {
+                    failed.append(checkout.name)
+                }
+            }
+        }
+        var message = "\(outcome.from) now points to \(outcome.to)."
+        if !moved.isEmpty { message += " Local origin updated in \(moved.joined(separator: ", "))." }
+        if !failed.isEmpty { message += " Could not update origin in \(failed.joined(separator: ", "))." }
+        show(message, isError: !failed.isEmpty)
+        if let current = self.product(productID) { await refresh(current, announce: false) }
+        return nil
     }
 
     // MARK: Secrets and variables

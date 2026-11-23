@@ -95,6 +95,12 @@ extension AppModel {
                     self.sheet = .ciFailure(productID: product.id, runID: nil)
                 })
             }
+            if !product.isDemo, !product.repositories.isEmpty {
+                commands.append(PaletteCommand(id: "repo-change-\(product.id)", label: "Change Repository… · \(product.name)", group: "Product", icon: .branch) {
+                    self.paletteOpen = false
+                    self.open(product, tab: .settings)
+                })
+            }
             if !product.isDemo {
                 for (index, option) in playOptions(product).enumerated() {
                     commands.append(PaletteCommand(id: "play-\(option.id)", label: "Play: \(option.title) · \(product.name)", group: "Play", icon: .play,

@@ -158,6 +158,19 @@ public struct GitService: Sendable {
         await run(["fetch", "--quiet", "--prune", "--no-tags"], in: URL(fileURLWithPath: path, isDirectory: true), timeout: 60)
     }
 
+    /// The `origin` URL as configured, before any `insteadOf` rewrite. Nil when the checkout has none.
+    public func origin(path: String) async -> String? {
+        guard let result = await run(["config", "--get", "remote.origin.url"], in: URL(fileURLWithPath: path, isDirectory: true)), result.ok else { return nil }
+        let url = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return url.isEmpty ? nil : url
+    }
+
+    /// `git remote set-url origin <url>` for one checkout. A local write the person asks for.
+    public func setOrigin(path: String, url: String) async -> Bool {
+        guard RepositoryURL.parse(url) != nil, !url.hasPrefix("-") else { return false }
+        return await run(["remote", "set-url", "origin", url], in: URL(fileURLWithPath: path, isDirectory: true))?.ok == true
+    }
+
     public enum CloneError: Error, CustomStringConvertible, Equatable {
         case destinationExists(String)
         case invalidURL

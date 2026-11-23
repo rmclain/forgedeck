@@ -556,6 +556,10 @@ struct ProductSettingsTab: View {
     @State private var notes = ""
     @State private var linkLabel = ""
     @State private var linkURL = ""
+    @State private var editingRepository: UUID?
+    @State private var newRepository = ""
+    @State private var updateOrigins = true
+    @State private var changingRepository = false
 
     private func saveDetails() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
@@ -628,6 +632,8 @@ struct ProductSettingsTab: View {
             }
             .padding(Space.lg).card()
 
+            if !product.repositories.isEmpty { repositoriesCard }
+
             VStack(alignment: .leading, spacing: Space.sm) {
                 CardHeader(title: "Components", subtitle: "\(product.components.count)")
                 if product.components.isEmpty { Text("Components appear when you link folders or repositories.").kitType(.label, Ink.text2) }
@@ -666,5 +672,61 @@ struct ProductSettingsTab: View {
             tags = product.tags.joined(separator: ", ")
             notes = product.notes
         }
+    }
+
+    private var repositoriesCard: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            CardHeader(title: "Repositories", subtitle: "Where this product's code lives. Change it after a transfer or rename.")
+            ForEach(product.repositories) { repo in
+                ActionRow(icon: .branch, title: repo.fullName, subtitle: repo.webURL, mono: true) {
+                    if editingRepository != repo.id {
+                        Button("Change…") {
+                            editingRepository = repo.id
+                            newRepository = repo.fullName
+                            updateOrigins = true
+                        }
+                        .buttonStyle(.kit(.secondary, compact: true)).disabled(product.isDemo || changingRepository)
+                        .help("Point \(repo.fullName) at another repository, for example after moving it to another owner")
+                    }
+                }
+                if editingRepository == repo.id { repositoryEditor(repo) }
+            }
+        }
+        .padding(Space.lg).card()
+    }
+
+    private func repositoryEditor(_ repo: Repository) -> some View {
+        let parsed = RepositoryURL.parse(newRepository)
+        let hasFolder = product.checkouts.contains { !$0.path.isEmpty }
+        return VStack(alignment: .leading, spacing: Space.sm) {
+            LabeledField(label: "New repository",
+                         hint: parsed.map { "\($0.owner)/\($0.name) on \($0.host)" } ?? "owner/repo, https://github.com/owner/repo, or git@github.com:owner/repo.git") {
+                KitField(placeholder: "owner/repo", text: $newRepository, monospaced: true)
+            }
+            if hasFolder {
+                Toggle("Also point the local folder's origin here", isOn: $updateOrigins)
+                    .toggleStyle(.checkbox).font(KitType.label.font)
+                    .help("Runs git remote set-url origin in each local folder whose origin is \(repo.fullName). Folders pointing elsewhere are left alone.")
+            }
+            Text("GitHub data for \(repo.fullName) is cleared and fetched again from the new repository. Nothing changes on GitHub.")
+                .kitType(.label, Ink.text2)
+            HStack(spacing: Space.sm) {
+                Spacer()
+                Button("Cancel") { editingRepository = nil }.buttonStyle(.kit(.ghost))
+                Button(changingRepository ? "Changing…" : "Change Repository") {
+                    changingRepository = true
+                    Task {
+                        if let problem = await model.changeRepository(repo.id, of: product.id, to: newRepository, updateOrigins: hasFolder && updateOrigins) {
+                            model.show(problem, isError: true)
+                        } else {
+                            editingRepository = nil
+                        }
+                        changingRepository = false
+                    }
+                }
+                .buttonStyle(.kit(.secondary)).disabled(parsed == nil || changingRepository || product.isDemo)
+            }
+        }
+        .padding(Space.md).background(Ink.field, in: RoundedRectangle(cornerRadius: Metric.controlRadius))
     }
 }

@@ -249,6 +249,16 @@ enum SelfTest {
               checkout.map { URL(fileURLWithPath: $0.path).resolvingSymlinksInPath().path == destination.resolvingSymlinksInPath().path } == true, checkout?.path ?? "none")
         await model.cloneRepository(repository, into: parent, for: product.id)
         check("a second clone never overwrites the folder", model.toast?.isError == true && model.product(product.id)?.checkouts.count == 1, model.toast?.text ?? "")
+
+        // Changing the repository (xyz/repo to abc/repo) keeps the entry and moves the folder's origin with it.
+        let problem = await model.changeRepository(repository.id, of: product.id, to: "selftest-moved/selftest-clone", updateOrigins: true)
+        let moved = model.product(product.id)?.repositories.first
+        check("a repository can be pointed at another owner", problem == nil && moved?.id == repository.id && moved?.fullName == "selftest-moved/selftest-clone",
+              problem ?? moved?.fullName ?? "none")
+        let originNow = await GitService().origin(path: destination.path)
+        check("the local folder's origin follows the new repository", originNow == "git@github.com:selftest-moved/selftest-clone.git", originNow ?? "none")
+        let same = await model.changeRepository(repository.id, of: product.id, to: "selftest-moved/selftest-clone", updateOrigins: true)
+        check("pointing a repository where it already points is refused", same != nil)
         if let current = model.product(product.id) { model.portfolio.products.removeAll { $0.id == current.id }; model.save() }
         try? fm.removeItem(at: base)
     }
